@@ -1,13 +1,15 @@
 /**
- * microbot 入口文件
+ * microbot 入口
  * 
- * 创建应用实例并导出
+ * 后续阶段将实现完整的启动逻辑
  */
 
-export async function createApp(configPath?: string) {
-  // TODO: 实现模块组装
-  return {
-    start: async () => {},
-    stop: async () => {},
-  };
+export async function run(): Promise<void> {
+  // TODO: 阶段 9 实现完整启动逻辑
+  console.log('microbot - 开发中...');
+}
+
+// 直接运行时执行
+if (import.meta.main) {
+  run();
 }

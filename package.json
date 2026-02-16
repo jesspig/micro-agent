@@ -17,6 +17,12 @@
     "dev": "bun run src/cli.ts start",
     "start": "bun run src/cli.ts start",
     "test": "bun test",
+    "test:container": "bun test tests/unit/container.test.ts",
+    "test:config": "bun test tests/unit/config.test.ts",
+    "test:db": "bun test tests/unit/db.test.ts",
+    "test:unit": "bun test tests/unit/",
+    "test:integration": "bun test tests/integration/",
+    "test:e2e": "bun test tests/e2e/",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
