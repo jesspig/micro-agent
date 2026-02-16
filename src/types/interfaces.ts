@@ -4,6 +4,9 @@
  * 零依赖模块，定义所有核心接口，避免循环依赖。
  */
 
+/** 通道类型 */
+export type ChannelType = 'feishu' | 'qq' | 'email' | 'dingtalk' | 'wecom';
+
 /** 依赖注入容器 */
 export interface Container {
   /** 注册瞬态工厂，每次 resolve 返回新实例 */
