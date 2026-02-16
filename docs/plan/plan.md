@@ -15,10 +15,10 @@
 | **语言/版本** | TypeScript 5.0+ |
 | **运行时** | Bun ^1.3.9 |
 | **包管理** | pnpm ^10.0.0 |
-| **LLM SDK** | Vercel AI SDK ^6.0.0 |
+| **LLM SDK** | Vercel AI SDK ^6.0.86 |
 | **数据库** | Bun SQLite（内置） |
-| **日志** | pino ^10.0.0 |
-| **验证** | Zod ^4.0.0 |
+| **日志** | pino ^10.3.1 |
+| **验证** | Zod ^4.3.6 |
 | **测试** | Bun test |
 | **目标平台** | Node.js/Bun 服务器 |
 

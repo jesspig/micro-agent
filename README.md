@@ -1,7 +1,7 @@
 # microbot
 
 [![Bun](https://img.shields.io/badge/Bun-1.3.9-black?logo=bun)](https://bun.sh/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue?logo=typescript)](https://www.typescriptlang.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9.3-blue?logo=typescript)](https://www.typescriptlang.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 使用 **Bun + TypeScript** 构建的超轻量级个人 AI 助手框架，复刻自 [nanobot](https://github.com/HKUDS/nanobot)。
@@ -25,7 +25,7 @@ git clone https://github.com/jesspig/microbot.git
 cd microbot
 
 # 安装依赖
-bun install
+pnpm install
 ```
 
 ## ⚡ 快速开始
@@ -44,8 +44,7 @@ cp config.example.yaml config.yaml
 
 ```bash
 # .env
-OPENAI_API_KEY=your-api-key
-OPENAI_BASE_URL=https://api.openai.com/v1  # 或其他兼容端点
+DEEPSEEK_API_KEY=your-api-key  # 如需云服务
 ```
 
 ### 3. 运行
@@ -72,19 +71,20 @@ bun run start
 
 **设计理念**：本地优先，通过 OpenAI Compatible 接入云服务。
 
-| 类型 | Provider |
-|------|----------|
-| 本地 | Ollama、LM Studio、vLLM |
-| 自定义 | OpenAI Compatible（可接入任意云服务） |
+| 类型 | Provider | 说明 |
+|------|----------|------|
+| **内置本地** | Ollama | 默认支持，baseUrl: http://localhost:11434/v1 |
+| **内置本地** | LM Studio | baseUrl: http://localhost:1234/v1 |
+| **内置本地** | vLLM | 自定义 baseUrl |
+| **通用接口** | OpenAI Compatible | 接入 OpenAI、DeepSeek、Gemini 等云服务 |
 
 ### LLM Gateway
 
 Gateway 提供统一的 LLM 接口，聚合多个 Provider：
 
-- **自动路由**：根据模型名自动选择合适的 Provider
-- **故障转移**：主 Provider 失败时自动切换到备用
+- **自动路由**：根据模型名自动选择 Provider
+- **故障转移**：主 Provider 失败时自动切换备用
 - **负载均衡**：多 Provider 间均匀分配请求
-- **自定义扩展**：轻松添加新的 Provider
 
 ```typescript
 // 创建 Gateway（本地优先）
@@ -150,23 +150,23 @@ microbot/
 ├── src/
 │   ├── index.ts          # 入口
 │   ├── cli.ts            # CLI 命令
+│   ├── types/            # 类型定义
+│   ├── utils/            # 工具函数
+│   ├── config/           # 配置管理
+│   ├── db/               # 数据库管理
 │   ├── bus/              # 消息总线
-│   ├── channels/         # 通道实现
-│   │   ├── feishu.ts
-│   │   ├── qq.ts
-│   │   ├── email.ts
-│   │   ├── dingtalk.ts
-│   │   └── wecom.ts
-│   ├── agent/            # Agent 核心
-│   │   ├── loop.ts
-│   │   ├── context.ts
-│   │   ├── memory.ts
-│   │   └── tools/
+│   ├── session/          # 会话存储
+│   ├── memory/           # 记忆存储
 │   ├── cron/             # 定时任务
-│   │   └── service.ts
+│   ├── heartbeat/        # 心跳服务
+│   ├── tools/            # 工具系统
 │   ├── providers/        # LLM Provider
-│   └── config/           # 配置管理
+│   ├── agent/            # Agent 核心
+│   ├── channels/         # 通道实现
+│   └── skills/           # 技能系统
 ├── tests/
+├── docs/plan/            # 实施计划
+├── specs/                # 规格文档
 ├── package.json
 └── tsconfig.json
 ```
@@ -201,7 +201,7 @@ bun build
 agents:
   defaults:
     workspace: ~/.microbot/workspace
-    model: gpt-4o
+    model: qwen3
     maxTokens: 8192
 
 channels:
@@ -219,12 +219,4 @@ channels:
     enabled: false
     imapHost: imap.example.com
     smtpHost: smtp.example.com
-
-llm:
-  baseUrl: https://api.openai.com/v1  # 或其他 OpenAI 兼容端点
-  apiKey: ${OPENAI_API_KEY}           # 支持环境变量引用
 ```
-
-## 📜 许可证
-
-[MIT](LICENSE)

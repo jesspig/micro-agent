@@ -1,0 +1,13 @@
+# Bun 配置
+
+[install]
+# 使用 pnpm 兼容的 node_modules 结构
+linkNativePackages = true
+
+[run]
+# 静默模式
+silent = false
+
+[test]
+# 测试配置
+preload = ["./tests/setup.ts"]

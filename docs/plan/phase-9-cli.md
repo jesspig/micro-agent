@@ -352,20 +352,20 @@ export async function createApp(configPath?: string): Promise<App> {
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "ai": "^6.0.0",
-    "js-yaml": "^4.1.0",
-    "mitt": "^3.0.0",
-    "pino": "^10.0.0",
-    "zod": "^4.0.0",
+    "ai": "^6.0.86",
+    "js-yaml": "^4.1.1",
+    "mitt": "^3.0.1",
+    "pino": "^10.3.1",
+    "zod": "^4.3.6",
     "@larksuiteoapi/node-sdk": "^1.59.0",
-    "imapflow": "^1.2.0",
-    "nodemailer": "^8.0.0",
+    "imapflow": "^1.2.9",
+    "nodemailer": "^8.0.1",
     "cron-schedule": "^6.0.0",
     "gray-matter": "^4.0.3"
   },
   "devDependencies": {
     "@types/bun": "latest",
-    "typescript": "^5.0.0"
+    "typescript": "^5.9.3"
   }
 }
 ```
