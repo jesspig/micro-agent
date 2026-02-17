@@ -28,5 +28,8 @@ logs/
 # 测试覆盖率
 coverage/
 
+# 测试临时文件
+test-skills-temp/
+
 # 运行时数据
 .microbot/
