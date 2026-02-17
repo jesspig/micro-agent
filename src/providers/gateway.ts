@@ -1,11 +1,11 @@
-import type { ILLMProvider, LLMMessage, LLMResponse, LLMToolDefinition } from './base';
+import type { LLMProvider, LLMMessage, LLMResponse, LLMToolDefinition } from './base';
 import { getLogger } from '@logtape/logtape';
 
 const log = getLogger(['gateway']);
 
 /** Provider 配置 */
 interface ProviderEntry {
-  provider: ILLMProvider;
+  provider: LLMProvider;
   models: string[];
   priority: number;
 }
@@ -30,7 +30,7 @@ const DEFAULT_CONFIG: GatewayConfig = {
  * - 如果指定了 provider 前缀，直接路由到对应 provider
  * - 如果没有前缀，自动查找支持该模型的 provider
  */
-export class LLMGateway implements ILLMProvider {
+export class LLMGateway implements LLMProvider {
   readonly name = 'gateway';
   
   private providers = new Map<string, ProviderEntry>();
@@ -46,7 +46,7 @@ export class LLMGateway implements ILLMProvider {
    */
   registerProvider(
     name: string,
-    provider: ILLMProvider,
+    provider: LLMProvider,
     models: string[],
     priority: number = 100
   ): void {

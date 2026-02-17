@@ -25,15 +25,11 @@ export interface Channel {
 }
 
 /**
- * @deprecated 请使用 ChannelHelper 组合模式
+ * 通道辅助对象（组合优于继承）
  * 
- * 通道基类（已废弃）
- * 
- * 提供通用的辅助方法，子类只需实现核心逻辑。
- * 建议使用组合模式：通过构造函数注入 ChannelHelper。
+ * 提供通用的辅助方法，通道类通过组合而非继承使用。
  */
-export abstract class BaseChannel implements Channel {
-  abstract readonly name: ChannelType;
+export class ChannelHelper {
   protected _running = false;
 
   constructor(
@@ -41,22 +37,19 @@ export abstract class BaseChannel implements Channel {
     protected allowFrom: string[] = []
   ) {}
 
-  abstract start(): Promise<void>;
-  abstract stop(): Promise<void>;
-  abstract send(msg: OutboundMessage): Promise<void>;
-
   get isRunning(): boolean {
     return this._running;
   }
 
   /** 检查发送者是否被允许 */
-  protected isAllowed(senderId: string): boolean {
+  isAllowed(senderId: string): boolean {
     if (this.allowFrom.length === 0) return true;
     return this.allowFrom.includes(senderId);
   }
 
   /** 处理入站消息 */
-  protected async handleInbound(
+  async handleInbound(
+    channelName: ChannelType,
     senderId: string,
     chatId: string,
     content: string,
@@ -68,7 +61,7 @@ export abstract class BaseChannel implements Channel {
     }
 
     const msg: InboundMessage = {
-      channel: this.name,
+      channel: channelName,
       senderId,
       chatId,
       content,

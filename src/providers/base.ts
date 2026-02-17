@@ -66,7 +66,7 @@ export interface OpenAIResponse {
 }
 
 /** Provider 接口 */
-export interface ILLMProvider {
+export interface LLMProvider {
   /** Provider 名称 */
   readonly name: string;
   

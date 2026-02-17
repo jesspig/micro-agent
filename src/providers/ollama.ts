@@ -1,4 +1,4 @@
-import type { ILLMProvider, LLMMessage, LLMResponse, LLMToolDefinition, OpenAIResponse } from './base';
+import type { LLMProvider, LLMMessage, LLMResponse, LLMToolDefinition, OpenAIResponse } from './base';
 import { parseOpenAIResponse } from './base';
 
 /** Ollama 配置 */
@@ -17,7 +17,7 @@ const DEFAULT_CONFIG: OllamaConfig = {
  * 
  * 通过 OpenAI 兼容 API 连接本地 Ollama。
  */
-export class OllamaProvider implements ILLMProvider {
+export class OllamaProvider implements LLMProvider {
   readonly name = 'ollama';
 
   constructor(private config: OllamaConfig = DEFAULT_CONFIG) {}

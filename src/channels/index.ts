@@ -3,6 +3,7 @@ export { BaseChannel, type Channel } from './base';
 
 // 通道管理器
 export { ChannelManager } from './manager';
+export { ChannelHelper } from './helper';
 
 // 通道实现
 export { FeishuChannel } from './feishu';

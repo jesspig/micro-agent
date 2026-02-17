@@ -1,4 +1,4 @@
-import type { ILLMProvider, LLMMessage, LLMResponse, LLMToolDefinition, OpenAIResponse } from './base';
+import type { LLMProvider, LLMMessage, LLMResponse, LLMToolDefinition, OpenAIResponse } from './base';
 import { parseOpenAIResponse } from './base';
 
 /** vLLM 配置 */
@@ -13,7 +13,7 @@ export interface VLLMConfig {
  * 
  * 通过 OpenAI 兼容 API 连接 vLLM 服务。
  */
-export class VLLMProvider implements ILLMProvider {
+export class VLLMProvider implements LLMProvider {
   readonly name = 'vllm';
 
   constructor(private config: VLLMConfig) {}

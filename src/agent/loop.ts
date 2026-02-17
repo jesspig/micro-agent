@@ -1,4 +1,4 @@
-import type { ILLMProvider, LLMMessage, LLMToolDefinition } from '../providers/base';
+import type { LLMProvider, LLMMessage, LLMToolDefinition } from '../providers/base';
 import type { MessageBus } from '../bus/queue';
 import type { SessionStore } from '../session/store';
 import type { MemoryStore } from '../memory/store';
@@ -40,7 +40,7 @@ export class AgentLoop {
 
   constructor(
     private bus: MessageBus,
-    private provider: ILLMProvider,
+    private provider: LLMProvider,
     private sessionStore: SessionStore,
     private memoryStore: MemoryStore,
     private toolRegistry: ToolRegistry,
@@ -86,9 +86,18 @@ export class AgentLoop {
 
     // 构建上下文
     const contextBuilder = new ContextBuilder(this.config.workspace, this.memoryStore);
+    
+    // 设置当前目录（用于目录级配置查找）
+    const currentDir = msg.currentDir || this.config.workspace;
+    contextBuilder.setCurrentDir(currentDir);
+    
     const history = this.getHistory(sessionKey);
     let messages = await contextBuilder.buildMessages(history, msg.content, msg.media);
-    log.debug('上下文: {messages} 条消息, {history} 条历史', { messages: messages.length, history: history.length });
+    log.debug('上下文: {messages} 条消息, {history} 条历史, currentDir: {dir}', { 
+      messages: messages.length, 
+      history: history.length,
+      dir: currentDir 
+    });
 
     // ReAct 循环
     let iteration = 0;
@@ -182,6 +191,7 @@ export class AgentLoop {
       channel: msg.channel,
       chatId: msg.chatId,
       workspace: this.config.workspace,
+      currentDir: msg.currentDir || this.config.workspace,
       sendToBus: async (m) => this.bus.publishOutbound(m as OutboundMessage),
     };
   }

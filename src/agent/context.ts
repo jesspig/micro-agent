@@ -1,29 +1,49 @@
 import type { LLMMessage, ToolCall } from '../providers/base';
 import type { MemoryStore } from '../memory/store';
-import { existsSync } from 'fs';
-import { join } from 'path';
+import { loadTemplateFile } from '../config/loader';
 
 /** Bootstrap 文件列表 */
-const BOOTSTRAP_FILES = ['AGENTS.md', 'IDENTITY.md', 'USER.md', 'TOOLS.md', 'SOUL.md'];
+const BOOTSTRAP_FILES = ['AGENTS.md', 'IDENTITY.md', 'USER.md', 'TOOLS.md', 'SOUL.md'] as const;
 
 /**
  * 上下文构建器
  * 
  * 构建发送给 LLM 的消息上下文，包括：
- * - 系统消息（bootstrap 文件）
+ * - 系统消息（bootstrap 文件，按层级查找）
  * - 记忆上下文
  * - 历史消息
  * - 当前消息
  */
 export class ContextBuilder {
+  /** 当前工作目录（用于目录级配置查找） */
+  private currentDir: string;
+
   /**
-   * @param workspace - 工作目录
+   * @param workspace - 工作目录（项目级）
    * @param memoryStore - 记忆存储
    */
   constructor(
     private workspace: string,
     private memoryStore: MemoryStore
-  ) {}
+  ) {
+    // 默认 currentDir 为 workspace
+    this.currentDir = workspace;
+  }
+
+  /**
+   * 设置当前工作目录
+   * 用于目录级配置查找
+   */
+  setCurrentDir(dir: string): void {
+    this.currentDir = dir;
+  }
+
+  /**
+   * 获取当前工作目录
+   */
+  getCurrentDir(): string {
+    return this.currentDir;
+  }
 
   /**
    * 构建消息列表
@@ -65,19 +85,19 @@ export class ContextBuilder {
 
   /**
    * 构建系统消息内容
+   * 
+   * 按优先级查找模板文件：
+   * 系统级 < 用户级 < 项目级 < 目录级（向上递归）
    */
   private async buildSystemContent(): Promise<string> {
     const parts: string[] = [];
 
     for (const file of BOOTSTRAP_FILES) {
-      const path = join(this.workspace, file);
       try {
-        if (existsSync(path)) {
-          const content = await Bun.file(path).text();
-          if (content.trim()) {
-            const name = file.replace('.md', '');
-            parts.push(`## ${name}\n\n${content.trim()}`);
-          }
+        const content = loadTemplateFile(file, this.workspace, this.currentDir);
+        if (content?.trim()) {
+          const name = file.replace('.md', '');
+          parts.push(`## ${name}\n\n${content.trim()}`);
         }
       } catch {
         // 文件读取失败，跳过

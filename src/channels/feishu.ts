@@ -1,4 +1,4 @@
-import { BaseChannel } from './base';
+import { ChannelHelper } from './helper';
 import type { OutboundMessage } from '../bus/events';
 import type { MessageBus } from '../bus/queue';
 import type { ChannelType } from '../types/interfaces';
@@ -54,15 +54,22 @@ interface FeishuMessageData {
  * 
  * 注意：消息处理需在 3 秒内完成。
  */
-export class FeishuChannel extends BaseChannel {
+export class FeishuChannel {
   readonly name: ChannelType = 'feishu';
   private client: lark.Client | null = null;
   private wsClient: lark.WSClient | null = null;
   private processedMessageIds = new Set<string>();
   private readonly MAX_PROCESSED_IDS = 500;
+  private _running = false;
 
-  constructor(bus: MessageBus, private config: FeishuConfig) {
-    super(bus, config.allowFrom);
+  constructor(
+    private bus: MessageBus,
+    private config: FeishuConfig,
+    private helper: ChannelHelper
+  ) {}
+
+  get isRunning(): boolean {
+    return this._running;
   }
 
   async start(): Promise<void> {
@@ -205,7 +212,7 @@ export class FeishuChannel extends BaseChannel {
       const chatTypeLabel = chatType === 'p2p' ? '私聊' : '群聊';
       log.info('飞书消息 [{type}]: "{content}"', { type: chatTypeLabel, content: content.slice(0, 30) });
 
-      await this.handleInbound(senderId, replyTo, content, [], {
+      await this.helper.handleInbound(this.name, senderId, replyTo, content, [], {
         messageId,
         chatType,
         msgType,

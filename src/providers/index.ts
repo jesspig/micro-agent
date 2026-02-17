@@ -5,7 +5,7 @@ export {
   type LLMMessage,
   type LLMResponse,
   type LLMToolDefinition,
-  type ILLMProvider,
+  type LLMProvider,
   parseOpenAIResponse,
 } from './base';
 

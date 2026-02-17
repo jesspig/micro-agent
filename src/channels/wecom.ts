@@ -1,4 +1,4 @@
-import { BaseChannel } from './base';
+import { ChannelHelper } from './helper';
 import type { OutboundMessage } from '../bus/events';
 import type { MessageBus } from '../bus/queue';
 import type { ChannelType } from '../types/interfaces';
@@ -18,12 +18,19 @@ interface WeComConfig {
  * 
  * 支持 Webhook 和应用模式。
  */
-export class WeComChannel extends BaseChannel {
+export class WeComChannel {
   readonly name: ChannelType = 'wecom';
   private accessToken: string | null = null;
+  private _running = false;
 
-  constructor(bus: MessageBus, private config: WeComConfig) {
-    super(bus, config.allowFrom);
+  constructor(
+    private bus: MessageBus,
+    private config: WeComConfig,
+    private helper: ChannelHelper
+  ) {}
+
+  get isRunning(): boolean {
+    return this._running;
   }
 
   async start(): Promise<void> {

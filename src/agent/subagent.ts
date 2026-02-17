@@ -1,4 +1,4 @@
-import type { ILLMProvider, LLMMessage } from '../providers/base';
+import type { LLMProvider, LLMMessage } from '../providers/base';
 import type { MessageBus } from '../bus/queue';
 
 /**
@@ -10,7 +10,7 @@ export class SubagentManager {
   private runningTasks = new Map<string, Promise<void>>();
 
   constructor(
-    private provider: ILLMProvider,
+    private provider: LLMProvider,
     private workspace: string,
     private bus: MessageBus,
     private model: string

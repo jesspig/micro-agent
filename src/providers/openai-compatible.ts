@@ -1,4 +1,4 @@
-import type { ILLMProvider, LLMMessage, LLMResponse, LLMToolDefinition, OpenAIResponse } from './base';
+import type { LLMProvider, LLMMessage, LLMResponse, LLMToolDefinition, OpenAIResponse } from './base';
 import { parseOpenAIResponse } from './base';
 
 /** OpenAI Compatible 配置 */
@@ -19,7 +19,7 @@ export interface OpenAICompatibleConfig {
  * - OpenRouter
  * 等
  */
-export class OpenAICompatibleProvider implements ILLMProvider {
+export class OpenAICompatibleProvider implements LLMProvider {
   readonly name = 'openai-compatible';
 
   constructor(private config: OpenAICompatibleConfig) {}

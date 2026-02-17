@@ -1,0 +1,24 @@
+# microbot 系统级默认配置
+# 此文件为内置配置，请勿修改
+# 用户配置请在 ~/.microbot/settings.yaml 中覆盖
+
+agents:
+  defaults:
+    workspace: ~/.microbot/workspace
+    model: ollama/qwen3
+    maxTokens: 8192
+    temperature: 0.7
+    maxToolIterations: 20
+
+providers:
+  ollama:
+    baseUrl: http://localhost:11434/v1
+    models:
+      - qwen3
+
+channels:
+  feishu:
+    enabled: false
+    appId: ""
+    appSecret: ""
+    allowFrom: []

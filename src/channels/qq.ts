@@ -1,4 +1,4 @@
-import { BaseChannel } from './base';
+import { ChannelHelper } from './helper';
 import type { OutboundMessage } from '../bus/events';
 import type { MessageBus } from '../bus/queue';
 import type { ChannelType } from '../types/interfaces';
@@ -15,12 +15,19 @@ interface QQConfig {
  * 
  * 使用 WebSocket 连接接收消息。
  */
-export class QQChannel extends BaseChannel {
+export class QQChannel {
   readonly name: ChannelType = 'qq';
   private ws: WebSocket | null = null;
+  private _running = false;
 
-  constructor(bus: MessageBus, private config: QQConfig) {
-    super(bus, config.allowFrom);
+  constructor(
+    private bus: MessageBus,
+    private config: QQConfig,
+    private helper: ChannelHelper
+  ) {}
+
+  get isRunning(): boolean {
+    return this._running;
   }
 
   async start(): Promise<void> {
@@ -33,7 +40,8 @@ export class QQChannel extends BaseChannel {
         const data = JSON.parse(event.data as string);
         if (data.t === 'AT_MESSAGE_CREATE' || data.t === 'MESSAGE_CREATE') {
           const content = this.parseContent(data.d.content);
-          await this.handleInbound(
+          await this.helper.handleInbound(
+            this.name,
             data.d.author.id,
             data.d.channel_id,
             content

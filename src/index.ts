@@ -18,6 +18,7 @@ import { ReadFileTool, WriteFileTool, ListDirTool, ExecTool, WebSearchTool, WebF
 import { LLMGateway, OpenAICompatibleProvider } from './providers';
 import { AgentLoop } from './agent/loop';
 import { ChannelManager } from './channels/manager';
+import { ChannelHelper } from './channels/helper';
 import { FeishuChannel, QQChannel, DingTalkChannel, WeComChannel } from './channels';
 import type { App, CronJobSummary } from './types/interfaces';
 import type { Config, ProviderEntry } from './config/schema';
@@ -253,42 +254,46 @@ class AppImpl implements App {
 
     // 飞书
     if (channels.feishu?.enabled && channels.feishu.appId && channels.feishu.appSecret) {
+      const helper = new ChannelHelper(bus, channels.feishu.allowFrom);
       const channel = new FeishuChannel(bus, {
         appId: channels.feishu.appId,
         appSecret: channels.feishu.appSecret,
         allowFrom: channels.feishu.allowFrom,
-      });
+      }, helper);
       this.channelManager.register(channel);
     }
 
     // QQ
     if (channels.qq?.enabled && channels.qq.appId && channels.qq.secret) {
+      const helper = new ChannelHelper(bus, channels.qq.allowFrom || []);
       const channel = new QQChannel(bus, {
         appId: channels.qq.appId,
         secret: channels.qq.secret,
         allowFrom: [],
-      });
+      }, helper);
       this.channelManager.register(channel);
     }
 
     // 钉钉
     if (channels.dingtalk?.enabled && channels.dingtalk.clientId && channels.dingtalk.clientSecret) {
+      const helper = new ChannelHelper(bus, channels.dingtalk.allowFrom || []);
       const channel = new DingTalkChannel(bus, {
         clientId: channels.dingtalk.clientId,
         clientSecret: channels.dingtalk.clientSecret,
         allowFrom: [],
-      });
+      }, helper);
       this.channelManager.register(channel);
     }
 
     // 企业微信
     if (channels.wecom?.enabled && channels.wecom.corpId && channels.wecom.agentId && channels.wecom.secret) {
+      const helper = new ChannelHelper(bus, channels.wecom.allowFrom || []);
       const channel = new WeComChannel(bus, {
         corpId: channels.wecom.corpId,
         agentId: channels.wecom.agentId,
         secret: channels.wecom.secret,
         allowFrom: [],
-      });
+      }, helper);
       this.channelManager.register(channel);
     }
   }
@@ -299,8 +304,13 @@ class AppImpl implements App {
  * @param configPath - 配置文件路径（可选）
  */
 export async function createApp(configPath?: string): Promise<App> {
-  const config = loadConfig(configPath);
-  const workspace = expandPath(config.agents.defaults.workspace);
+  // 1. 先加载基础配置（系统级 + 用户级）获取 workspace
+  const baseConfig = loadConfig(configPath ? { configPath } : {});
+  const workspace = expandPath(baseConfig.agents.defaults.workspace);
+
+  // 2. 加载完整配置（包含项目级和目录级）
+  const config = loadConfig({ workspace });
+
   return new AppImpl(config, workspace);
 }
 

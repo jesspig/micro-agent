@@ -6,8 +6,10 @@ export interface ToolContext {
   channel: string;
   /** 当前聊天 ID */
   chatId: string;
-  /** 工作目录 */
+  /** 工作目录（项目级） */
   workspace: string;
+  /** 当前工作目录（用于目录级配置查找） */
+  currentDir: string;
   /** 发送消息到总线 */
   sendToBus: (msg: unknown) => Promise<void>;
 }

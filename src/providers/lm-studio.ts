@@ -1,4 +1,4 @@
-import type { ILLMProvider, LLMMessage, LLMResponse, LLMToolDefinition, OpenAIResponse } from './base';
+import type { LLMProvider, LLMMessage, LLMResponse, LLMToolDefinition, OpenAIResponse } from './base';
 import { parseOpenAIResponse } from './base';
 
 /** LM Studio 配置 */
@@ -17,7 +17,7 @@ const DEFAULT_CONFIG: LMStudioConfig = {
  * 
  * 通过 OpenAI 兼容 API 连接本地 LM Studio。
  */
-export class LMStudioProvider implements ILLMProvider {
+export class LMStudioProvider implements LLMProvider {
   readonly name = 'lm-studio';
 
   constructor(private config: LMStudioConfig = DEFAULT_CONFIG) {}

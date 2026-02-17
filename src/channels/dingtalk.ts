@@ -1,4 +1,4 @@
-import { BaseChannel } from './base';
+import { ChannelHelper } from './helper';
 import type { OutboundMessage } from '../bus/events';
 import type { MessageBus } from '../bus/queue';
 import type { ChannelType } from '../types/interfaces';
@@ -15,12 +15,19 @@ interface DingTalkConfig {
  * 
  * 使用 Stream 模式接收消息。
  */
-export class DingTalkChannel extends BaseChannel {
+export class DingTalkChannel {
   readonly name: ChannelType = 'dingtalk';
   private accessToken: string | null = null;
+  private _running = false;
 
-  constructor(bus: MessageBus, private config: DingTalkConfig) {
-    super(bus, config.allowFrom);
+  constructor(
+    private bus: MessageBus,
+    private config: DingTalkConfig,
+    private helper: ChannelHelper
+  ) {}
+
+  get isRunning(): boolean {
+    return this._running;
   }
 
   async start(): Promise<void> {

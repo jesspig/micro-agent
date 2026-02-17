@@ -16,6 +16,8 @@ export interface InboundMessage {
   media: string[];
   /** 元数据 */
   metadata: Record<string, unknown>;
+  /** 当前工作目录（用于目录级配置查找） */
+  currentDir?: string;
 }
 
 /** 出站消息 */
