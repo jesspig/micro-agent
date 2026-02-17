@@ -23,6 +23,8 @@ export interface Skill extends SkillSummary {
   license?: string;
   /** 环境兼容性要求 */
   compatibility?: string;
+  /** 是否自动加载完整内容 */
+  always?: boolean;
   /** 元数据 */
   metadata: Record<string, string>;
   /** 预批准工具列表 */
@@ -39,6 +41,7 @@ interface SkillFrontmatter {
   description?: string;
   license?: string;
   compatibility?: string;
+  always?: boolean;
   metadata?: Record<string, string>;
   'allowed-tools'?: unknown;
 }
@@ -116,6 +119,7 @@ export class SkillsLoader {
       description: fm.description ?? '',
       license: fm.license,
       compatibility: fm.compatibility,
+      always: fm.always ?? false,
       metadata: fm.metadata ?? {},
       allowedTools: this.parseAllowedTools(fm['allowed-tools']),
       content: content.trim(),
@@ -155,6 +159,14 @@ export class SkillsLoader {
       name: s.name,
       description: s.description,
     }));
+  }
+
+  /**
+   * 获取 always=true 的技能（自动加载完整内容）
+   * 这些技能会直接注入到系统上下文中，无需 Agent 主动读取
+   */
+  getAlwaysSkills(): Skill[] {
+    return this.getAll().filter(s => s.always === true);
   }
 
   /** 生成技能摘要 Markdown（用于注入系统提示） */

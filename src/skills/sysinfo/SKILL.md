@@ -2,6 +2,7 @@
 name: sysinfo
 description: 系统信息工具 - 获取 CPU/内存/磁盘/网络/进程等系统信息
 compatibility: Requires node/bun with os module, or system commands
+always: true
 allowed-tools: []
 ---
 

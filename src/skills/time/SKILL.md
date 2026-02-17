@@ -2,6 +2,7 @@
 name: time
 description: 时间工具 - 获取时间、格式化时间、计算时间差、时区转换、时间戳转换
 compatibility: Requires node/bun, python, or shell runtime
+always: true
 allowed-tools: []
 ---
 
