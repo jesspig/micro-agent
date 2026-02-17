@@ -38,3 +38,34 @@ export interface DatabaseConfig {
   /** 记忆数据库路径 */
   memoryDb: string;
 }
+
+/** 调度类型 */
+export type ScheduleKind = 'at' | 'every' | 'cron';
+
+/** Cron 任务摘要 */
+export interface CronJobSummary {
+  /** 任务 ID */
+  id: string;
+  /** 任务名称 */
+  name: string;
+  /** 调度类型 */
+  scheduleKind: ScheduleKind;
+  /** 调度值 */
+  scheduleValue?: string;
+}
+
+/** 应用实例接口 */
+export interface App {
+  /** 启动所有服务 */
+  start(): Promise<void>;
+  /** 停止所有服务 */
+  stop(): Promise<void>;
+  /** 获取运行中的通道列表 */
+  getRunningChannels(): string[];
+  /** 获取 Provider 状态 */
+  getProviderStatus(): string;
+  /** 获取 Cron 任务数量 */
+  getCronCount(): number;
+  /** 列出所有 Cron 任务摘要 */
+  listCronJobs(): CronJobSummary[];
+}
