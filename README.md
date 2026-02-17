@@ -30,31 +30,123 @@ pnpm install
 
 ## ⚡ 快速开始
 
-### 1. 配置
+### 1. 安装 LLM 服务
+
+**推荐：本地 Ollama**
 
 ```bash
-# 复制配置模板
-cp config.example.yaml config.yaml
-
-# 编辑配置
-# 填入你的 API Key 和通道配置
+# 安装 Ollama: https://ollama.ai
+ollama pull qwen3
 ```
 
-### 2. 设置环境变量
+**或使用云服务**
 
+设置环境变量：
 ```bash
-# .env
-DEEPSEEK_API_KEY=your-api-key  # 如需云服务
+export DEEPSEEK_API_KEY=your-api-key
+# 或
+export OPENAI_API_KEY=your-api-key
 ```
 
-### 3. 运行
+### 2. 创建用户配置
 
 ```bash
-# 开发模式
-bun run dev
+# 用户配置文件
+~/.microbot/settings.yaml
+```
 
-# 生产模式
-bun run start
+**最小配置（本地 Ollama）**：
+```yaml
+# ~/.microbot/settings.yaml
+agents:
+  defaults:
+    model: qwen3
+```
+
+**云服务配置**：
+```yaml
+# ~/.microbot/settings.yaml
+agents:
+  defaults:
+    model: deepseek-chat
+
+providers:
+  openaiCompatible:
+    baseUrl: https://api.deepseek.com/v1
+    apiKey: ${DEEPSEEK_API_KEY}
+    models: [deepseek-chat]
+```
+
+### 3. 启动服务
+
+```bash
+bun start
+```
+
+## 🖥️ CLI 命令
+
+```bash
+microbot [命令] [选项]
+
+命令:
+  start       启动服务
+  status      显示状态
+  cron        管理定时任务
+
+选项:
+  -c, --config <path>   配置文件路径
+  -h, --help            显示帮助
+  -v, --version         显示版本
+```
+
+### 示例
+
+```bash
+# 启动服务
+bun start
+
+# 指定配置文件
+bun start -c ./config.yaml
+
+# 查看状态
+bun run src/cli.ts status
+
+# 管理定时任务
+bun run src/cli.ts cron list
+bun run src/cli.ts cron add
+bun run src/cli.ts cron remove <id>
+```
+
+## 📁 用户数据目录
+
+```
+~/.microbot/
+├── settings.yaml      # 用户配置
+├── skills/            # 用户技能（优先级高于内置）
+│   └── my-skill/
+│       └── SKILL.md
+├── workspace/         # 工作目录
+│   ├── memory/        # 记忆存储
+│   │   ├── MEMORY.md  # 长期记忆
+│   │   └── 2026-02-17.md  # 今日日记
+│   ├── HEARTBEAT.md   # 心跳任务
+│   └── skills/        # 项目技能（最高优先级）
+└── data/              # 数据库
+    ├── sessions.db    # 会话存储
+    ├── cron.db        # 定时任务
+    └── memory.db      # 记忆索引
+```
+
+### 配置优先级
+
+```
+命令行 -c > ~/.microbot/settings.* > 项目 config.yaml
+```
+
+### 技能加载优先级
+
+```
+项目 skills/ > ~/.microbot/skills/ > 内置 skills/
 ```
 
 ## 📱 支持的通道
@@ -197,18 +289,42 @@ bun build
 ## 📄 配置示例
 
 ```yaml
-# config.yaml
+# ~/.microbot/settings.yaml
+
+# Agent 默认配置
 agents:
   defaults:
     workspace: ~/.microbot/workspace
     model: qwen3
     maxTokens: 8192
+    temperature: 0.7
+    maxToolIterations: 20
 
+# LLM Provider 配置
+providers:
+  # 本地 Ollama（默认）
+  ollama:
+    baseUrl: http://localhost:11434/v1
+    models: [qwen3, qwen3-next, qwen3-vl]
+
+  # LM Studio
+  lmStudio:
+    baseUrl: http://localhost:1234/v1
+    models: ["*"]
+
+  # 云服务（通过 OpenAI Compatible）
+  openaiCompatible:
+    baseUrl: https://api.deepseek.com/v1
+    apiKey: ${DEEPSEEK_API_KEY}
+    models: [deepseek-chat]
+
+# 通道配置
 channels:
   feishu:
     enabled: true
     appId: your-app-id
     appSecret: your-app-secret
+    allowFrom: []
 
   qq:
     enabled: false
@@ -218,5 +334,36 @@ channels:
   email:
     enabled: false
     imapHost: imap.example.com
+    imapPort: 993
     smtpHost: smtp.example.com
+    smtpPort: 587
+    user: your-email@example.com
+    password: your-password
+
+  dingtalk:
+    enabled: false
+    clientId: your-client-id
+    clientSecret: your-client-secret
+
+  wecom:
+    enabled: false
+    corpId: your-corp-id
+    agentId: your-agent-id
+    secret: your-secret
+```
+
+## 🔧 开发
+
+```bash
+# 开发模式（热重载）
+bun run dev
+
+# 类型检查
+bun run typecheck
+
+# 运行测试
+bun test
+
+# 构建
+bun build
 ```

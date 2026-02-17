@@ -1,9 +1,13 @@
 import { existsSync, readdirSync, readFileSync } from 'fs';
-import { join, basename } from 'path';
+import { join, basename, resolve } from 'path';
+import { homedir } from 'os';
 import matter from 'gray-matter';
 
 /** 技能名称验证正则：小写字母、数字、连字符 */
 const SKILL_NAME_REGEX = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+
+/** 用户技能目录 */
+const USER_SKILLS_DIR = '~/.microbot/skills';
 
 /** 技能摘要（用于启动时注入上下文） */
 export interface SkillSummary {
@@ -36,13 +40,14 @@ interface SkillFrontmatter {
   license?: string;
   compatibility?: string;
   metadata?: Record<string, string>;
-  'allowed-tools'?: string;
+  'allowed-tools'?: unknown;
 }
 
 /**
  * 技能加载器
  * 
- * 从 skills 目录加载 SKILL.md 文件，遵循 Agent Skills 规范。
+ * 从多个目录加载 SKILL.md 文件，遵循 Agent Skills 规范。
+ * 加载优先级：项目 > 用户 > 内置（后加载覆盖前者）
  * 支持渐进式披露：启动时加载摘要，按需加载完整内容。
  */
 export class SkillsLoader {
@@ -57,15 +62,21 @@ export class SkillsLoader {
   load(): void {
     this.skills.clear();
 
-    // 加载内置技能
+    // 1. 加载内置技能（最低优先级）
     if (existsSync(this.builtinPath)) {
       this.loadFromDir(this.builtinPath);
     }
 
-    // 加载用户技能（优先级更高，会覆盖同名内置技能）
-    const userSkillsPath = join(this.workspacePath, 'skills');
+    // 2. 加载用户技能 ~/.microbot/skills（中等优先级）
+    const userSkillsPath = expandPath(USER_SKILLS_DIR);
     if (existsSync(userSkillsPath)) {
       this.loadFromDir(userSkillsPath);
+    }
+
+    // 3. 加载项目技能（最高优先级）
+    const projectSkillsPath = join(this.workspacePath, 'skills');
+    if (existsSync(projectSkillsPath)) {
+      this.loadFromDir(projectSkillsPath);
     }
   }
 
@@ -159,4 +170,17 @@ export class SkillsLoader {
   get count(): number {
     return this.skills.size;
   }
+}
+
+/** 展开路径（支持 ~ 前缀） */
+function expandPath(path: string): string {
+  if (path.startsWith('~/')) {
+    return resolve(homedir(), path.slice(2));
+  }
+  return resolve(path);
+}
+
+/** 获取用户技能目录路径 */
+export function getUserSkillsPath(): string {
+  return expandPath(USER_SKILLS_DIR);
 }

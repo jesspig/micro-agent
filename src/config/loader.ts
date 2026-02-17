@@ -1,11 +1,17 @@
-import { readFileSync, existsSync } from 'fs';
+import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'fs';
 import { load } from 'js-yaml';
-import { resolve } from 'path';
+import { resolve, dirname, basename } from 'path';
 import { homedir } from 'os';
 import { ConfigSchema, type Config, type AgentConfig } from './schema';
 
-/** 配置文件查找路径 */
-const CONFIG_FILES = ['config.yaml', 'config.yml', '.microbot/config.yaml'];
+/** 用户配置目录 */
+const USER_CONFIG_DIR = '~/.microbot';
+
+/** 用户配置文件名（按优先级） */
+const USER_CONFIG_FILES = ['settings.yaml', 'settings.yml', 'settings.json', 'settings.toml'];
+
+/** 项目配置文件名 */
+const PROJECT_CONFIG_FILES = ['config.yaml', 'config.yml', '.microbot/config.yaml'];
 
 /** 默认 Agent 配置 */
 const DEFAULT_AGENT_CONFIG: AgentConfig = {
@@ -18,6 +24,8 @@ const DEFAULT_AGENT_CONFIG: AgentConfig = {
 
 /**
  * 加载配置文件
+ * 
+ * 优先级：命令行指定 > 用户配置 > 项目配置
  * @param configPath - 配置文件路径，默认自动查找
  */
 export function loadConfig(configPath?: string): Config {
@@ -27,14 +35,52 @@ export function loadConfig(configPath?: string): Config {
     channels: {},
   };
 
-  const filePath = configPath ?? findConfigFile();
+  // 1. 命令行指定
+  if (configPath) {
+    return loadFromFile(configPath, defaultConfig);
+  }
 
-  if (!filePath || !existsSync(filePath)) {
+  // 2. 用户配置 ~/.microbot/settings.*
+  const userConfig = findUserConfig();
+  if (userConfig) {
+    return loadFromFile(userConfig, defaultConfig);
+  }
+
+  // 3. 项目配置
+  const projectConfig = findProjectConfig();
+  if (projectConfig) {
+    return loadFromFile(projectConfig, defaultConfig);
+  }
+
+  return defaultConfig;
+}
+
+/** 从文件加载配置 */
+function loadFromFile(filePath: string, defaultConfig: Config): Config {
+  if (!existsSync(filePath)) {
     return defaultConfig;
   }
 
   const content = readFileSync(filePath, 'utf-8');
-  const rawConfig = load(content) as Record<string, unknown> | undefined;
+  const ext = basename(filePath).split('.').pop()?.toLowerCase();
+  
+  let rawConfig: Record<string, unknown> | undefined;
+  
+  switch (ext) {
+    case 'yaml':
+    case 'yml':
+      rawConfig = load(content) as Record<string, unknown> | undefined;
+      break;
+    case 'json':
+      rawConfig = JSON.parse(content);
+      break;
+    case 'toml':
+      // TOML 解析需要额外依赖，暂不支持
+      console.warn('TOML 格式暂不支持，请使用 YAML 或 JSON');
+      return defaultConfig;
+    default:
+      rawConfig = load(content) as Record<string, unknown> | undefined;
+  }
   
   if (!rawConfig) {
     return defaultConfig;
@@ -54,13 +100,93 @@ export function loadConfig(configPath?: string): Config {
   });
 }
 
-/** 查找配置文件 */
-function findConfigFile(): string | null {
-  for (const file of CONFIG_FILES) {
+/** 查找用户配置文件 */
+function findUserConfig(): string | null {
+  const userDir = expandPath(USER_CONFIG_DIR);
+  for (const file of USER_CONFIG_FILES) {
+    const path = resolve(userDir, file);
+    if (existsSync(path)) return path;
+  }
+  return null;
+}
+
+/** 查找项目配置文件 */
+function findProjectConfig(): string | null {
+  for (const file of PROJECT_CONFIG_FILES) {
     const path = resolve(file);
     if (existsSync(path)) return path;
   }
   return null;
+}
+
+/** 获取用户配置文件路径 */
+export function getUserConfigPath(): string {
+  const userDir = expandPath(USER_CONFIG_DIR);
+  // 优先返回已存在的配置文件
+  for (const file of USER_CONFIG_FILES) {
+    const path = resolve(userDir, file);
+    if (existsSync(path)) return path;
+  }
+  // 默认返回 settings.yaml
+  return resolve(userDir, 'settings.yaml');
+}
+
+/** 保存用户配置 */
+export function saveUserConfig(config: Config): void {
+  const configPath = getUserConfigPath();
+  const configDir = dirname(configPath);
+  
+  if (!existsSync(configDir)) {
+    mkdirSync(configDir, { recursive: true });
+  }
+  
+  // 转换为 YAML 格式保存
+  const yamlContent = configToYaml(config);
+  writeFileSync(configPath, yamlContent, 'utf-8');
+}
+
+/** 简单的配置转 YAML（避免依赖 js-yaml 的 dump） */
+function configToYaml(config: Config): string {
+  const lines: string[] = ['# microbot 用户配置', ''];
+  
+  // agents
+  lines.push('agents:');
+  lines.push('  defaults:');
+  const agent = config.agents.defaults;
+  lines.push(`    workspace: ${agent.workspace}`);
+  lines.push(`    model: ${agent.model}`);
+  lines.push(`    maxTokens: ${agent.maxTokens}`);
+  lines.push(`    temperature: ${agent.temperature}`);
+  lines.push(`    maxToolIterations: ${agent.maxToolIterations}`);
+  lines.push('');
+  
+  // providers
+  if (Object.keys(config.providers).length > 0) {
+    lines.push('providers:');
+    for (const [name, provider] of Object.entries(config.providers)) {
+      if (provider) {
+        lines.push(`  ${name}:`);
+        lines.push(`    baseUrl: ${provider.baseUrl}`);
+        if (provider.models) {
+          lines.push(`    models: [${provider.models.map(m => `"${m}"`).join(', ')}]`);
+        }
+      }
+    }
+    lines.push('');
+  }
+  
+  // channels
+  if (Object.keys(config.channels).length > 0) {
+    lines.push('channels:');
+    for (const [name, channel] of Object.entries(config.channels)) {
+      if (channel) {
+        lines.push(`  ${name}:`);
+        lines.push(`    enabled: ${channel.enabled}`);
+      }
+    }
+  }
+  
+  return lines.join('\n');
 }
 
 /** 递归替换环境变量 ${VAR_NAME} */
