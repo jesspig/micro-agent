@@ -21,7 +21,7 @@ describe('Config Loader', () => {
   describe('loadConfig', () => {
     it('should return default config when no file exists', () => {
       const config = loadConfig('/nonexistent/path.yaml');
-      expect(config.agents.defaults.model).toBe('qwen3');
+      expect(config.agents.defaults.model).toBe('ollama/qwen3');
       expect(config.agents.defaults.maxTokens).toBe(8192);
     });
 

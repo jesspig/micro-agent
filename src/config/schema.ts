@@ -3,44 +3,23 @@ import { z } from 'zod';
 /** Agent 配置 Schema */
 export const AgentConfigSchema = z.object({
   workspace: z.string().default('~/.microbot/workspace'),
-  model: z.string().default('qwen3'),
+  model: z.string().default('ollama/qwen3'),
   maxTokens: z.number().default(8192),
   temperature: z.number().default(0.7),
   maxToolIterations: z.number().default(20),
 });
 
-/** Ollama Provider 配置 */
-const OllamaProviderSchema = z.object({
-  baseUrl: z.string().default('http://localhost:11434/v1'),
-  models: z.array(z.string()).optional(),
-});
-
-/** LM Studio Provider 配置 */
-const LmStudioProviderSchema = z.object({
-  baseUrl: z.string().default('http://localhost:1234/v1'),
-  models: z.array(z.string()).optional(),
-});
-
-/** vLLM Provider 配置 */
-const VllmProviderSchema = z.object({
+/** Provider 配置 Schema（支持自定义提供商名称） */
+const ProviderEntrySchema = z.object({
   baseUrl: z.string(),
+  apiKey: z.string().optional(),
   models: z.array(z.string()).optional(),
 });
 
-/** OpenAI Compatible Provider 配置 */
-const OpenAICompatibleProviderSchema = z.object({
-  baseUrl: z.string(),
-  apiKey: z.string(),
-  models: z.array(z.string()).optional(),
-});
+export const ProviderConfigSchema = z.record(z.string(), ProviderEntrySchema);
 
-/** Provider 配置 Schema */
-export const ProviderConfigSchema = z.object({
-  ollama: OllamaProviderSchema.optional(),
-  lmStudio: LmStudioProviderSchema.optional(),
-  vllm: VllmProviderSchema.optional(),
-  openaiCompatible: OpenAICompatibleProviderSchema.optional(),
-});
+/** Provider 条目类型 */
+export type ProviderEntry = z.infer<typeof ProviderEntrySchema>;
 
 /** 飞书通道配置 */
 const FeishuChannelSchema = z.object({
@@ -55,18 +34,6 @@ const QqChannelSchema = z.object({
   enabled: z.boolean().default(false),
   appId: z.string().optional(),
   secret: z.string().optional(),
-});
-
-/** 邮箱通道配置 */
-const EmailChannelSchema = z.object({
-  enabled: z.boolean().default(false),
-  consentGranted: z.boolean().default(false),
-  imapHost: z.string().optional(),
-  imapPort: z.number().default(993),
-  smtpHost: z.string().optional(),
-  smtpPort: z.number().default(587),
-  user: z.string().optional(),
-  password: z.string().optional(),
 });
 
 /** 钉钉通道配置 */
@@ -88,7 +55,6 @@ const WecomChannelSchema = z.object({
 export const ChannelConfigSchema = z.object({
   feishu: FeishuChannelSchema.optional(),
   qq: QqChannelSchema.optional(),
-  email: EmailChannelSchema.optional(),
   dingtalk: DingtalkChannelSchema.optional(),
   wecom: WecomChannelSchema.optional(),
 });

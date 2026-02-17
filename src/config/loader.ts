@@ -16,7 +16,7 @@ const PROJECT_CONFIG_FILES = ['config.yaml', 'config.yml', '.microbot/config.yam
 /** 默认 Agent 配置 */
 const DEFAULT_AGENT_CONFIG: AgentConfig = {
   workspace: '~/.microbot/workspace',
-  model: 'qwen3',
+  model: 'ollama/qwen3',
   maxTokens: 8192,
   temperature: 0.7,
   maxToolIterations: 20,
@@ -25,7 +25,8 @@ const DEFAULT_AGENT_CONFIG: AgentConfig = {
 /**
  * 加载配置文件
  * 
- * 优先级：命令行指定 > 用户配置 > 项目配置
+ * 优先级：命令行指定 > 用户配置 > 项目配置 > 默认配置
+ * 如果没有任何配置文件，自动创建默认用户配置。
  * @param configPath - 配置文件路径，默认自动查找
  */
 export function loadConfig(configPath?: string): Config {
@@ -52,6 +53,10 @@ export function loadConfig(configPath?: string): Config {
     return loadFromFile(projectConfig, defaultConfig);
   }
 
+  // 4. 没有任何配置，创建默认用户配置
+  console.log('未找到配置文件，创建默认配置...');
+  createDefaultUserConfig();
+  
   return defaultConfig;
 }
 
@@ -129,6 +134,110 @@ export function getUserConfigPath(): string {
   }
   // 默认返回 settings.yaml
   return resolve(userDir, 'settings.yaml');
+}
+
+/** 创建默认用户配置 */
+function createDefaultUserConfig(): void {
+  const configPath = getUserConfigPath();
+  const configDir = dirname(configPath);
+  
+  if (!existsSync(configDir)) {
+    mkdirSync(configDir, { recursive: true });
+  }
+  
+  const yamlContent = generateDefaultConfigYaml();
+  writeFileSync(configPath, yamlContent, 'utf-8');
+  console.log(`已创建默认配置: ${configPath}`);
+  
+  // 创建默认身份文件
+  createDefaultSoulFile();
+}
+
+/** 创建默认身份文件 */
+function createDefaultSoulFile(): void {
+  const workspaceDir = expandPath(DEFAULT_AGENT_CONFIG.workspace);
+  const soulPath = resolve(workspaceDir, 'SOUL.md');
+  
+  if (existsSync(soulPath)) return;
+  
+  if (!existsSync(workspaceDir)) {
+    mkdirSync(workspaceDir, { recursive: true });
+  }
+  
+  const soulContent = `# Soul
+
+我是 microbot，一个轻量级个人 AI 助手。
+
+## 性格
+
+- 简洁高效，直奔主题
+- 技术导向，乐于助人
+- 好奇心强，持续学习
+
+## 价值观
+
+- 准确性优先
+- 用户隐私和安全
+- 行动透明
+
+## 沟通风格
+
+- 清晰直接
+- 必要时解释推理过程
+- 需要时询问澄清问题
+`;
+  
+  writeFileSync(soulPath, soulContent, 'utf-8');
+  console.log(`已创建默认身份: ${soulPath}`);
+}
+
+/** 生成默认配置 YAML */
+function generateDefaultConfigYaml(): string {
+  return `# microbot 用户配置
+# 配置优先级: CLI -c > ~/.microbot/settings.yaml > 项目 config.yaml
+# 模型格式: provider/model（如 ollama/qwen3）
+
+agents:
+  defaults:
+    workspace: ~/.microbot/workspace
+    model: ollama/qwen3
+    maxTokens: 8192
+    temperature: 0.7
+    maxToolIterations: 20
+
+providers:
+  # 本地 Ollama（默认）
+  ollama:
+    baseUrl: http://localhost:11434/v1
+    models: [qwen3]
+
+  # 云服务示例（自定义名称）
+  # deepseek:
+  #   baseUrl: https://api.deepseek.com/v1
+  #   apiKey: \${DEEPSEEK_API_KEY}
+  #   models: [deepseek-chat]
+  
+  # openai:
+  #   baseUrl: https://api.openai.com/v1
+  #   apiKey: \${OPENAI_API_KEY}
+  #   models: [gpt-4o, gpt-4o-mini]
+
+channels:
+  # 飞书通道
+  feishu:
+    enabled: false
+    appId: your-app-id
+    appSecret: your-app-secret
+    allowFrom: []
+
+  # 其他通道（待实现）
+  # qq:
+  #   enabled: false
+  # dingtalk:
+  #   enabled: false
+  # wecom:
+  #   enabled: false
+`;
 }
 
 /** 保存用户配置 */
