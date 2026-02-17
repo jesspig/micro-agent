@@ -106,10 +106,18 @@ export class SkillsLoader {
       license: fm.license,
       compatibility: fm.compatibility,
       metadata: fm.metadata ?? {},
-      allowedTools: fm['allowed-tools']?.split(/\s+/).filter(Boolean),
+      allowedTools: this.parseAllowedTools(fm['allowed-tools']),
       content: content.trim(),
       skillPath: skillDir,
     };
+  }
+
+  /** 解析 allowed-tools 字段 */
+  private parseAllowedTools(value: unknown): string[] | undefined {
+    if (!value) return undefined;
+    if (Array.isArray(value)) return value.filter((v): v is string => typeof v === 'string');
+    if (typeof value === 'string') return value.split(/\s+/).filter(Boolean);
+    return undefined;
   }
 
   /** 验证技能名称 */
