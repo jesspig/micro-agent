@@ -5,7 +5,7 @@
  */
 
 /** 通道类型 */
-export type ChannelType = 'feishu' | 'qq' | 'email' | 'dingtalk' | 'wecom';
+export type ChannelType = 'feishu' | 'qq' | 'email' | 'dingtalk' | 'wecom' | 'system';
 
 /** 依赖注入容器 */
 export interface Container {

@@ -1,5 +1,8 @@
 import type { Tool, ToolContext } from './base';
 
+// 重新导出类型供外部使用
+export type { ToolContext } from './base';
+
 /**
  * 工具注册表
  * 
