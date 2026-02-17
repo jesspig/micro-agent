@@ -27,6 +27,8 @@
   },
   "dependencies": {
     "@larksuiteoapi/node-sdk": "^1.59.0",
+    "@logtape/logtape": "^2.0.2",
+    "@logtape/pretty": "^2.0.2",
     "ai": "^6.0.86",
     "cron-schedule": "^6.0.0",
     "gray-matter": "^4.0.3",
@@ -34,7 +36,6 @@
     "js-yaml": "^4.1.1",
     "mitt": "^3.0.1",
     "nodemailer": "^8.0.1",
-    "pino": "^10.3.1",
     "zod": "^4.3.6"
   },
   "devDependencies": {

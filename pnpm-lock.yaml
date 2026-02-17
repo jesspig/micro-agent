@@ -11,6 +11,12 @@ importers:
       '@larksuiteoapi/node-sdk':
         specifier: ^1.59.0
         version: 1.59.0
+      '@logtape/logtape':
+        specifier: ^2.0.2
+        version: 2.0.2
+      '@logtape/pretty':
+        specifier: ^2.0.2
+        version: 2.0.2(@logtape/logtape@2.0.2)
       ai:
         specifier: ^6.0.86
         version: 6.0.86(zod@4.3.6)
@@ -32,9 +38,6 @@ importers:
       nodemailer:
         specifier: ^8.0.1
         version: 8.0.1
-      pino:
-        specifier: ^10.3.1
-        version: 10.3.1
       zod:
         specifier: ^4.3.6
         version: 4.3.6
@@ -75,6 +78,14 @@ packages:
 
   '@larksuiteoapi/node-sdk@1.59.0':
     resolution: {integrity: sha512-sBpkruTvZDOxnVtoTbepWKRX0j1Y1ZElQYu0x7+v088sI9pcpbVp6ZzCGn62dhrKPatzNyCJyzYCPXPYQWccrA==}
+
+  '@logtape/logtape@2.0.2':
+    resolution: {integrity: sha512-cveUBLbCMFkvkLycP/2vNWvywl47JcJbazHIju94/QNGboZ/jyYAgZIm0ZXezAOx3eIz8OG1EOZ5CuQP3+2FQg==}
+
+  '@logtape/pretty@2.0.2':
+    resolution: {integrity: sha512-WMKoHuaEZvJgDeciIM/OL+joDDlheuoSpkfJOuKncdim7eV6GfIh0BUxLt0Td4JJsljzt5dAttxaX0kXqE0N9Q==}
+    peerDependencies:
+      '@logtape/logtape': ^2.0.2
 
   '@opentelemetry/api@1.9.0':
     resolution: {integrity: sha512-3giAOQvZiH5F9bMlMiv8+GSPMeqg0dbaeo58/0SlA9sxSqZhnUtxzX9/2FzyhS9sWQf5S0GJE0AKBrFqjpeYcg==}
@@ -357,10 +368,6 @@ packages:
     resolution: {integrity: sha512-0GNPNzHXBKw6U/InGe79A3Crzyk9bcSyObF9/Gfo9DLEf5qj5RF50RSjsu0W1rZ6ZqRGdzDFCRBQvi9/rSGPtA==}
     hasBin: true
 
-  pino@10.3.1:
-    resolution: {integrity: sha512-r34yH/GlQpKZbU1BvFFqOjhISRo1MNx1tWYsYvmj6KIRHSPMT2+yHOEb1SG6NMvRoHRF0a07kCOox/9yakl1vg==}
-    hasBin: true
-
   process-warning@5.0.0:
     resolution: {integrity: sha512-a39t9ApHNx2L4+HBnQKqxxHNs1r7KF+Intd8Q/g1bUh6q0WIp9voPXJ/x0j+ZL45KF1pJd9+q2jLIRMfvEshkA==}
 
@@ -491,6 +498,12 @@ snapshots:
       - bufferutil
       - debug
       - utf-8-validate
+
+  '@logtape/logtape@2.0.2': {}
+
+  '@logtape/pretty@2.0.2(@logtape/logtape@2.0.2)':
+    dependencies:
+      '@logtape/logtape': 2.0.2
 
   '@opentelemetry/api@1.9.0': {}
 
@@ -752,20 +765,6 @@ snapshots:
   pino-std-serializers@7.1.0: {}
 
   pino@10.3.0:
-    dependencies:
-      '@pinojs/redact': 0.4.0
-      atomic-sleep: 1.0.0
-      on-exit-leak-free: 2.1.2
-      pino-abstract-transport: 3.0.0
-      pino-std-serializers: 7.1.0
-      process-warning: 5.0.0
-      quick-format-unescaped: 4.0.4
-      real-require: 0.2.0
-      safe-stable-stringify: 2.5.0
-      sonic-boom: 4.2.1
-      thread-stream: 4.0.0
-
-  pino@10.3.1:
     dependencies:
       '@pinojs/redact': 0.4.0
       atomic-sleep: 1.0.0
