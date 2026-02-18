@@ -11,6 +11,8 @@
 | 特性 | 说明 |
 |------|------|
 | 轻量高效 | Bun 原生性能，核心代码简洁 |
+| 模块化 SDK | Core SDK + Extensions 架构，支持独立导入 |
+| 热插拔 | 运行时加载用户扩展，无需重启 |
 | 多通道支持 | 飞书、QQ、钉钉、企业微信 |
 | 本地优先 LLM | Ollama / LM Studio / vLLM / OpenAI Compatible |
 | 定时任务 | at / every / cron 三种调度方式 |
@@ -18,15 +20,33 @@
 | 工具生态 | 文件操作、Shell 命令、Web 搜索 |
 | 技能系统 | Markdown 定义，渐进式加载 |
 
-## 快速开始
+## 安装
 
-### 安装
+### SDK 模式
 
 ```bash
-git clone https://github.com/jesspig/microbot.git
-cd microbot
-pnpm install
+npm install @microbot/sdk
 ```
+
+```typescript
+// 导入核心模块
+import { Container, EventBus, HookSystem } from '@microbot/sdk/core';
+
+// 导入扩展模块
+import { ReadFileTool, FeishuChannel, MemoryStore } from '@microbot/sdk/extensions';
+
+// 导入热插拔
+import { HotPlugManager } from '@microbot/sdk/hot-plug';
+```
+
+### CLI 模式
+
+```bash
+npm install -g @microbot/sdk
+microbot start
+```
+
+## 快速开始
 
 ### 配置 LLM
 
@@ -91,19 +111,60 @@ Channel (WebSocket) ──► ChannelManager ──► MessageBus
                            Ollama                   OpenAI Compatible
 ```
 
+## SDK 子路径
+
+| 子路径 | 说明 |
+|--------|------|
+| `@microbot/sdk/core` | 核心模块：Container、EventBus、HookSystem、Pipeline、Agent、Provider |
+| `@microbot/sdk/extensions` | 扩展模块：Tool、Skill、Channel、Storage、Service |
+| `@microbot/sdk/hot-plug` | 热插拔：Watcher、Loader、Registry、Manager |
+
 ## 核心模块
 
 | 模块 | 路径 | 说明 |
 |------|------|------|
-| 类型定义 | `src/types/` | 核心接口，零依赖 |
-| 配置管理 | `src/config/` | YAML 配置加载与验证 |
-| 事件系统 | `src/bus/` | 消息队列与事件总线 |
-| 存储层 | `src/session/` `src/memory/` `src/cron/` | SQLite 持久化 |
-| 工具系统 | `src/tools/` | 文件、Shell、Web 工具 |
-| LLM Provider | `src/providers/` | Ollama、OpenAI Compatible |
-| Agent 核心 | `src/agent/` | ReAct 循环、上下文构建 |
-| 通道系统 | `src/channels/` | 飞书、QQ、钉钉、企业微信 |
-| 技能系统 | `src/skills/` | Markdown 定义技能 |
+| 类型定义 | `src/core/types/` | 核心接口，零依赖 |
+| 配置管理 | `src/core/config/` | YAML 配置加载与验证（四级配置） |
+| 事件系统 | `src/core/bus/` | 消息队列与事件总线 |
+| LLM Provider | `src/core/providers/` | Ollama、OpenAI Compatible |
+| Agent 核心 | `src/core/agent/` | ReAct 循环、上下文构建 |
+
+## 扩展模块
+
+| 模块 | 路径 | 说明 |
+|------|------|------|
+| 工具系统 | `src/extensions/tool/` | 文件、Shell、Web 工具 |
+| 技能系统 | `src/extensions/skill/` | Markdown 定义技能 |
+| 通道系统 | `src/extensions/channel/` | 飞书、QQ、钉钉、企业微信 |
+| 存储层 | `src/extensions/storage/` | Session、Memory、Cron 存储 |
+| 服务层 | `src/extensions/service/` | Cron、Heartbeat 服务 |
+
+## 热插拔机制
+
+用户可在 `~/.microbot/tools/`、`~/.microbot/skills/`、`~/.microbot/channels/` 目录放置扩展模块，系统自动检测并加载。
+
+```typescript
+// 用户扩展示例：~/.microbot/tools/my-tool.ts
+export default {
+  type: 'tool',
+  name: 'my_tool',
+  description: '自定义工具',
+  inputSchema: z.object({ input: z.string() }),
+  execute: async (input) => `处理: ${input.input}`
+};
+```
+
+## 配置层级
+
+```
+配置优先级（低 → 高）:
+┌─────────────────────────────────────────────────────────────┐
+│ Level 1: 系统级 - <install-dir>/workspace/settings.yaml     │
+│ Level 2: 用户级 - ~/.microbot/settings.yaml                 │
+│ Level 3: 项目级 - <workspace>/.microbot/settings.yaml       │
+│ Level 4: 目录级 - <workspace>/<path>/.microbot/settings.yaml│
+└─────────────────────────────────────────────────────────────┘
+```
 
 ## 通道配置
 
@@ -197,13 +258,12 @@ providers:
 ```
 ~/.microbot/
 ├── settings.yaml          # 用户配置
-├── skills/                # 用户技能（优先级高于内置）
-├── workspace/             # 工作目录
-│   ├── memory/            # 记忆存储
-│   │   ├── MEMORY.md      # 长期记忆
-│   │   └── 2026-02-17.md  # 今日日记
-│   ├── HEARTBEAT.md       # 心跳任务
-│   └── skills/            # 项目技能（最高优先级）
+├── tools/                 # 用户工具（热插拔）
+├── skills/                # 用户技能（热插拔）
+├── channels/              # 用户通道（热插拔）
+├── memory/                # 记忆存储（独立于 workspace）
+│   ├── MEMORY.md          # 长期记忆
+│   └── 2026-02-17.md      # 今日日记
 └── data/                  # 数据库
     ├── sessions.db        # 会话存储
     ├── cron.db            # 定时任务
@@ -227,31 +287,42 @@ bun test             # 运行测试
 ```
 microbot/
 ├── src/
-│   ├── index.ts            # 入口
+│   ├── index.ts            # SDK 主入口
 │   ├── cli.ts              # CLI 命令
-│   ├── container.ts        # DI 容器
-│   ├── event-bus.ts        # 事件总线
-│   ├── hook-system.ts      # 钩子系统
-│   ├── pipeline.ts         # 中间件管道
-│   ├── types/              # 类型定义
-│   ├── utils/              # 工具函数
-│   ├── config/             # 配置管理
-│   ├── db/                 # 数据库管理
-│   ├── bus/                # 消息总线
-│   ├── session/            # 会话存储
-│   ├── memory/             # 记忆存储
-│   ├── cron/               # 定时任务
-│   ├── heartbeat/          # 心跳服务
-│   ├── tools/              # 工具系统
-│   ├── providers/          # LLM Provider
-│   ├── agent/              # Agent 核心
-│   ├── channels/           # 通道实现
-│   └── skills/             # 技能系统
+│   ├── core/               # Core SDK（独立可导入）
+│   │   ├── index.ts        # Core 入口
+│   │   ├── container.ts    # DI 容器
+│   │   ├── event-bus.ts    # 事件总线
+│   │   ├── hook-system.ts  # 钩子系统
+│   │   ├── pipeline.ts     # 中间件管道
+│   │   ├── types/          # 类型定义
+│   │   ├── config/         # 配置管理
+│   │   ├── bus/            # 消息总线
+│   │   ├── providers/      # LLM Provider
+│   │   └── agent/          # Agent 核心
+│   ├── extensions/         # Extensions SDK（独立可导入）
+│   │   ├── index.ts        # Extensions 入口
+│   │   ├── tool/           # 工具扩展
+│   │   ├── skill/          # 技能扩展
+│   │   ├── channel/        # 通道扩展
+│   │   ├── storage/        # 存储扩展
+│   │   └── service/        # 服务扩展
+│   ├── hot-plug/           # 热插拔机制
+│   │   ├── index.ts        # Hot-plug 入口
+│   │   ├── watcher.ts      # 目录监听
+│   │   ├── loader.ts       # 动态加载
+│   │   ├── registry.ts     # 扩展注册表
+│   │   └── manager.ts      # 管理器
+│   └── db/                 # 数据库管理
 ├── tests/
 │   ├── unit/               # 单元测试
-│   ├── integration/        # 集成测试
-│   └── e2e/                # 端到端测试
+│   └── integration/        # 集成测试
+├── workspace/              # 系统级配置
 ├── docs/plan/              # 实施计划
 ├── specs/                  # 规格文档
 └── package.json
 ```
+
+## License
+
+MIT

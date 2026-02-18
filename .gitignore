@@ -30,10 +30,18 @@ coverage/
 
 # 测试临时文件
 test-skills-temp/
+test-agent-workspace/
+test-fs-workspace/
+test-memory-workspace/
+test-watcher-dir/
+test-loader-dir/
+test-manager-dir/
+test-config-test/
 
 # 运行时数据
 .microbot/
 
+# AI 助手配置
 /.agent
 /.claude
 /.cursor
