@@ -1,4 +1,4 @@
-import type { LLMMessage, ToolCall } from '../providers/base';
+import type { LLMMessage, ToolCall, ContentPart } from '../providers/base';
 import type { MemoryStore } from '../storage/memory/store';
 import type { SkillSummary, Skill } from '../skill';
 import { loadTemplateFile } from '../config/loader';
@@ -15,7 +15,7 @@ const BOOTSTRAP_FILES = ['AGENTS.md', 'IDENTITY.md', 'USER.md', 'TOOLS.md', 'SOU
  * - 技能摘要（渐进式披露）
  * - 记忆上下文
  * - 历史消息
- * - 当前消息
+ * - 当前消息（支持多模态）
  */
 export class ContextBuilder {
   /** 当前工作目录（用于目录级配置查找） */
@@ -71,7 +71,7 @@ export class ContextBuilder {
    * 构建消息列表
    * @param history - 历史消息
    * @param currentMessage - 当前消息内容
-   * @param media - 媒体文件列表
+   * @param media - 媒体文件列表（data URI 格式）
    * @returns 完整的消息列表
    */
   async buildMessages(
@@ -108,13 +108,60 @@ export class ContextBuilder {
     // 历史消息
     messages.push(...history);
 
-    // 当前消息
-    const userContent = media?.length
-      ? `${currentMessage}\n\n[附件: ${media.join(', ')}]`
-      : currentMessage;
+    // 当前消息（支持多模态）
+    const userContent = this.buildUserContent(currentMessage, media);
     messages.push({ role: 'user', content: userContent });
 
     return messages;
+  }
+
+  /**
+   * 构建用户消息内容
+   * 如果有媒体文件，返回多模态数组格式
+   * 
+   * OpenAI 推荐顺序：先图片，后文本
+   * 这样模型能更好地理解上下文
+   */
+  private buildUserContent(text: string, media?: string[]): string | ContentPart[] {
+    if (!media || media.length === 0) {
+      return text;
+    }
+
+    // 构建多模态内容数组
+    const content: ContentPart[] = [];
+
+    // 先添加图片部分（OpenAI 推荐顺序）
+    const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg'];
+    let hasImage = false;
+    
+    for (const m of media) {
+      const isImage = imageExtensions.some(ext => m.toLowerCase().includes(ext)) ||
+                      m.includes('image/') ||
+                      m.startsWith('data:image');
+      
+      if (isImage) {
+        content.push({
+          type: 'image_url',
+          image_url: { 
+            url: m,
+            detail: 'auto',  // 让模型自动决定处理精度
+          },
+        });
+        hasImage = true;
+      }
+    }
+
+    // 后添加文本部分
+    if (text.trim()) {
+      content.push({ type: 'text', text });
+    }
+
+    // 如果没有图片，回退到纯文本格式
+    if (!hasImage) {
+      return text + (media.length > 0 ? `\n\n[附件: ${media.join(', ')}]` : '');
+    }
+
+    return content;
   }
 
   /**

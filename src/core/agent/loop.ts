@@ -1,10 +1,13 @@
-import type { LLMProvider, LLMMessage, LLMToolDefinition } from '../providers/base';
+import type { LLMProvider, LLMMessage, LLMToolDefinition, ContentPart } from '../providers/base';
 import type { MessageBus } from '../bus/queue';
 import type { SessionStore } from '../storage/session/store';
 import type { MemoryStore } from '../storage/memory/store';
 import type { ToolRegistry, ToolContext } from '../tool/registry';
 import type { InboundMessage, OutboundMessage, SessionKey } from '../bus/events';
 import type { SkillsLoader } from '../skill/loader';
+import type { GenerationConfig } from '../providers/base';
+import type { ModelConfig, RoutingConfig, ModelsConfig } from '../config/schema';
+import { ModelRouter, type ModelRouterConfig } from '../providers/router';
 import { ContextBuilder } from './context';
 import { getLogger } from '@logtape/logtape';
 
@@ -14,17 +17,55 @@ const log = getLogger(['agent']);
 export interface AgentConfig {
   /** 工作目录 */
   workspace: string;
-  /** 默认模型 */
-  model: string;
+  /** 模型配置 */
+  models: ModelsConfig;
   /** 最大迭代次数 */
   maxIterations: number;
+  /** 生成配置 */
+  generation?: GenerationConfig;
+  /** 开启自动路由 */
+  auto?: boolean;
+  /** 性能优先模式 */
+  max?: boolean;
+  /** 可用模型列表（用于自动路由） */
+  availableModels?: Map<string, ModelConfig[]>;
+  /** 路由规则配置 */
+  routing?: RoutingConfig;
 }
 
 const DEFAULT_CONFIG: AgentConfig = {
   workspace: './workspace',
-  model: 'qwen3',
+  models: { chat: 'qwen3' },
   maxIterations: 20,
+  generation: {
+    maxTokens: 8192,
+    temperature: 0.7,
+    topK: 50,
+    topP: 0.7,
+    frequencyPenalty: 0.5,
+  },
+  auto: true,
+  max: false,
 };
+
+/**
+ * 合并生成配置
+ * 模型配置覆盖默认配置
+ */
+function mergeGenerationConfig(
+  defaultConfig: GenerationConfig | undefined,
+  modelConfig: ModelConfig
+): GenerationConfig {
+  const merged: GenerationConfig = { ...defaultConfig };
+  
+  if (modelConfig.maxTokens !== undefined) merged.maxTokens = modelConfig.maxTokens;
+  if (modelConfig.temperature !== undefined) merged.temperature = modelConfig.temperature;
+  if (modelConfig.topK !== undefined) merged.topK = modelConfig.topK;
+  if (modelConfig.topP !== undefined) merged.topP = modelConfig.topP;
+  if (modelConfig.frequencyPenalty !== undefined) merged.frequencyPenalty = modelConfig.frequencyPenalty;
+  
+  return merged;
+}
 
 /**
  * Agent 循环
@@ -38,6 +79,7 @@ const DEFAULT_CONFIG: AgentConfig = {
  */
 export class AgentLoop {
   private running = false;
+  private router: ModelRouter;
 
   constructor(
     private bus: MessageBus,
@@ -47,7 +89,20 @@ export class AgentLoop {
     private toolRegistry: ToolRegistry,
     private skillsLoader: SkillsLoader,
     private config: AgentConfig = DEFAULT_CONFIG
-  ) {}
+  ) {
+    // 初始化模型路由器
+    this.router = new ModelRouter({
+      chatModel: config.models.chat,
+      checkModel: config.models.check,
+      auto: config.auto ?? true,
+      max: config.max ?? false,
+      models: config.availableModels ?? new Map(),
+      routing: config.routing,
+    });
+    
+    // 设置 provider 用于意图识别
+    this.router.setProvider(provider);
+  }
 
   /**
    * 运行 Agent 循环
@@ -115,13 +170,59 @@ export class AgentLoop {
     // ReAct 循环
     let iteration = 0;
     let finalContent = '';
+    let currentModel = this.config.models.chat;
+    let currentLevel = 'medium';
 
     while (iteration < this.config.maxIterations) {
       iteration++;
-      log.debug('[{iteration}/{max}] 调用 LLM...', { iteration, max: this.config.maxIterations });
-
+      
       const tools = this.getToolDefinitions();
-      const response = await this.provider.chat(messages, tools, this.config.model);
+      
+      // 调试：打印工具定义数量
+      log.debug('[Tools] 工具定义数量: {count}', { count: tools?.length ?? 0 });
+      
+      // 选择模型
+      let routeResult: { model: string; config: ModelConfig; complexity: number; reason: string };
+      
+      // 第一次迭代时使用意图识别
+      if (iteration === 1 && this.config.auto) {
+        // 使用 check 模型进行意图识别
+        const intent = await this.router.analyzeIntent(messages, msg.media);
+        routeResult = this.router.selectModelByIntent(intent);
+        log.info('[Intent] model={model}, reason={reason}', { 
+          model: intent.model, 
+          reason: intent.reason 
+        });
+      } else {
+        // 后续迭代使用规则路由
+        routeResult = this.router.route(messages, iteration === 1 ? msg.media : undefined);
+      }
+      
+      const requestedModel = routeResult.model;
+      const modelCapabilities = routeResult.config;
+      const requestedLevel = modelCapabilities.level || 'medium';
+      const generationConfig = mergeGenerationConfig(this.config.generation, modelCapabilities);
+      
+      // 显示请求的模型信息
+      log.info('[LLM] {model} (level={level})', { model: requestedModel, level: requestedLevel });
+      
+      if (routeResult.complexity > 0) {
+        log.debug('[Router] 复杂度={score}, 原因={reason}', {
+          score: routeResult.complexity,
+          reason: routeResult.reason,
+        });
+      }
+      
+      const response = await this.provider.chat(messages, tools, requestedModel, generationConfig);
+      
+      // 更新为实际使用的模型和级别（fallback 时可能不同）
+      if (response.usedProvider && response.usedModel) {
+        currentModel = `${response.usedProvider}/${response.usedModel}`;
+      } else {
+        currentModel = requestedModel;
+      }
+      // 使用实际模型的 level（fallback 后可能不同）
+      currentLevel = response.usedLevel || requestedLevel;
 
       if (response.hasToolCalls && response.toolCalls) {
         // 添加助手消息
@@ -135,7 +236,7 @@ export class AgentLoop {
         for (const tc of response.toolCalls) {
           // 格式化参数显示（截断过长的值）
           const argsPreview = this.formatToolArgs(tc.arguments);
-          log.info('[Tool] 调用: {name}({args})', { name: tc.name, args: argsPreview });
+          log.info('[Tool] {model} 调用: {name}({args})', { model: currentModel, name: tc.name, args: argsPreview });
           
           const startTime = Date.now();
           const result = await this.toolRegistry.execute(
@@ -150,9 +251,9 @@ export class AgentLoop {
           const resultPreview = this.formatToolResult(result);
           
           if (isSuccess) {
-            log.info('[Tool] 成功: {name} ({ms}ms) → {result}', { name: tc.name, ms: elapsed, result: resultPreview });
+            log.info('[Tool] {model} 成功: {name} ({ms}ms) → {result}', { model: currentModel, name: tc.name, ms: elapsed, result: resultPreview });
           } else {
-            log.error('[Tool] 失败: {name} ({ms}ms) → {result}', { name: tc.name, ms: elapsed, result: resultPreview });
+            log.error('[Tool] {model} 失败: {name} ({ms}ms) → {result}', { model: currentModel, name: tc.name, ms: elapsed, result: resultPreview });
           }
           
           messages = contextBuilder.addToolResult(messages, tc.id, result);
@@ -167,12 +268,19 @@ export class AgentLoop {
       finalContent = '处理完成，但无响应内容。';
     }
 
-    // 保存会话
-    this.sessionStore.addMessage(sessionKey, 'user', msg.content);
+    // 保存会话（用户消息保留多模态内容）
+    const userContent = msg.media && msg.media.length > 0 
+      ? messages[messages.length - 1].content  // 使用构建好的多模态内容
+      : msg.content;
+    this.sessionStore.addMessage(sessionKey, 'user', userContent);
     this.sessionStore.addMessage(sessionKey, 'assistant', finalContent);
 
     const replyPreview = finalContent.slice(0, 100).replace(/\n/g, ' ');
-    log.info('回复: {content}', { content: replyPreview + (finalContent.length > 100 ? '...' : '') });
+    log.info('[Reply] {model} (level={level}): {content}', { 
+      model: currentModel, 
+      level: currentLevel,
+      content: replyPreview + (finalContent.length > 100 ? '...' : '') 
+    });
     return {
       channel: msg.channel,
       chatId: msg.chatId,
@@ -189,7 +297,7 @@ export class AgentLoop {
     const session = this.sessionStore.get(sessionKey);
     if (!session) return [];
 
-    return session.messages.map((m: { role: string; content: string }) => ({
+    return session.messages.map((m: { role: string; content: string | ContentPart[] }) => ({
       role: m.role as 'user' | 'assistant',
       content: m.content,
     }));

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'bun:test';
 import { AgentLoop, type AgentConfig } from '../../src/core/agent/loop';
 import type { LLMProvider, LLMMessage, LLMResponse } from '../../src/core/providers/base';
+import type { ModelConfig } from '../../src/core/config/schema';
 import type { MessageBus } from '../../src/core/bus/queue';
 import type { SessionStore } from '../../src/core/storage/session/store';
 import type { MemoryStore } from '../../src/core/storage/memory/store';
@@ -28,6 +29,10 @@ class MockProvider implements LLMProvider {
 
   async isAvailable(): Promise<boolean> {
     return true;
+  }
+
+  getModelCapabilities(modelId: string): ModelConfig {
+    return { id: modelId, vision: false, think: false, tool: true };
   }
 }
 
@@ -115,7 +120,7 @@ describe('AgentLoop', () => {
 
   const config: AgentConfig = {
     workspace: './test-workspace',
-    model: 'test-model',
+    models: { chat: 'test-model' },
     maxIterations: 5,
   };
 

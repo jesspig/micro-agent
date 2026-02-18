@@ -41,11 +41,35 @@ describe('ContextBuilder', () => {
       expect(lastMsg.content).toBe('Hello');
     });
 
-    it('should include media attachments', async () => {
+    it('should include media attachments as multimodal content', async () => {
       const messages = await builder.buildMessages([], 'Check this', ['image.png']);
       
       const lastMsg = messages[messages.length - 1];
-      expect(lastMsg.content).toContain('[附件: image.png]');
+      // 应该返回多模态数组格式（先图片后文本）
+      expect(Array.isArray(lastMsg.content)).toBe(true);
+      const content = lastMsg.content as Array<{ type: string }>;
+      expect(content[0].type).toBe('image_url');
+      expect(content[1].type).toBe('text');
+    });
+
+    it('should handle data URI images', async () => {
+      const dataUri = 'data:image/png;base64,iVBORw0KGgo=';
+      const messages = await builder.buildMessages([], 'Analyze', [dataUri]);
+      
+      const lastMsg = messages[messages.length - 1];
+      expect(Array.isArray(lastMsg.content)).toBe(true);
+      const content = lastMsg.content as Array<{ type: string; image_url?: { url: string } }>;
+      // 图片在前
+      expect(content[0].image_url?.url).toBe(dataUri);
+    });
+
+    it('should fallback to text for non-image media', async () => {
+      const messages = await builder.buildMessages([], 'Check file', ['document.pdf']);
+      
+      const lastMsg = messages[messages.length - 1];
+      // 非图片应该回退到文本格式
+      expect(typeof lastMsg.content).toBe('string');
+      expect(lastMsg.content).toContain('[附件: document.pdf]');
     });
 
     it('should include history messages', async () => {

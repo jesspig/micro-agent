@@ -1,12 +1,13 @@
 import type { Database } from 'bun:sqlite';
 import type { SessionKey } from '../../../core/bus/events';
+import type { ContentPart } from '../../providers/base';
 
 /** 会话消息 */
 export interface SessionMessage {
   /** 消息角色 */
   role: 'user' | 'assistant' | 'system';
-  /** 消息内容 */
-  content: string;
+  /** 消息内容（支持多模态） */
+  content: string | ContentPart[];
   /** 时间戳（ms） */
   timestamp: number;
 }
@@ -100,9 +101,9 @@ export class SessionStore {
    * 添加消息到会话
    * @param key - 会话键
    * @param role - 消息角色
-   * @param content - 消息内容
+   * @param content - 消息内容（支持多模态）
    */
-  addMessage(key: SessionKey, role: 'user' | 'assistant' | 'system', content: string): void {
+  addMessage(key: SessionKey, role: 'user' | 'assistant' | 'system', content: string | ContentPart[]): void {
     const session = this.get(key) || this.createSession(key);
     session.messages.push({ role, content, timestamp: Date.now() });
     this.set(session);

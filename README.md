@@ -174,7 +174,7 @@ export default {
 使用 WebSocket 长连接，无需公网 IP。
 
 1. 创建飞书应用 → 启用机器人能力
-2. 权限：添加 `im:message`
+2. 权限：添加 `im:message` 和 `im:resource`（获取图片需要）
 3. 事件订阅：选择「使用长连接接收事件」，添加 `im.message.receive_v1`
 4. 获取 App ID 和 App Secret
 

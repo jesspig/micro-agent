@@ -18,7 +18,8 @@ import { LLMGateway, OpenAICompatibleProvider } from './core/providers';
 import { AgentLoop } from './core/agent/loop';
 import { ChannelManager, ChannelHelper } from './core/channel';
 import type { App, CronJobSummary } from './core/types/interfaces';
-import type { Config, ProviderEntry } from './core/config/schema';
+import type { Config, ProviderEntry, ModelConfig } from './core/config/schema';
+import { parseModelConfigs } from './core/config/schema';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { getLogger } from '@logtape/logtape';
@@ -50,6 +51,8 @@ class AppImpl implements App {
   private channelManager: ChannelManager;
   private gateway: LLMGateway;
   private cronStore: CronStore | null = null;
+  /** 可用模型列表（用于自动路由） */
+  private availableModels = new Map<string, ModelConfig[]>();
 
   constructor(
     private config: Config,
@@ -57,10 +60,10 @@ class AppImpl implements App {
   ) {
     this.channelManager = new ChannelManager();
     // 从模型配置解析 provider：格式为 "provider/model"
-    const modelConfig = config.agents.defaults.model;
-    const slashIndex = modelConfig.indexOf('/');
+    const chatModel = config.agents.models.chat;
+    const slashIndex = chatModel.indexOf('/');
     const defaultProvider = slashIndex > 0
-      ? modelConfig.slice(0, slashIndex)
+      ? chatModel.slice(0, slashIndex)
       : Object.keys(config.providers)[0] || 'openai-compatible';
     this.gateway = new LLMGateway({ defaultProvider, fallbackEnabled: true });
   }
@@ -106,7 +109,7 @@ class AppImpl implements App {
     skillsLoader.load();
 
     // 7. 初始化 Agent
-    const agentConfig = this.config.agents.defaults;
+    const agentConfig = this.config.agents;
     this.agentLoop = new AgentLoop(
       messageBus,
       this.gateway,
@@ -116,8 +119,19 @@ class AppImpl implements App {
       skillsLoader,
       {
         workspace: this.workspace,
-        model: agentConfig.model,
+        models: agentConfig.models,
         maxIterations: agentConfig.maxToolIterations,
+        generation: {
+          maxTokens: agentConfig.maxTokens,
+          temperature: agentConfig.temperature,
+          topK: agentConfig.topK,
+          topP: agentConfig.topP,
+          frequencyPenalty: agentConfig.frequencyPenalty,
+        },
+        auto: agentConfig.auto,
+        max: agentConfig.max,
+        availableModels: this.availableModels,
+        routing: this.config.routing,
       }
     );
 
@@ -202,6 +216,15 @@ class AppImpl implements App {
     return this.gateway.getDefaultModel();
   }
 
+  getRouterStatus(): { auto: boolean; max: boolean; chatModel: string; checkModel?: string } {
+    return {
+      auto: this.config.agents.auto,
+      max: this.config.agents.max,
+      chatModel: this.config.agents.models.chat,
+      checkModel: this.config.agents.models.check,
+    };
+  }
+
   getCronCount(): number {
     if (!this.cronStore) return 0;
     return this.cronStore.list(false).length;
@@ -219,24 +242,35 @@ class AppImpl implements App {
 
   private initProviders(): void {
     const providers = this.config.providers as Record<string, ProviderEntry | undefined>;
-    const modelConfig = this.config.agents.defaults.model;
+    const chatModel = this.config.agents.models.chat;
     
     // 从模型配置解析默认 provider
-    const slashIndex = modelConfig.indexOf('/');
-    const defaultProviderName = slashIndex > 0 ? modelConfig.slice(0, slashIndex) : null;
+    const slashIndex = chatModel.indexOf('/');
+    const defaultProviderName = slashIndex > 0 ? chatModel.slice(0, slashIndex) : null;
+    const defaultModelId = slashIndex > 0 ? chatModel.slice(slashIndex + 1) : chatModel;
 
     for (const [name, config] of Object.entries(providers)) {
       if (!config) continue;
 
+      // 解析模型配置（支持字符串简写和完整对象）
+      const modelConfigs = config.models ? parseModelConfigs(config.models) : [];
+      const modelIds = modelConfigs.map(m => m.id);
+      
+      // 存储模型配置用于自动路由
+      if (modelConfigs.length > 0) {
+        this.availableModels.set(name, modelConfigs);
+      }
+      
       const provider = new OpenAICompatibleProvider({
         baseUrl: config.baseUrl,
         apiKey: config.apiKey,
-        defaultModel: config.models?.[0] ?? modelConfig.split('/')[1] ?? modelConfig,
+        defaultModel: modelConfigs[0]?.id ?? defaultModelId,
+        modelConfigs,
       });
 
       // 默认 provider 优先级为 1，其他为 100
       const priority = name === defaultProviderName ? 1 : 100;
-      this.gateway.registerProvider(name, provider, config.models || ['*'], priority);
+      this.gateway.registerProvider(name, provider, modelIds.length > 0 ? modelIds : ['*'], priority, modelConfigs);
     }
 
     // 如果没有配置任何 provider，使用本地 Ollama
@@ -245,7 +279,7 @@ class AppImpl implements App {
         baseUrl: 'http://localhost:11434/v1',
         defaultModel: 'qwen3',
       });
-      this.gateway.registerProvider('ollama', provider, ['*'], 1);
+      this.gateway.registerProvider('ollama', provider, ['*'], 1, []);
     }
   }
 
@@ -266,7 +300,7 @@ class AppImpl implements App {
 
 export async function createApp(configPath?: string): Promise<App> {
   const baseConfig = loadConfig(configPath ? { configPath } : {});
-  const workspace = expandPath(baseConfig.agents.defaults.workspace);
+  const workspace = expandPath(baseConfig.agents.workspace);
   
   // 确保 workspace 目录存在，避免 Bun.spawnSync 报 ENOENT 错误
   const { mkdirSync, existsSync } = await import('fs');
