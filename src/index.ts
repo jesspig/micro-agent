@@ -4,22 +4,32 @@
  * 提供 createApp() 工厂函数，组装所有模块。
  */
 
-import { expandPath, loadConfig } from './core/config/loader';
+import {
+  expandPath,
+  loadConfig,
+  MessageBus,
+  SessionStore,
+  MemoryStore,
+  CronStore,
+  CronService,
+  HeartbeatService,
+  SkillsLoader,
+  ToolRegistry,
+  LLMGateway,
+  OpenAICompatibleProvider,
+  AgentLoop,
+  ChannelManager,
+  ChannelHelper,
+  parseModelConfigs,
+} from '@microbot/core';
+import type {
+  App,
+  CronJobSummary,
+  Config,
+  ProviderEntry,
+  ModelConfig,
+} from '@microbot/core';
 import { DatabaseManager, DEFAULT_DB_CONFIG } from './db/manager';
-import { MessageBus } from './core/bus/queue';
-import { SessionStore } from './core/storage/session/store';
-import { MemoryStore } from './core/storage/memory/store';
-import { CronStore } from './core/storage/cron/store';
-import { CronService } from './core/service/cron/service';
-import { HeartbeatService } from './core/service/heartbeat/service';
-import { SkillsLoader } from './core/skill/loader';
-import { ToolRegistry } from './core/tool/registry';
-import { LLMGateway, OpenAICompatibleProvider } from './core/providers';
-import { AgentLoop } from './core/agent/loop';
-import { ChannelManager, ChannelHelper } from './core/channel';
-import type { App, CronJobSummary } from './core/types/interfaces';
-import type { Config, ProviderEntry, ModelConfig } from './core/config/schema';
-import { parseModelConfigs } from './core/config/schema';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { getLogger } from '@logtape/logtape';
@@ -314,7 +324,7 @@ export async function createApp(configPath?: string): Promise<App> {
 }
 
 // 导出类型
-export type { App, CronJobSummary } from './core/types/interfaces';
+export type { App, CronJobSummary } from '@microbot/core';
 
 // SDK 子路径导出
-export * as core from './core/index';
+export * as core from '@microbot/core';

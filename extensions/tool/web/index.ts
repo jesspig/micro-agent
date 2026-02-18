@@ -4,7 +4,7 @@
  * 提供 Web 搜索和获取功能。
  */
 import { z } from 'zod';
-import type { Tool, ToolContext } from '../../../src/core/tool';
+import type { Tool, ToolContext } from '@microbot/core';
 
 /** Web 搜索工具 */
 export class WebSearchTool implements Tool {

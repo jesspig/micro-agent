@@ -6,7 +6,7 @@
  */
 import { z } from 'zod';
 import { which } from 'bun';
-import type { Tool, ToolContext } from '../../../src/core/tool';
+import type { Tool, ToolContext } from '@microbot/core';
 
 /** Shell 执行工具 */
 export class ExecTool implements Tool {

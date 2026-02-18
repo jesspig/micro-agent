@@ -17,7 +17,7 @@ import {
   buildIntentUserPrompt, 
   type IntentResult,
   type ModelInfo,
-} from '../../prompts';
+} from '../prompts';
 import { getLogger } from '@logtape/logtape';
 
 const log = getLogger(['router']);

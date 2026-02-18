@@ -8,6 +8,7 @@ export {
   type AgentConfig,
   type ProviderConfig,
   type ProviderEntry,
+  parseModelConfigs,
 } from './schema';
 
 // 配置加载

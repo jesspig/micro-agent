@@ -4,7 +4,7 @@
  * 提供消息发送功能。
  */
 import { z } from 'zod';
-import type { Tool, ToolContext } from '../../../src/core/tool';
+import type { Tool, ToolContext } from '@microbot/core';
 
 /** 消息工具 */
 export class MessageTool implements Tool {

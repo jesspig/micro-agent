@@ -6,7 +6,7 @@
 import { z } from 'zod';
 import { readFileSync, writeFileSync, existsSync, readdirSync, statSync } from 'fs';
 import { resolve, isAbsolute } from 'path';
-import type { Tool, ToolContext } from '../../../src/core/tool';
+import type { Tool, ToolContext } from '@microbot/core';
 
 /** 读取文件工具 */
 export class ReadFileTool implements Tool {
