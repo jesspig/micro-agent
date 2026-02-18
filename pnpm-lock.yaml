@@ -17,6 +17,9 @@ importers:
       '@logtape/pretty':
         specifier: ^2.0.2
         version: 2.0.2(@logtape/logtape@2.0.2)
+      '@microbot/core':
+        specifier: workspace:*
+        version: link:packages/core
       ai:
         specifier: ^6.0.87
         version: 6.0.87(zod@4.3.6)
@@ -54,6 +57,40 @@ importers:
       '@types/nodemailer':
         specifier: ^7.0.10
         version: 7.0.10
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  packages/core:
+    dependencies:
+      '@logtape/logtape':
+        specifier: ^2.0.2
+        version: 2.0.2
+      ai:
+        specifier: ^6.0.87
+        version: 6.0.87(zod@4.3.6)
+      cron-schedule:
+        specifier: ^6.0.0
+        version: 6.0.0
+      gray-matter:
+        specifier: ^4.0.3
+        version: 4.0.3
+      js-yaml:
+        specifier: ^4.1.1
+        version: 4.1.1
+      mitt:
+        specifier: ^3.0.1
+        version: 3.0.1
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
+    devDependencies:
+      '@types/js-yaml':
+        specifier: ^4.0.9
+        version: 4.0.9
+      '@types/node':
+        specifier: ^25.2.3
+        version: 25.2.3
       typescript:
         specifier: ^5.9.3
         version: 5.9.3

@@ -5,10 +5,12 @@
   "type": "module",
   "author": "jesspig",
   "license": "MIT",
+  "private": true,
   "repository": {
     "type": "git",
     "url": "https://github.com/jesspig/microbot.git"
   },
+  "workspaces": ["packages/*"],
   "bin": {
     "microbot": "./src/cli.ts"
   },
@@ -17,15 +19,6 @@
     ".": {
       "types": "./src/index.ts",
       "default": "./src/index.ts"
-    },
-    "./core": {
-      "types": "./src/core/index.ts",
-      "default": "./src/core/index.ts"
-    }
-  },
-  "typesVersions": {
-    "*": {
-      "core": ["./src/core/index.ts"]
     }
   },
   "scripts": {
@@ -41,6 +34,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@microbot/core": "workspace:*",
     "@larksuiteoapi/node-sdk": "^1.59.0",
     "@logtape/logtape": "^2.0.2",
     "@logtape/pretty": "^2.0.2",
