@@ -21,21 +21,11 @@
     "./core": {
       "types": "./src/core/index.ts",
       "default": "./src/core/index.ts"
-    },
-    "./extensions": {
-      "types": "./src/extensions/index.ts",
-      "default": "./src/extensions/index.ts"
-    },
-    "./hot-plug": {
-      "types": "./src/hot-plug/index.ts",
-      "default": "./src/hot-plug/index.ts"
     }
   },
   "typesVersions": {
     "*": {
-      "core": ["./src/core/index.ts"],
-      "extensions": ["./src/extensions/index.ts"],
-      "hot-plug": ["./src/hot-plug/index.ts"]
+      "core": ["./src/core/index.ts"]
     }
   },
   "scripts": {

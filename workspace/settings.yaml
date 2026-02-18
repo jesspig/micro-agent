@@ -5,16 +5,19 @@
 agents:
   defaults:
     workspace: ~/.microbot/workspace
-    model: ollama/qwen3
+    model: openai-compatible/gpt-4o
     maxTokens: 8192
     temperature: 0.7
     maxToolIterations: 20
 
 providers:
-  ollama:
-    baseUrl: http://localhost:11434/v1
+  openai-compatible:
+    baseUrl: https://api.openai.com/v1
+    apiKey: ${OPENAI_API_KEY}
     models:
-      - qwen3
+      - gpt-4o
+      - gpt-4o-mini
+      - gpt-4-turbo
 
 channels:
   feishu:
