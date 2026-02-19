@@ -31,8 +31,6 @@ export interface Logger {
 export interface DatabaseConfig {
   /** 数据目录 */
   dataDir: string;
-  /** 会话数据库路径 */
-  sessionsDb: string;
   /** Cron 数据库路径 */
   cronDb: string;
   /** 记忆数据库路径 */

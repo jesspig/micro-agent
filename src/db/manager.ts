@@ -7,7 +7,6 @@ import type { DatabaseConfig } from '../core/types/interfaces';
 /** 默认数据库配置 */
 export const DEFAULT_DB_CONFIG: DatabaseConfig = {
   dataDir: '~/.microbot/data',
-  sessionsDb: '~/.microbot/data/sessions.db',
   cronDb: '~/.microbot/data/cron.db',
   memoryDb: '~/.microbot/data/memory.db',
 };
@@ -15,10 +14,10 @@ export const DEFAULT_DB_CONFIG: DatabaseConfig = {
 /**
  * 数据库管理器
  * 
- * 管理三个 SQLite 数据库：sessions、cron、memory
+ * 管理两个 SQLite 数据库：cron、memory
+ * Session 使用 JSONL 格式存储，独立管理
  */
 export class DatabaseManager {
-  private sessions: Database | null = null;
   private cron: Database | null = null;
   private memory: Database | null = null;
 
@@ -31,7 +30,6 @@ export class DatabaseManager {
       mkdirSync(dataDir, { recursive: true });
     }
 
-    this.sessions = new Database(this.expandPath(this.config.sessionsDb));
     this.cron = new Database(this.expandPath(this.config.cronDb));
     this.memory = new Database(this.expandPath(this.config.memoryDb));
 
@@ -40,21 +38,6 @@ export class DatabaseManager {
 
   /** 创建表结构 */
   private createTables(): void {
-    // 会话表
-    this.sessions?.run(`
-      CREATE TABLE IF NOT EXISTS sessions (
-        key TEXT PRIMARY KEY,
-        channel TEXT NOT NULL,
-        chat_id TEXT NOT NULL,
-        messages TEXT NOT NULL,
-        created_at INTEGER NOT NULL,
-        last_active_at INTEGER NOT NULL
-      )
-    `);
-    this.sessions?.run(
-      'CREATE INDEX IF NOT EXISTS idx_sessions_last_active ON sessions(last_active_at)'
-    );
-
     // Cron 任务表
     this.cron?.run(`
       CREATE TABLE IF NOT EXISTS cron_jobs (
@@ -103,10 +86,6 @@ export class DatabaseManager {
     return resolve(path);
   }
 
-  getSessionsDb(): Database {
-    return this.getDb('sessions');
-  }
-
   getCronDb(): Database {
     return this.getDb('cron');
   }
@@ -115,7 +94,7 @@ export class DatabaseManager {
     return this.getDb('memory');
   }
 
-  private getDb(name: 'sessions' | 'cron' | 'memory'): Database {
+  private getDb(name: 'cron' | 'memory'): Database {
     const db = this[name];
     if (!db) {
       throw new Error(`数据库未初始化: ${name}`);
@@ -125,10 +104,8 @@ export class DatabaseManager {
 
   /** 关闭所有数据库连接 */
   close(): void {
-    this.sessions?.close();
     this.cron?.close();
     this.memory?.close();
-    this.sessions = null;
     this.cron = null;
     this.memory = null;
   }

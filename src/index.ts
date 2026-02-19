@@ -33,6 +33,7 @@ import { DatabaseManager, DEFAULT_DB_CONFIG } from './db/manager';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { getLogger } from '@logtape/logtape';
+import { homedir } from 'os';
 
 // 扩展组件导入
 import { ReadFileTool, WriteFileTool, ListDirTool } from '../extensions/tool/filesystem';
@@ -82,19 +83,22 @@ class AppImpl implements App {
     if (this.running) return;
     this.running = true;
 
-    // 1. 初始化数据库
+    // 1. 初始化数据库（仅用于 cron 和 memory）
     const dataDir = expandPath(DEFAULT_DB_CONFIG.dataDir);
     this.dbManager = new DatabaseManager({
       ...DEFAULT_DB_CONFIG,
       dataDir,
-      sessionsDb: `${dataDir}/sessions.db`,
       cronDb: `${dataDir}/cron.db`,
       memoryDb: `${dataDir}/memory.db`,
     });
     this.dbManager.init();
 
     // 2. 初始化存储
-    const sessionStore = new SessionStore(this.dbManager.getSessionsDb());
+    // SessionStore 使用 JSONL 格式，独立于数据库
+    const sessionStore = new SessionStore({
+      sessionsDir: `${homedir()}/.microbot/sessions`,
+      sessionTimeout: 30 * 60 * 1000, // 30 分钟超时
+    });
     const memoryStore = new MemoryStore(this.dbManager.getMemoryDb());
     this.cronStore = new CronStore(this.dbManager.getCronDb());
 
