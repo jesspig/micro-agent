@@ -1,4 +1,5 @@
 import { defineConfig } from 'vitepress';
+import { mermaidPlugin } from './mermaid-plugin';
 
 export default defineConfig({
   title: 'Microbot',
@@ -9,6 +10,11 @@ export default defineConfig({
   head: [
     ['link', { rel: 'icon', href: '/favicon.ico' }],
   ],
+  markdown: {
+    config: (md) => {
+      md.use(mermaidPlugin);
+    },
+  },
   themeConfig: {
     logo: '/logo.svg',
     siteTitle: 'Microbot',
