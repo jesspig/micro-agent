@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'bun:test';
-import { MessageBus } from '../../src/bus/queue';
+import { MessageBus } from '../../src/core/bus/queue';
 
 describe('MessageBus', () => {
   let bus: MessageBus;

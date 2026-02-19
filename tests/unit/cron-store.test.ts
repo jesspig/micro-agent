@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import { Database } from 'bun:sqlite';
-import { CronStore, type CronJob } from '../../src/cron/store';
+import { CronStore, type CronJob } from '../../src/core/storage/cron/store';
 
 describe('CronStore', () => {
   let db: Database;

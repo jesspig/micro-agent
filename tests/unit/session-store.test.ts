@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import { Database } from 'bun:sqlite';
-import { SessionStore, type Session, type SessionMessage } from '../../src/session/store';
+import { SessionStore, type Session, type SessionMessage } from '../../src/core/storage/session/store';
 
 describe('SessionStore', () => {
   let db: Database;

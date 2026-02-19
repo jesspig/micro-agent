@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'bun:test';
-import { WebFetchTool, WebSearchTool, ToolRegistry } from '../../src/tools';
-import type { ToolContext } from '../../src/tools';
+import { WebFetchTool, WebSearchTool } from '../../extensions/tool';
+import { ToolRegistry } from '../../src/core/tool';
+import type { ToolContext } from '../../src/core/tool';
 
 const defaultCtx: ToolContext = {
   channel: 'test',

@@ -13,13 +13,16 @@
     "declarationMap": true,
     "sourceMap": true,
     "outDir": "./dist",
-    "rootDir": "./src",
+    "rootDir": ".",
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@core/*": ["./src/core/*"],
+      "@microbot/core": ["./packages/core/src"],
+      "@microbot/core/*": ["./packages/core/src/*"]
     },
     "types": ["bun-types"]
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "extensions/**/*"],
   "exclude": ["node_modules", "dist", "tests"]
 }

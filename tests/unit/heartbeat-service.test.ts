@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
-import { HeartbeatService } from '../../src/heartbeat/service';
+import { HeartbeatService } from '../../src/core/service/heartbeat/service';
 import { writeFileSync, mkdirSync, rmSync, existsSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';

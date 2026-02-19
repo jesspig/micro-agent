@@ -1,7 +1,7 @@
 import { describe, test, expect, beforeEach } from 'bun:test';
 import { writeFileSync, mkdirSync, rmSync, existsSync } from 'fs';
 import { join } from 'path';
-import { SkillsLoader } from '../../src/skills/loader';
+import { SkillsLoader } from '../../src/core/skill/loader';
 
 const TEST_DIR = join(process.cwd(), 'test-skills-temp');
 const WORKSPACE_DIR = join(TEST_DIR, 'workspace');

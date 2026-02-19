@@ -1,13 +1,15 @@
 import { describe, it, expect, beforeEach } from 'bun:test';
-import { LLMGateway } from '../../src/providers/gateway';
-import type { ILLMProvider, LLMMessage, LLMResponse } from '../../src/providers/base';
+import { LLMGateway } from '../../src/core/providers/gateway';
+import type { LLMProvider, LLMMessage, LLMResponse } from '../../src/core/providers/base';
+import type { ModelConfig } from '../../src/core/config/schema';
 
 /** Mock Provider 用于测试 */
-class MockProvider implements ILLMProvider {
+class MockProvider implements LLMProvider {
   constructor(
     readonly name: string,
     private available: boolean = true,
-    private response: LLMResponse = { content: 'test response', hasToolCalls: false }
+    private response: LLMResponse = { content: 'test response', hasToolCalls: false },
+    private models: string[] = []
   ) {}
 
   async chat(): Promise<LLMResponse> {
@@ -23,6 +25,17 @@ class MockProvider implements ILLMProvider {
 
   async isAvailable(): Promise<boolean> {
     return this.available;
+  }
+
+  getModelCapabilities(modelId: string): ModelConfig {
+    return { id: modelId, vision: false, think: false, tool: true };
+  }
+
+  async listModels(): Promise<string[] | null> {
+    if (!this.available) {
+      return null;
+    }
+    return this.models.length > 0 ? this.models : [`${this.name}-model`];
   }
 }
 
@@ -94,7 +107,7 @@ describe('LLMGateway', () => {
       gateway.registerProvider('test1', new MockProvider('test1', false), ['model1'], 1);
       gateway.registerProvider('test2', new MockProvider('test2', false), ['model1'], 2);
       
-      await expect(gateway.chat([{ role: 'user', content: 'hi' }])).rejects.toThrow('所有 Provider 不可用');
+      await expect(gateway.chat([{ role: 'user', content: 'hi' }])).rejects.toThrow('所有 Provider 尝试失败');
     });
   });
 

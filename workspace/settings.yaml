@@ -1,0 +1,65 @@
+# microbot 系统级默认配置
+# 此文件为内置配置，请勿修改
+# 用户配置请在 ~/.microbot/settings.yaml 中覆盖
+
+agents:
+  workspace: ~/.microbot/workspace
+  models:
+    chat: ollama/qwen3      # 对话模型（必填）
+    # check: ollama/qwen3   # 意图识别模型（可选，默认使用 chat）
+  # 全局生成参数（可被模型级别配置覆盖）
+  maxTokens: 8192          # 生成的最大 token 数量
+  temperature: 0.7         # 控制响应随机性，越低越确定，越高越随机
+  topK: 50                 # 限制 token 选择范围为前 k 个候选
+  topP: 0.7                # 核采样参数，根据累积概率动态调整选择范围
+  frequencyPenalty: 0.5    # 频率惩罚，控制生成内容的重复性
+  maxToolIterations: 20    # 最大工具调用迭代次数
+  # 自动路由配置
+  auto: true               # 开启自动路由，根据任务难度自动选择模型
+  max: false               # 性能优先模式（auto=true 时生效），true 则始终使用最强模型
+
+providers:
+  # 本地 Ollama（本地优先，无需 apiKey）
+  ollama:
+    baseUrl: http://localhost:11434/v1
+    models:
+      # 性能级别：fast < low < medium < high < ultra
+      # fast: 简单任务（问候、简单问答）
+      # low: 基础任务（格式化、简单翻译）
+      # medium: 常规任务（一般对话、代码补全）
+      # high: 复杂任务（代码重构、数据分析）
+      # ultra: 高难任务（复杂推理、架构设计）
+      
+      - id: qwen3:0.6b
+        level: fast           # 最快速度：简单问答
+      - id: llama3.2
+        level: low            # 轻度推理：基础指令
+      - id: qwen3
+        level: medium         # 标准推理：通用任务（默认）
+      - id: llama3.2-vision
+        level: medium
+        vision: true          # 支持图片输入
+      - id: deepseek-r1
+        level: high           # 深度推理：复杂编码
+        think: true           # 支持思考链
+      - id: qwen2.5:32b
+        level: ultra          # 极限推理：架构设计
+
+  # 远程 API（可选，用于故障转移或需要更强模型时）
+  # openai:
+  #   baseUrl: https://api.openai.com/v1
+  #   apiKey: ${OPENAI_API_KEY}
+  #   models:
+  #     - id: gpt-4o-mini
+  #       level: fast
+  #     - id: gpt-4o
+  #       level: medium
+  #     - id: o1-preview
+  #       level: ultra
+
+channels:
+  feishu:
+    enabled: false
+    appId: ""
+    appSecret: ""
+    allowFrom: []

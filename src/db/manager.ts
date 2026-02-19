@@ -2,7 +2,7 @@ import { Database } from 'bun:sqlite';
 import { mkdirSync, existsSync } from 'fs';
 import { resolve } from 'path';
 import { homedir } from 'os';
-import type { DatabaseConfig } from '../types/interfaces';
+import type { DatabaseConfig } from '../core/types/interfaces';
 
 /** 默认数据库配置 */
 export const DEFAULT_DB_CONFIG: DatabaseConfig = {

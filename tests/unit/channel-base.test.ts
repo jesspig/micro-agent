@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach } from 'bun:test';
-import { BaseChannel, type Channel } from '../../src/channels/base';
-import type { OutboundMessage } from '../../src/bus/events';
-import type { MessageBus } from '../../src/bus/queue';
-import type { ChannelType } from '../../src/types/interfaces';
+import { ChannelHelper, type Channel } from '../../src/core/channel/base';
+import type { OutboundMessage } from '../../src/core/bus/events';
+import type { MessageBus } from '../../src/core/bus/queue';
+import type { ChannelType } from '../../src/core/types/interfaces';
 
 // Mock MessageBus
 class MockBus implements MessageBus {
@@ -34,9 +34,19 @@ class MockBus implements MessageBus {
   }
 }
 
-// 测试用具体通道实现
-class TestChannel extends BaseChannel {
+// 测试用具体通道实现（使用组合模式）
+class TestChannel implements Channel {
   readonly name: ChannelType = 'feishu';
+  private helper: ChannelHelper;
+  private _running = false;
+
+  constructor(bus: MessageBus, allowFrom: string[] = []) {
+    this.helper = new ChannelHelper(bus, allowFrom);
+  }
+
+  get isRunning(): boolean {
+    return this._running;
+  }
 
   async start(): Promise<void> {
     this._running = true;
@@ -50,18 +60,22 @@ class TestChannel extends BaseChannel {
     // 测试实现
   }
 
-  // 暴露 protected 方法供测试
-  async testHandleInbound(
+  // 暴露辅助方法供测试
+  async handleInbound(
     senderId: string,
     chatId: string,
     content: string,
     media?: string[]
   ): Promise<void> {
-    return this.handleInbound(senderId, chatId, content, media);
+    return this.helper.handleInbound(this.name, senderId, chatId, content, media);
+  }
+
+  isAllowed(senderId: string): boolean {
+    return this.helper.isAllowed(senderId);
   }
 }
 
-describe('BaseChannel', () => {
+describe('ChannelHelper', () => {
   let bus: MockBus;
   let channel: TestChannel;
 
@@ -94,15 +108,15 @@ describe('BaseChannel', () => {
   describe('发送者权限控制', () => {
     it('should allow all senders when allowFrom is empty', async () => {
       const channelWithEmptyAllow = new TestChannel(bus, []);
-      await channelWithEmptyAllow.testHandleInbound('user1', 'chat1', 'hello');
+      await channelWithEmptyAllow.handleInbound('user1', 'chat1', 'hello');
 
       expect(bus.publishedInbound).toHaveLength(1);
     });
 
     it('should allow only specified senders', async () => {
       const channelWithAllow = new TestChannel(bus, ['user1', 'user2']);
-      await channelWithAllow.testHandleInbound('user1', 'chat1', 'hello');
-      await channelWithAllow.testHandleInbound('user3', 'chat1', 'blocked');
+      await channelWithAllow.handleInbound('user1', 'chat1', 'hello');
+      await channelWithAllow.handleInbound('user3', 'chat1', 'blocked');
 
       expect(bus.publishedInbound).toHaveLength(1);
       expect((bus.publishedInbound[0] as { senderId: string }).senderId).toBe('user1');
@@ -111,7 +125,7 @@ describe('BaseChannel', () => {
 
   describe('入站消息处理', () => {
     it('should publish inbound message with correct format', async () => {
-      await channel.testHandleInbound('sender1', 'chat1', 'Hello World');
+      await channel.handleInbound('sender1', 'chat1', 'Hello World');
 
       const msg = bus.publishedInbound[0] as {
         channel: string;
@@ -129,7 +143,7 @@ describe('BaseChannel', () => {
     });
 
     it('should include media in message', async () => {
-      await channel.testHandleInbound('sender1', 'chat1', 'Check this', ['image.png']);
+      await channel.handleInbound('sender1', 'chat1', 'Check this', ['image.png']);
 
       const msg = bus.publishedInbound[0] as { media: string[] };
       expect(msg.media).toEqual(['image.png']);

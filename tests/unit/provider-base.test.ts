@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'bun:test';
-import type { LLMMessage, LLMResponse, ToolCall, LLMToolDefinition, ILLMProvider } from '../../src/providers/base';
-import { parseOpenAIResponse } from '../../src/providers/base';
+import type { LLMMessage, LLMResponse, ToolCall, LLMToolDefinition, ILLMProvider } from '../../src/core/providers/base';
+import { parseOpenAIResponse } from '../../src/core/providers/base';
 
 describe('Provider Base Types', () => {
   describe('parseOpenAIResponse', () => {

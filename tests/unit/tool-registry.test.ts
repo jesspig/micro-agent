@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'bun:test';
 import { z } from 'zod';
-import { ToolRegistry, type Tool, type ToolContext } from '../../src/tools';
+import { ToolRegistry, type Tool, type ToolContext } from '../../src/core/tool';
 
 // 测试用工具
 class TestTool implements Tool {

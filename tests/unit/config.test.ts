@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import { writeFileSync, mkdirSync, rmSync, existsSync } from 'fs';
 import { join } from 'path';
-import { loadConfig, expandPath, findTemplateFile } from '../../src/config/loader';
+import { loadConfig, expandPath, findTemplateFile } from '../../src/core/config/loader';
 
 const TEST_DIR = join(import.meta.dir, '__config_test__');
 
@@ -21,22 +21,22 @@ describe('Config Loader', () => {
   describe('loadConfig', () => {
     it('should return default config when no file exists', () => {
       const config = loadConfig({ configPath: '/nonexistent/path.yaml' });
-      expect(config.agents.defaults.model).toBe('ollama/qwen3');
-      expect(config.agents.defaults.maxTokens).toBe(8192);
+      expect(config.agents.models.chat).toBe('ollama/qwen3');
+      expect(config.agents.maxTokens).toBe(8192);
     });
 
     it('should load config from yaml file', () => {
       const configPath = join(TEST_DIR, 'config.yaml');
       writeFileSync(configPath, `
 agents:
-  defaults:
-    model: custom-model
-    maxTokens: 4096
+  models:
+    chat: custom-model
+  maxTokens: 4096
 `);
 
       const config = loadConfig({ configPath });
-      expect(config.agents.defaults.model).toBe('custom-model');
-      expect(config.agents.defaults.maxTokens).toBe(4096);
+      expect(config.agents.models.chat).toBe('custom-model');
+      expect(config.agents.maxTokens).toBe(4096);
     });
 
     it('should resolve environment variables', () => {
@@ -44,8 +44,7 @@ agents:
       const configPath = join(TEST_DIR, 'config.yaml');
       // 使用反引号模板字符串避免转义问题
       writeFileSync(configPath, `agents:
-  defaults:
-    model: test
+  model: test
 providers:
   openaiCompatible:
     baseUrl: https://api.example.com/v1
@@ -58,7 +57,7 @@ providers:
       delete process.env.TEST_API_KEY;
     });
 
-    it('should merge directory configs upward', () => {
+    it('should deep merge most fields but override providers', () => {
       // 创建目录结构: workspace/A/B/C
       const workspace = join(TEST_DIR, 'workspace');
       const dirA = join(workspace, 'A');
@@ -71,25 +70,40 @@ providers:
       // A 的配置
       writeFileSync(join(dirA, '.microbot', 'settings.yaml'), `
 agents:
-  defaults:
-    model: model-A
-    maxTokens: 2000
+  models:
+    chat: model-A
+  maxTokens: 2000
+providers:
+  ollama:
+    baseUrl: http://localhost:11434/v1
+    models: [qwen3]
+  openai:
+    baseUrl: https://api.openai.com/v1
+    models: [gpt-4o]
 `);
       
-      // B 的配置（会覆盖 A 的部分配置）
+      // B 的配置
       writeFileSync(join(dirB, '.microbot', 'settings.yaml'), `
 agents:
-  defaults:
-    model: model-B
+  models:
+    chat: model-B
+providers:
+  deepseek:
+    baseUrl: https://api.deepseek.com/v1
+    models: [deepseek-chat]
 `);
 
-      // 在 C 目录执行任务，应该合并 A 和 B 的配置
+      // 在 C 目录执行任务
       const config = loadConfig({ workspace, currentDir: dirC });
       
-      // B 的 model 覆盖 A 的
-      expect(config.agents.defaults.model).toBe('model-B');
-      // A 的 maxTokens 被 B 继承（B 没有设置）
-      expect(config.agents.defaults.maxTokens).toBe(2000);
+      // agents 深度合并：B 的 models.chat 覆盖 A 的，A 的 maxTokens 保留
+      expect(config.agents.models.chat).toBe('model-B');
+      expect(config.agents.maxTokens).toBe(2000);
+      
+      // providers 完全覆盖：只有 B 的 deepseek，没有 A 的 ollama 和 openai
+      expect(config.providers).toHaveProperty('deepseek');
+      expect(config.providers).not.toHaveProperty('ollama');
+      expect(config.providers).not.toHaveProperty('openai');
     });
   });
 

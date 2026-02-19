@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach } from 'bun:test';
-import { ChannelManager } from '../../src/channels/manager';
-import { BaseChannel, type Channel } from '../../src/channels/base';
-import type { OutboundMessage } from '../../src/bus/events';
-import type { MessageBus } from '../../src/bus/queue';
-import type { ChannelType } from '../../src/types/interfaces';
+import { ChannelManager } from '../../src/core/channel/manager';
+import { ChannelHelper, type Channel } from '../../src/core/channel/base';
+import type { OutboundMessage } from '../../src/core/bus/events';
+import type { MessageBus } from '../../src/core/bus/queue';
+import type { ChannelType } from '../../src/core/types/interfaces';
 
 // Mock MessageBus
 class MockBus implements MessageBus {
@@ -15,16 +15,22 @@ class MockBus implements MessageBus {
   get outboundLength(): number { return 0; }
 }
 
-// Mock Channel
-class MockChannel extends BaseChannel {
+// Mock Channel (组合模式)
+class MockChannel implements Channel {
   readonly name: ChannelType;
+  private helper: ChannelHelper;
+  private _running = false;
   startCalled = false;
   stopCalled = false;
   lastMessage: OutboundMessage | null = null;
 
-  constructor(bus: MessageBus, name: ChannelType, allowFrom: string[] = []) {
-    super(bus, allowFrom);
+  constructor(name: ChannelType, allowFrom: string[] = []) {
     this.name = name;
+    this.helper = new ChannelHelper(new MockBus(), allowFrom);
+  }
+
+  get isRunning(): boolean {
+    return this._running;
   }
 
   async start(): Promise<void> {
@@ -44,24 +50,22 @@ class MockChannel extends BaseChannel {
 
 describe('ChannelManager', () => {
   let manager: ChannelManager;
-  let bus: MockBus;
 
   beforeEach(() => {
-    bus = new MockBus();
     manager = new ChannelManager();
   });
 
   describe('通道注册', () => {
     it('should register channel', () => {
-      const channel = new MockChannel(bus, 'feishu');
+      const channel = new MockChannel('feishu');
       manager.register(channel);
 
       expect(manager.getRunningChannels()).toHaveLength(0);
     });
 
     it('should throw for duplicate channel', () => {
-      const channel1 = new MockChannel(bus, 'feishu');
-      const channel2 = new MockChannel(bus, 'feishu');
+      const channel1 = new MockChannel('feishu');
+      const channel2 = new MockChannel('feishu');
 
       manager.register(channel1);
       expect(() => manager.register(channel2)).toThrow('通道已注册');
@@ -70,8 +74,8 @@ describe('ChannelManager', () => {
 
   describe('通道启动和停止', () => {
     it('should start all channels', async () => {
-      const channel1 = new MockChannel(bus, 'feishu');
-      const channel2 = new MockChannel(bus, 'qq');
+      const channel1 = new MockChannel('feishu');
+      const channel2 = new MockChannel('qq');
 
       manager.register(channel1);
       manager.register(channel2);
@@ -85,7 +89,7 @@ describe('ChannelManager', () => {
     });
 
     it('should stop all channels', async () => {
-      const channel = new MockChannel(bus, 'feishu');
+      const channel = new MockChannel('feishu');
       manager.register(channel);
       await manager.startAll();
 
@@ -98,8 +102,8 @@ describe('ChannelManager', () => {
 
   describe('消息发送', () => {
     it('should send message to correct channel', async () => {
-      const feishuChannel = new MockChannel(bus, 'feishu');
-      const qqChannel = new MockChannel(bus, 'qq');
+      const feishuChannel = new MockChannel('feishu');
+      const qqChannel = new MockChannel('qq');
 
       manager.register(feishuChannel);
       manager.register(qqChannel);
@@ -137,8 +141,8 @@ describe('ChannelManager', () => {
     });
 
     it('should return only running channels', async () => {
-      const runningChannel = new MockChannel(bus, 'feishu');
-      const stoppedChannel = new MockChannel(bus, 'qq');
+      const runningChannel = new MockChannel('feishu');
+      const stoppedChannel = new MockChannel('qq');
 
       manager.register(runningChannel);
       manager.register(stoppedChannel);

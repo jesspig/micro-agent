@@ -13,7 +13,7 @@ import { parseArgs } from 'util';
 import { configure, getConsoleSink, getLogger } from '@logtape/logtape';
 import { prettyFormatter } from '@logtape/pretty';
 import { createApp } from './index';
-import type { App } from './types/interfaces';
+import type { App } from './core/types/interfaces';
 
 const VERSION = '1.0.0';
 
@@ -192,9 +192,16 @@ async function startService(configPath?: string): Promise<void> {
   // 启动
   try {
     await app.start();
+    const routerStatus = app.getRouterStatus();
     console.log('─'.repeat(50));
     console.log(`  \x1b[2m通道:\x1b[0m ${app.getRunningChannels().join(', ') || '无'}`);
-    console.log(`  \x1b[2mProvider:\x1b[0m ${app.getProviderStatus()}`);
+    console.log(`  \x1b[2m模型:\x1b[0m ${routerStatus.chatModel}`);
+    if (routerStatus.auto) {
+      const mode = routerStatus.max ? '性能优先' : '速度优先';
+      console.log(`  \x1b[2m路由:\x1b[0m 自动 (${mode})`);
+    } else {
+      console.log(`  \x1b[2m路由:\x1b[0m 固定`);
+    }
     console.log();
     log.debug('按 Ctrl+C 停止');
     console.log('─'.repeat(50));

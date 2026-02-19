@@ -5,14 +5,22 @@
   "type": "module",
   "author": "jesspig",
   "license": "MIT",
+  "private": true,
   "repository": {
     "type": "git",
     "url": "https://github.com/jesspig/microbot.git"
   },
+  "workspaces": ["packages/*"],
   "bin": {
     "microbot": "./src/cli.ts"
   },
   "main": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
   "scripts": {
     "dev": "bun run src/cli.ts start",
     "start": "bun run src/cli.ts start",
@@ -26,10 +34,11 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@microbot/core": "workspace:*",
     "@larksuiteoapi/node-sdk": "^1.59.0",
     "@logtape/logtape": "^2.0.2",
     "@logtape/pretty": "^2.0.2",
-    "ai": "^6.0.86",
+    "ai": "^6.0.87",
     "cron-schedule": "^6.0.0",
     "gray-matter": "^4.0.3",
     "imapflow": "^1.2.9",

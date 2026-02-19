@@ -1,13 +1,23 @@
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import { Database } from 'bun:sqlite';
-import { mkdirSync, rmSync, existsSync } from 'fs';
-import { join } from 'path';
-import { MemoryStore, type MemoryEntry } from '../../src/memory/store';
+import { mkdirSync, rmSync, existsSync, writeFileSync, readFileSync } from 'fs';
+import { join, resolve } from 'path';
+import { homedir } from 'os';
+import { MemoryStore, type MemoryEntry } from '../../src/core/storage/memory/store';
 
 describe('MemoryStore', () => {
   let db: Database;
   let store: MemoryStore;
-  const testDir = join(process.cwd(), 'test-memory-workspace');
+  const memoryPath = resolve(homedir(), '.microbot/memory');
+  const testDate = new Date().toISOString().split('T')[0];
+  const diaryFile = join(memoryPath, `${testDate}.md`);
+  const longtermFile = join(memoryPath, 'MEMORY.md');
+  
+  // 保存原始文件内容
+  let originalDiary = '';
+  let originalLongterm = '';
+  let diaryExisted = false;
+  let longtermExisted = false;
 
   beforeEach(() => {
     db = new Database(':memory:');
@@ -24,20 +34,52 @@ describe('MemoryStore', () => {
       )
     `);
     
-    // 创建测试目录
-    if (!existsSync(testDir)) {
-      mkdirSync(join(testDir, 'memory'), { recursive: true });
+    // 备份原始文件
+    if (existsSync(diaryFile)) {
+      originalDiary = readFileSync(diaryFile, 'utf-8');
+      diaryExisted = true;
+      rmSync(diaryFile, { force: true });
+    } else {
+      diaryExisted = false;
     }
     
-    store = new MemoryStore(db, testDir);
+    if (existsSync(longtermFile)) {
+      originalLongterm = readFileSync(longtermFile, 'utf-8');
+      longtermExisted = true;
+      rmSync(longtermFile, { force: true });
+    } else {
+      longtermExisted = false;
+    }
+    
+    // 确保目录存在
+    if (!existsSync(memoryPath)) {
+      mkdirSync(memoryPath, { recursive: true });
+    }
+    
+    store = new MemoryStore(db);
   });
 
   afterEach(() => {
     db.close();
-    // 清理测试目录
-    if (existsSync(testDir)) {
-      rmSync(testDir, { recursive: true, force: true });
+    
+    // 恢复原始文件
+    if (diaryExisted) {
+      writeFileSync(diaryFile, originalDiary);
+    } else if (existsSync(diaryFile)) {
+      rmSync(diaryFile, { force: true });
     }
+    
+    if (longtermExisted) {
+      writeFileSync(longtermFile, originalLongterm);
+    } else if (existsSync(longtermFile)) {
+      rmSync(longtermFile, { force: true });
+    }
+    
+    // 重置
+    originalDiary = '';
+    originalLongterm = '';
+    diaryExisted = false;
+    longtermExisted = false;
   });
 
   describe('日记读写', () => {

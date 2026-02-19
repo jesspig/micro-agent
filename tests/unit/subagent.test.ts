@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach } from 'bun:test';
-import { SubagentManager } from '../../src/agent/subagent';
-import type { ILLMProvider, LLMResponse } from '../../src/providers/base';
-import type { MessageBus } from '../../src/bus/queue';
-import type { InboundMessage } from '../../src/bus/events';
+import { SubagentManager } from '../../src/core/agent/subagent';
+import type { ILLMProvider, LLMResponse } from '../../src/core/providers/base';
+import type { MessageBus } from '../../src/core/bus/queue';
+import type { InboundMessage } from '../../src/core/bus/events';
 
 // Mock implementations
 class MockProvider implements ILLMProvider {

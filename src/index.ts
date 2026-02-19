@@ -4,34 +4,49 @@
  * 提供 createApp() 工厂函数，组装所有模块。
  */
 
-import { expandPath, loadConfig } from './config/loader';
+import {
+  expandPath,
+  loadConfig,
+  MessageBus,
+  SessionStore,
+  MemoryStore,
+  CronStore,
+  CronService,
+  HeartbeatService,
+  SkillsLoader,
+  ToolRegistry,
+  LLMGateway,
+  OpenAICompatibleProvider,
+  AgentLoop,
+  ChannelManager,
+  ChannelHelper,
+  parseModelConfigs,
+} from '@microbot/core';
+import type {
+  App,
+  CronJobSummary,
+  Config,
+  ProviderEntry,
+  ModelConfig,
+} from '@microbot/core';
 import { DatabaseManager, DEFAULT_DB_CONFIG } from './db/manager';
-import { MessageBus } from './bus/queue';
-import { SessionStore } from './session/store';
-import { MemoryStore } from './memory/store';
-import { CronStore } from './cron/store';
-import { CronService } from './cron/service';
-import { HeartbeatService } from './heartbeat/service';
-import { SkillsLoader } from './skills/loader';
-import { ToolRegistry } from './tools/registry';
-import { ReadFileTool, WriteFileTool, ListDirTool, ExecTool, WebSearchTool, WebFetchTool, MessageTool } from './tools';
-import { LLMGateway, OpenAICompatibleProvider } from './providers';
-import { AgentLoop } from './agent/loop';
-import { ChannelManager } from './channels/manager';
-import { ChannelHelper } from './channels/helper';
-import { FeishuChannel, QQChannel, DingTalkChannel, WeComChannel } from './channels';
-import type { App, CronJobSummary } from './types/interfaces';
-import type { Config, ProviderEntry } from './config/schema';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { getLogger } from '@logtape/logtape';
+
+// 扩展组件导入
+import { ReadFileTool, WriteFileTool, ListDirTool } from '../extensions/tool/filesystem';
+import { ExecTool } from '../extensions/tool/shell';
+import { WebSearchTool, WebFetchTool } from '../extensions/tool/web';
+import { MessageTool } from '../extensions/tool/message';
+import { FeishuChannel } from '../extensions/channel/feishu';
 
 const log = getLogger(['app']);
 
 /** 获取内置技能路径 */
 function getBuiltinSkillsPath(): string {
   const currentDir = dirname(fileURLToPath(import.meta.url));
-  return resolve(currentDir, 'skills');
+  return resolve(currentDir, '../extensions/skill');
 }
 
 /**
@@ -46,15 +61,21 @@ class AppImpl implements App {
   private channelManager: ChannelManager;
   private gateway: LLMGateway;
   private cronStore: CronStore | null = null;
+  /** 可用模型列表（用于自动路由） */
+  private availableModels = new Map<string, ModelConfig[]>();
 
   constructor(
     private config: Config,
     private workspace: string
   ) {
     this.channelManager = new ChannelManager();
-    // 第一个 provider 作为默认
-    const firstProvider = Object.keys(config.providers)[0] || 'ollama';
-    this.gateway = new LLMGateway({ defaultProvider: firstProvider, fallbackEnabled: true });
+    // 从模型配置解析 provider：格式为 "provider/model"
+    const chatModel = config.agents.models.chat;
+    const slashIndex = chatModel.indexOf('/');
+    const defaultProvider = slashIndex > 0
+      ? chatModel.slice(0, slashIndex)
+      : Object.keys(config.providers)[0] || 'openai-compatible';
+    this.gateway = new LLMGateway({ defaultProvider, fallbackEnabled: true });
   }
 
   async start(): Promise<void> {
@@ -74,7 +95,7 @@ class AppImpl implements App {
 
     // 2. 初始化存储
     const sessionStore = new SessionStore(this.dbManager.getSessionsDb());
-    const memoryStore = new MemoryStore(this.dbManager.getMemoryDb(), this.workspace);
+    const memoryStore = new MemoryStore(this.dbManager.getMemoryDb());
     this.cronStore = new CronStore(this.dbManager.getCronDb());
 
     // 3. 初始化消息总线
@@ -98,7 +119,7 @@ class AppImpl implements App {
     skillsLoader.load();
 
     // 7. 初始化 Agent
-    const agentConfig = this.config.agents.defaults;
+    const agentConfig = this.config.agents;
     this.agentLoop = new AgentLoop(
       messageBus,
       this.gateway,
@@ -108,8 +129,19 @@ class AppImpl implements App {
       skillsLoader,
       {
         workspace: this.workspace,
-        model: agentConfig.model,
+        models: agentConfig.models,
         maxIterations: agentConfig.maxToolIterations,
+        generation: {
+          maxTokens: agentConfig.maxTokens,
+          temperature: agentConfig.temperature,
+          topK: agentConfig.topK,
+          topP: agentConfig.topP,
+          frequencyPenalty: agentConfig.frequencyPenalty,
+        },
+        auto: agentConfig.auto,
+        max: agentConfig.max,
+        availableModels: this.availableModels,
+        routing: this.config.routing,
       }
     );
 
@@ -118,7 +150,7 @@ class AppImpl implements App {
       this.cronStore,
       async (job) => {
         await messageBus.publishInbound({
-          channel: (job.channel as 'feishu' | 'qq' | 'dingtalk' | 'wecom') || 'system',
+          channel: (job.channel as 'feishu' | 'system') || 'system',
           senderId: 'cron',
           chatId: job.toAddress || 'system',
           content: job.message,
@@ -158,11 +190,10 @@ class AppImpl implements App {
     // 12. 启动出站消息消费者
     this.startOutboundConsumer(messageBus);
 
-    // 13. 启动 Agent 循环（在后台运行）
+    // 13. 启动 Agent 循环
     this.agentLoop.run().catch(console.error);
   }
 
-  /** 启动出站消息消费者 */
   private startOutboundConsumer(messageBus: MessageBus): void {
     (async () => {
       while (true) {
@@ -180,19 +211,10 @@ class AppImpl implements App {
     if (!this.running) return;
     this.running = false;
 
-    // 停止 Agent
     this.agentLoop?.stop();
-
-    // 停止 Heartbeat
     this.heartbeatService?.stop();
-
-    // 停止 Cron
     this.cronService?.stop();
-
-    // 停止通道
     await this.channelManager.stopAll();
-
-    // 关闭数据库
     this.dbManager?.close();
   }
 
@@ -202,6 +224,15 @@ class AppImpl implements App {
 
   getProviderStatus(): string {
     return this.gateway.getDefaultModel();
+  }
+
+  getRouterStatus(): { auto: boolean; max: boolean; chatModel: string; checkModel?: string } {
+    return {
+      auto: this.config.agents.auto,
+      max: this.config.agents.max,
+      chatModel: this.config.agents.models.chat,
+      checkModel: this.config.agents.models.check,
+    };
   }
 
   getCronCount(): number {
@@ -219,41 +250,52 @@ class AppImpl implements App {
     }));
   }
 
-  /** 初始化 Provider */
   private initProviders(): void {
     const providers = this.config.providers as Record<string, ProviderEntry | undefined>;
-    const defaultModel = this.config.agents.defaults.model;
-    let hasProvider = false;
+    const chatModel = this.config.agents.models.chat;
+    
+    // 从模型配置解析默认 provider
+    const slashIndex = chatModel.indexOf('/');
+    const defaultProviderName = slashIndex > 0 ? chatModel.slice(0, slashIndex) : null;
+    const defaultModelId = slashIndex > 0 ? chatModel.slice(slashIndex + 1) : chatModel;
 
-    // 遍历所有 provider 配置（支持自定义名称）
     for (const [name, config] of Object.entries(providers)) {
       if (!config) continue;
 
+      // 解析模型配置（支持字符串简写和完整对象）
+      const modelConfigs = config.models ? parseModelConfigs(config.models) : [];
+      const modelIds = modelConfigs.map(m => m.id);
+      
+      // 存储模型配置用于自动路由
+      if (modelConfigs.length > 0) {
+        this.availableModels.set(name, modelConfigs);
+      }
+      
       const provider = new OpenAICompatibleProvider({
         baseUrl: config.baseUrl,
         apiKey: config.apiKey,
-        defaultModel: config.models?.[0] ?? defaultModel,
+        defaultModel: modelConfigs[0]?.id ?? defaultModelId,
+        modelConfigs,
       });
 
-      this.gateway.registerProvider(name, provider, config.models || ['*'], hasProvider ? 100 : 1);
-      hasProvider = true;
+      // 默认 provider 优先级为 1，其他为 100
+      const priority = name === defaultProviderName ? 1 : 100;
+      this.gateway.registerProvider(name, provider, modelIds.length > 0 ? modelIds : ['*'], priority, modelConfigs);
     }
 
-    // 默认 Provider：如果没有配置任何 provider，自动注册 Ollama
-    if (!hasProvider) {
+    // 如果没有配置任何 provider，使用本地 Ollama
+    if (this.gateway.getProviderNames().length === 0) {
       const provider = new OpenAICompatibleProvider({
         baseUrl: 'http://localhost:11434/v1',
-        defaultModel,
+        defaultModel: 'qwen3',
       });
-      this.gateway.registerProvider('ollama', provider, [defaultModel], 1);
+      this.gateway.registerProvider('ollama', provider, ['*'], 1, []);
     }
   }
 
-  /** 初始化通道 */
   private initChannels(bus: MessageBus): void {
     const channels = this.config.channels;
 
-    // 飞书
     if (channels.feishu?.enabled && channels.feishu.appId && channels.feishu.appSecret) {
       const helper = new ChannelHelper(bus, channels.feishu.allowFrom);
       const channel = new FeishuChannel(bus, {
@@ -263,57 +305,26 @@ class AppImpl implements App {
       }, helper);
       this.channelManager.register(channel);
     }
-
-    // QQ
-    if (channels.qq?.enabled && channels.qq.appId && channels.qq.secret) {
-      const helper = new ChannelHelper(bus, channels.qq.allowFrom || []);
-      const channel = new QQChannel(bus, {
-        appId: channels.qq.appId,
-        secret: channels.qq.secret,
-        allowFrom: [],
-      }, helper);
-      this.channelManager.register(channel);
-    }
-
-    // 钉钉
-    if (channels.dingtalk?.enabled && channels.dingtalk.clientId && channels.dingtalk.clientSecret) {
-      const helper = new ChannelHelper(bus, channels.dingtalk.allowFrom || []);
-      const channel = new DingTalkChannel(bus, {
-        clientId: channels.dingtalk.clientId,
-        clientSecret: channels.dingtalk.clientSecret,
-        allowFrom: [],
-      }, helper);
-      this.channelManager.register(channel);
-    }
-
-    // 企业微信
-    if (channels.wecom?.enabled && channels.wecom.corpId && channels.wecom.agentId && channels.wecom.secret) {
-      const helper = new ChannelHelper(bus, channels.wecom.allowFrom || []);
-      const channel = new WeComChannel(bus, {
-        corpId: channels.wecom.corpId,
-        agentId: channels.wecom.agentId,
-        secret: channels.wecom.secret,
-        allowFrom: [],
-      }, helper);
-      this.channelManager.register(channel);
-    }
   }
 }
 
-/**
- * 创建应用实例
- * @param configPath - 配置文件路径（可选）
- */
 export async function createApp(configPath?: string): Promise<App> {
-  // 1. 先加载基础配置（系统级 + 用户级）获取 workspace
   const baseConfig = loadConfig(configPath ? { configPath } : {});
-  const workspace = expandPath(baseConfig.agents.defaults.workspace);
-
-  // 2. 加载完整配置（包含项目级和目录级）
+  const workspace = expandPath(baseConfig.agents.workspace);
+  
+  // 确保 workspace 目录存在，避免 Bun.spawnSync 报 ENOENT 错误
+  const { mkdirSync, existsSync } = await import('fs');
+  if (!existsSync(workspace)) {
+    mkdirSync(workspace, { recursive: true });
+  }
+  
   const config = loadConfig({ workspace });
 
   return new AppImpl(config, workspace);
 }
 
 // 导出类型
-export type { App, CronJobSummary } from './types/interfaces';
+export type { App, CronJobSummary } from '@microbot/core';
+
+// SDK 子路径导出
+export * as core from '@microbot/core';

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
-import { CronService } from '../../src/cron/service';
-import { CronStore, type CronJob } from '../../src/cron/store';
+import { CronService } from '../../src/core/service/cron/service';
+import { CronStore, type CronJob } from '../../src/core/storage/cron/store';
 import { Database } from 'bun:sqlite';
 import { join } from 'path';
 import { tmpdir } from 'os';

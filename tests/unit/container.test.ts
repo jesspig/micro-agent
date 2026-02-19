@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'bun:test';
-import { ContainerImpl } from '../../src/container';
+import { ContainerImpl } from '../../src/core/container';
 
 describe('Container', () => {
   let container: ContainerImpl;
