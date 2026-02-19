@@ -21,7 +21,7 @@
       "@microbot/core": ["./packages/core/src"],
       "@microbot/core/*": ["./packages/core/src/*"]
     },
-    "types": ["bun-types"]
+    "types": ["bun"]
   },
   "include": ["src/**/*", "extensions/**/*"],
   "exclude": ["node_modules", "dist", "tests"]

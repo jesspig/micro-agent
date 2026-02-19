@@ -1,8 +1,22 @@
 # Bun 配置
 
 [install]
-# 使用 pnpm 兼容的 node_modules 结构
+# 使用硬链接节省磁盘空间（类似 pnpm）
 linkNativePackages = true
+# 保存 lockfile
+saveLockfile = true
+# 生产环境安装
+production = false
+# 自动安装 peer dependencies
+peer = true
+# 使用全局缓存减少磁盘占用
+globalCache = true
+
+[install.lockfile]
+# 保存 lockfile
+save = true
+# 仅保存 lockfile，不读取
+only = false
 
 [run]
 # 静默模式
