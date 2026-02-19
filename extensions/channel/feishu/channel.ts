@@ -153,10 +153,13 @@ export class FeishuChannel implements Channel {
         media: mediaInfo,
       });
 
-      await this.helper.handleInbound(this.name, senderId, replyTo, content, media, {
-        messageId,
-        chatType,
-        msgType,
+      await this.helper.handleInbound({
+        channelName: this.name,
+        senderId,
+        chatId: replyTo,
+        content,
+        media,
+        metadata: { messageId, chatType, msgType },
       });
     } catch (error) {
       log.error('处理飞书消息失败: {error}', {

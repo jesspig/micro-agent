@@ -117,7 +117,46 @@ class MessageHandler implements Handler { handle(msg) { ... } }
 
 ---
 
-### V. 本地优先
+### V. 零技术债务
+
+**核心理念**：及时清除遗留代码和弃用代码，避免新旧代码共存导致隐患。
+
+```typescript
+// ❌ 新旧代码共存
+function process(data: unknown, legacy?: boolean) {
+  if (legacy) {
+    // 旧逻辑 - 已弃用但未删除
+    return legacyProcess(data);
+  }
+  return newProcess(data);
+}
+
+// ✅ 干净迁移
+function process(data: unknown) {
+  return newProcess(data);
+}
+```
+
+**实践要点**：
+- 重构后立即删除旧代码，不保留"兼容层"
+- 废弃的导入、变量、函数立即清理
+- 注释掉的代码块直接删除，不保留
+- 测试代码中的调试日志、临时代码及时清除
+- 重构时同步更新所有调用点，不留"过渡期"
+
+**代码健康检查**：
+
+| 检查项 | 处理方式 |
+|--------|----------|
+| 未使用的导入 | 立即删除 |
+| 注释掉的代码 | 立即删除 |
+| `// TODO` / `// FIXME` | 要么修复，要么删除 |
+| 废弃的函数/类 | 立即删除所有引用并移除 |
+| 重复的逻辑 | 合并后删除冗余版本 |
+
+---
+
+### VI. 本地优先
 
 **核心理念**：默认本地存储和隐私保护，无云存储依赖。
 
