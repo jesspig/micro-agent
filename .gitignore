@@ -1,0 +1,58 @@
+# 依赖
+node_modules/
+.pnpm-store/
+
+# 构建输出
+dist/
+*.tsbuildinfo
+
+# 环境变量
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 日志
+*.log
+logs/
+
+# 测试覆盖率
+coverage/
+
+# 测试输出
+test_output.txt
+
+# 测试临时文件
+test-skills-temp/
+test-agent-workspace/
+test-fs-workspace/
+test-memory-workspace/
+test-watcher-dir/
+test-loader-dir/
+test-manager-dir/
+test-config-test/
+
+# 运行时数据
+.microbot/
+
+# AI 助手配置
+/.agent
+/.claude
+/.cursor
+/.gemini
+/.trae
+/.iflow
+/specs
+
+GEMINI.md
+CLAUDE.md
+IFLOW.md

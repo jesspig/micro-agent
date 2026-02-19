@@ -1,230 +1,249 @@
-# microbot
+# MicroBot
 
+[![Version](https://img.shields.io/badge/Version-0.1.0-blue.svg)](https://github.com/jesspig/microbot)
 [![Bun](https://img.shields.io/badge/Bun-1.3.9-black?logo=bun)](https://bun.sh/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue?logo=typescript)](https://www.typescriptlang.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9.3-blue?logo=typescript)](https://www.typescriptlang.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-使用 **Bun + TypeScript** 构建的超轻量级个人 AI 助手框架，复刻自 [nanobot](https://github.com/HKUDS/nanobot)。
+基于 **Bun + TypeScript** 的超轻量级个人 AI 助手框架。
 
-## ✨ 特性
+**[📖 在线文档](https://jesspig.github.io/microbot/)** | **[📦 更新日志](https://jesspig.github.io/microbot/guide/changelog)**
 
-- 🚀 **轻量高效** - 保持核心代码简洁，Bun 原生性能
-- 🔌 **多通道支持** - 飞书、QQ 频道、邮箱、钉钉、企业微信
-- 🤖 **本地优先 LLM** - Ollama/LM Studio/vLLM + OpenAI Compatible 接入云服务
-- ⏰ **定时任务** - 支持 at/every/cron 三种调度方式
-- 🧠 **记忆系统** - 日记 + 长期记忆，上下文自动注入
-- 🛠️ **工具生态** - 文件操作、Shell 命令、Web 搜索
-- 📦 **技能系统** - Markdown 定义，渐进式加载
-- 🔒 **安全可靠** - 消息去重、自动重连、权限控制
+## 特性
 
-## 📦 安装
+| 特性 | 说明 |
+|------|------|
+| 轻量高效 | Bun 原生性能，核心代码简洁 |
+| 模块化架构 | Core SDK + Extensions 分层设计 |
+| 智能路由 | 根据任务复杂度自动选择模型 |
+| 多通道支持 | 飞书（更多通道开发中） |
+| 本地优先 LLM | Ollama / LM Studio / OpenAI Compatible |
+| 定时任务 | at / every / cron 三种调度方式 |
+| 记忆系统 | 日记 + 长期记忆，上下文自动注入 |
+
+## 安装
+
+### 方式一：克隆运行（推荐）
 
 ```bash
-# 克隆项目
 git clone https://github.com/jesspig/microbot.git
 cd microbot
-
-# 安装依赖
 bun install
+bun start
 ```
 
-## ⚡ 快速开始
-
-### 1. 配置
+### 方式二：直接运行
 
 ```bash
-# 复制配置模板
-cp config.example.yaml config.yaml
-
-# 编辑配置
-# 填入你的 API Key 和通道配置
+bunx jesspig/microbot start
 ```
 
-### 2. 设置环境变量
+## 快速开始
+
+### 配置 LLM
+
+**本地 Ollama（推荐）**
 
 ```bash
-# .env
-OPENAI_API_KEY=your-api-key
-OPENAI_BASE_URL=https://api.openai.com/v1  # 或其他兼容端点
+ollama pull qwen3
 ```
 
-### 3. 运行
+**云服务**
 
 ```bash
-# 开发模式
-bun run dev
-
-# 生产模式
-bun run start
+export DEEPSEEK_API_KEY=your-api-key
+# 或
+export OPENAI_API_KEY=your-api-key
 ```
 
-## 📱 支持的通道
+### 启动
 
-| 通道 | 协议 | 特性 |
+```bash
+bun start
+```
+
+首次启动自动创建 `~/.microbot/settings.yaml` 配置文件。
+
+## CLI 命令
+
+```bash
+microbot <command> [options]
+
+Commands:
+  start       启动服务
+  status      显示状态
+  cron        管理定时任务
+
+Options:
+  -c, --config <path>   配置文件路径
+  -h, --help            显示帮助
+  -v, --version         显示版本
+```
+
+## 架构
+
+```
+Channel ──► ChannelManager ──► MessageBus
+                                     │
+              ┌──────────────────────┼──────────────────────┐
+              ▼                      ▼                      ▼
+         InboundQueue            AgentLoop             OutboundConsumer
+                                     │
+              ┌──────────────────────┼──────────────────────┐
+              ▼                      ▼                      ▼
+        ContextBuilder          ToolRegistry           MemoryStore
+              │                      │                      │
+              └──────────────────────┴──────────────────────┘
+                                     │
+                                     ▼
+                               LLM Gateway
+                               │         │
+                     ┌─────────┘         └─────────┐
+                     ▼                             ▼
+                  Ollama                   OpenAI Compatible
+```
+
+## 核心模块
+
+| 模块 | 路径 | 说明 |
 |------|------|------|
-| 飞书 | WebSocket | 私聊/群聊、Markdown 卡片、消息反应 |
-| QQ 频道 | WebSocket | C2C 私聊、消息去重 |
-| 邮箱 | IMAP/SMTP | 轮询接收、HTML 解析、回复线程 |
-| 钉钉 | WebSocket Stream | 私聊/群聊、Markdown 消息 |
-| 企业微信 | Webhook/API | 私聊/群聊、消息加密 |
+| 容器 | `packages/core/src/container.ts` | 依赖注入容器 |
+| 事件总线 | `packages/core/src/event-bus.ts` | 类型安全的事件系统 |
+| 钩子系统 | `packages/core/src/hook-system.ts` | 前置/后置钩子 |
+| 中间件 | `packages/core/src/pipeline.ts` | 可组合的处理链 |
+| 配置 | `packages/core/src/config/` | YAML 配置加载与验证 |
+| LLM | `packages/core/src/providers/` | Provider 抽象、Gateway、路由 |
+| Agent | `packages/core/src/agent/` | ReAct 循环、上下文构建 |
+| 工具 | `packages/core/src/tool/` | 工具注册表 |
+| 通道 | `packages/core/src/channel/` | 通道管理器 |
+| 技能 | `packages/core/src/skill/` | 技能加载器 |
+| 存储 | `packages/core/src/storage/` | 会话、记忆、定时任务存储 |
+| 服务 | `packages/core/src/service/` | Cron、Heartbeat 服务 |
 
-## 🤖 支持的 LLM Provider
+## 扩展模块
 
-**设计理念**：本地优先，通过 OpenAI Compatible 接入云服务。
-
-| 类型 | Provider |
-|------|----------|
-| 本地 | Ollama、LM Studio、vLLM |
-| 自定义 | OpenAI Compatible（可接入任意云服务） |
-
-### LLM Gateway
-
-Gateway 提供统一的 LLM 接口，聚合多个 Provider：
-
-- **自动路由**：根据模型名自动选择合适的 Provider
-- **故障转移**：主 Provider 失败时自动切换到备用
-- **负载均衡**：多 Provider 间均匀分配请求
-- **自定义扩展**：轻松添加新的 Provider
-
-```typescript
-// 创建 Gateway（本地优先）
-const gateway = new LLMGateway();
-
-// 注册 Provider
-gateway.registerProvider(new OllamaProvider(config.ollama));
-gateway.registerProvider(new OpenAICompatibleProvider(config.cloud));
-
-// 自动路由生成
-const result = await gateway.generate({
-  model: 'llama3.1',  // 自动路由到 ollama
-  messages: context.messages,
-});
-```
-
-## 🏗️ 架构
-
-```
-Chat Channels (Feishu/QQ/Email/DingTalk/WeCom)
-        │
-        ▼
-ChannelManager ──► MessageBus
-                        │
-                        ▼
-                   AgentLoop
-                        │
-        ┌───────────────┼───────────────┐
-        ▼               ▼               ▼
-  ContextBuilder  ToolRegistry   MemoryManager
-        │               │               │
-        └───────────────┴───────────────┘
-                        │
-                        ▼
-                 LLM Provider
-```
-
-## 🛠️ 内置工具
-
-| 类别 | 工具 | 描述 |
+| 模块 | 路径 | 说明 |
 |------|------|------|
-| 文件系统 | `read_file` | 读取文件内容 |
-| | `write_file` | 写入文件 |
-| | `edit_file` | 编辑文件 |
-| | `list_dir` | 列出目录 |
-| Shell | `exec` | 执行命令 |
-| Web | `web_search` | Web 搜索 |
-| | `web_fetch` | 获取网页 |
-| 消息 | `message` | 发送消息 |
-| 定时任务 | `cron` | 管理定时任务 |
+| 工具 | `extensions/tool/` | 文件、Shell、Web 工具 |
+| 技能 | `extensions/skill/` | time、sysinfo |
+| 通道 | `extensions/channel/` | 飞书 |
 
-## 📚 内置技能
+## 内置工具
 
-| 技能 | 描述 |
+| 工具 | 说明 |
 |------|------|
-| `time` | 获取时间（系统时间/UTC时间/指定时区时间） |
-| `sysinfo` | 资源监视器（CPU/内存/硬盘使用情况） |
+| `read_file` | 读取文件 |
+| `write_file` | 写入文件 |
+| `list_directory` | 列出目录 |
+| `exec` | 执行 Shell 命令 |
+| `web_search` | 网络搜索 |
+| `web_fetch` | 获取网页内容 |
+| `send_message` | 发送消息 |
 
-## 📁 项目结构
+## 内置技能
 
-```
-microbot/
-├── src/
-│   ├── index.ts          # 入口
-│   ├── cli.ts            # CLI 命令
-│   ├── bus/              # 消息总线
-│   ├── channels/         # 通道实现
-│   │   ├── feishu.ts
-│   │   ├── qq.ts
-│   │   ├── email.ts
-│   │   ├── dingtalk.ts
-│   │   └── wecom.ts
-│   ├── agent/            # Agent 核心
-│   │   ├── loop.ts
-│   │   ├── context.ts
-│   │   ├── memory.ts
-│   │   └── tools/
-│   ├── cron/             # 定时任务
-│   │   └── service.ts
-│   ├── providers/        # LLM Provider
-│   └── config/           # 配置管理
-├── tests/
-├── package.json
-└── tsconfig.json
-```
+| 技能 | 说明 |
+|------|------|
+| `time` | 时间查询、格式转换、时区处理 |
+| `sysinfo` | CPU、内存、磁盘、网络状态 |
 
-## 📖 文档
+## 通道配置
 
-- [快速开始](./specs/main/quickstart.md) - 安装和配置指南
-- [项目规格](./specs/main/spec.md) - 完整功能规格
-- [实施计划](./specs/main/plan.md) - 开发计划
-- [API 契约](./specs/main/contracts/) - 接口定义
+<details>
+<summary>飞书</summary>
 
-## 🔧 开发
+使用 WebSocket 长连接，无需公网 IP。
 
-```bash
-# 开发模式（热重载）
-bun run dev
-
-# 类型检查
-bun run typecheck
-
-# 运行测试
-bun test
-
-# 构建
-bun build
-```
-
-## 📄 配置示例
+1. 创建飞书应用 → 启用机器人能力
+2. 权限：添加 `im:message` 和 `im:resource`
+3. 事件订阅：选择「使用长连接接收事件」，添加 `im.message.receive_v1`
+4. 获取 App ID 和 App Secret
 
 ```yaml
-# config.yaml
-agents:
-  defaults:
-    workspace: ~/.microbot/workspace
-    model: gpt-4o
-    maxTokens: 8192
-
 channels:
   feishu:
     enabled: true
-    appId: your-app-id
-    appSecret: your-app-secret
-
-  qq:
-    enabled: false
-    appId: your-qq-bot-id
-    secret: your-secret
-
-  email:
-    enabled: false
-    imapHost: imap.example.com
-    smtpHost: smtp.example.com
-
-llm:
-  baseUrl: https://api.openai.com/v1  # 或其他 OpenAI 兼容端点
-  apiKey: ${OPENAI_API_KEY}           # 支持环境变量引用
+    appId: cli_xxx
+    appSecret: xxx
+    allowFrom: []
 ```
 
-## 📜 许可证
+</details>
 
-[MIT](LICENSE)
+## LLM Provider
+
+**模型格式**: `provider/model`（如 `ollama/qwen3`、`deepseek/deepseek-chat`）
+
+```yaml
+providers:
+  ollama:
+    baseUrl: http://localhost:11434/v1
+    models: [qwen3]
+
+  deepseek:
+    baseUrl: https://api.deepseek.com/v1
+    apiKey: ${DEEPSEEK_API_KEY}
+    models: [deepseek-chat]
+```
+
+**Gateway 特性**:
+
+- 自动路由：根据 `provider/model` 格式路由
+- 智能路由：根据任务复杂度选择合适模型
+- 故障转移：主 Provider 失败时自动切换备用
+
+## 数据目录
+
+```
+~/.microbot/
+├── settings.yaml          # 用户配置
+├── sessions/              # 会话存储（JSONL）
+└── data/                  # 数据库
+    ├── cron.db            # 定时任务
+    └── memory.db          # 记忆索引
+```
+
+## 开发
+
+```bash
+bun run dev          # 开发模式
+bun run typecheck    # 类型检查
+bun test             # 运行测试
+```
+
+## 项目结构
+
+```
+microbot/
+├── packages/
+│   └── core/               # Core SDK
+│       └── src/
+│           ├── container.ts
+│           ├── event-bus.ts
+│           ├── hook-system.ts
+│           ├── pipeline.ts
+│           ├── types/
+│           ├── config/
+│           ├── providers/
+│           ├── agent/
+│           ├── tool/
+│           ├── channel/
+│           ├── skill/
+│           ├── storage/
+│           └── service/
+├── extensions/
+│   ├── tool/               # 工具扩展
+│   ├── skill/              # 技能扩展
+│   └── channel/            # 通道扩展
+├── src/
+│   ├── index.ts            # 应用入口
+│   ├── cli.ts              # CLI 命令
+│   └── db/                 # 数据库管理
+├── tests/                  # 测试
+├── docs/                   # 文档
+└── workspace/              # 工作空间配置
+```
+
+## License
+
+MIT

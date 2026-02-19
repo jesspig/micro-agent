@@ -1,15 +1,18 @@
 <!--
   Sync Impact Report
   ===================
-  Version change: N/A → 1.0.0 (Initial creation)
+  Version change: 1.0.0 → 1.0.1
+  Modified sections:
+    - Governance: 新增分支命名规范
   Added sections:
-    - Core Principles (5 principles)
-    - Architecture Standards
-    - Quality Standards
-    - Governance
+    - Branch Naming Convention (under Governance)
+  Removed sections: None
   Templates requiring updates:
-    - .specify/templates/plan-template.md: ✅ Compatible
+    - .specify/templates/plan-template.md: ✅ Compatible (需更新示例)
+    - .specify/templates/spec-template.md: ✅ Compatible (需更新示例)
     - .specify/templates/tasks-template.md: ✅ Compatible
+  Scripts requiring updates:
+    - .specify/scripts/bash/common.sh: ⚠ pending (check_feature_branch 正则需更新)
   Follow-up TODOs: None
 -->
 
@@ -162,6 +165,20 @@ const result = names.length > 0 ? names.join(',') : 'none';
 
 ## Governance
 
+### 分支命名规范
+
+分支命名 MUST 遵循以下规范：
+
+| 分支类型 | 格式 | 示例 |
+|----------|------|------|
+| 功能分支 | `feature/<name>` | `feature/extensions-sdk` |
+| 修复分支 | `fix/<name>` | `fix/memory-leak` |
+| 重构分支 | `refactor/<name>` | `refactor/config-system` |
+| 文档分支 | `docs/<name>` | `docs/api-reference` |
+| 主分支 | `main` / `develop` | - |
+
+**Rationale**：简洁的分支命名便于识别分支用途，避免数字前缀带来的维护负担。
+
 ### 修订流程
 
 1. 宪法修订 MUST 通过文档评审
@@ -181,4 +198,4 @@ const result = names.length > 0 ? names.join(',') : 'none';
 
 本宪法优先级高于所有其他实践文档。冲突时以宪法为准。
 
-**Version**: 1.0.0 | **Ratified**: 2026-02-16 | **Last Amended**: 2026-02-16
+**Version**: 1.0.1 | **Ratified**: 2026-02-16 | **Last Amended**: 2026-02-17

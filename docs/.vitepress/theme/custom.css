@@ -1,0 +1,18 @@
+:root {
+  --vp-c-brand: #646cff;
+  --vp-c-brand-light: #747bff;
+  --vp-c-brand-dark: #535bf2;
+}
+
+.VPNavBar {
+  background-color: #1a1a1a !important;
+}
+
+.VPButton.brand {
+  background-color: #646cff !important;
+}
+
+:root {
+  --vp-home-hero-name-color: transparent;
+  --vp-home-hero-name-background: -webkit-linear-gradient(120deg, #646cff 30%, #747bff);
+}

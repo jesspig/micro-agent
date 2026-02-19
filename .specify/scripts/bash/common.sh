@@ -31,25 +31,11 @@ get_current_branch() {
     local specs_dir="$repo_root/specs"
     
     if [[ -d "$specs_dir" ]]; then
-        local latest_feature=""
-        local highest=0
-        
-        for dir in "$specs_dir"/*; do
-            if [[ -d "$dir" ]]; then
-                local dirname=$(basename "$dir")
-                if [[ "$dirname" =~ ^([0-9]{3})- ]]; then
-                    local number=${BASH_REMATCH[1]}
-                    number=$((10#$number))
-                    if [[ "$number" -gt "$highest" ]]; then
-                        highest=$number
-                        latest_feature=$dirname
-                    fi
-                fi
-            fi
-        done
-        
+        # Get the most recently modified feature directory
+        local latest_feature=$(ls -1dt "$specs_dir"/*/ 2>/dev/null | head -1)
         if [[ -n "$latest_feature" ]]; then
-            echo "$latest_feature"
+            local dirname=$(basename "$latest_feature")
+            echo "feature/$dirname"
             return
         fi
     fi
@@ -72,13 +58,14 @@ check_feature_branch() {
         return 0
     fi
     
-    if [[ ! "$branch" =~ ^[0-9]{3}- ]]; then
-        echo "ERROR: Not on a feature branch. Current branch: $branch" >&2
-        echo "Feature branches should be named like: 001-feature-name" >&2
-        return 1
+    # Allow main/develop branches or feature/*, fix/*, refactor/*, docs/*
+    if [[ "$branch" == "main" || "$branch" == "develop" || "$branch" =~ ^(feature|fix|refactor|docs)/ ]]; then
+        return 0
     fi
     
-    return 0
+    echo "ERROR: Not on a valid branch. Current branch: $branch" >&2
+    echo "Valid branches: main, develop, feature/<name>, fix/<name>, refactor/<name>, docs/<name>" >&2
+    return 1
 }
 
 get_feature_dir() { echo "$1/specs/$2"; }
