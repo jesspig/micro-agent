@@ -66,6 +66,88 @@ class ToolRegistry {
 
 ## 模块架构
 
+### Core 模块概览
+
+```mermaid
+graph LR
+    Container[Container<br/>依赖注入]
+    EventBus[EventBus<br/>事件总线]
+    HookSystem[HookSystem<br/>钩子系统]
+    Pipeline[Pipeline<br/>中间件管道]
+    
+    Container --> EventBus
+    Container --> HookSystem
+    Container --> Pipeline
+```
+
+### 核心模块关系
+
+```mermaid
+graph TB
+    subgraph 核心层
+        Agent[Agent<br/>智能代理]
+        Providers[Providers<br/>模型管理]
+        Tools[Tool<br/>工具系统]
+        Channels[Channel<br/>消息通道]
+    end
+    
+    subgraph 支撑层
+        Storage[Storage<br/>存储层]
+        Skills[Skill<br/>技能系统]
+        Services[Service<br/>后台服务]
+    end
+    
+    Agent --> Providers
+    Agent --> Tools
+    Agent --> Storage
+    Agent --> Skills
+    Channels --> Agent
+    Services --> Storage
+```
+
+### 消息流向
+
+```mermaid
+sequenceDiagram
+    participant User as 用户
+    participant Channel as 通道
+    participant EventBus as 事件总线
+    participant Agent as Agent
+    participant Provider as LLM
+    
+    User->>Channel: 发送消息
+    Channel->>EventBus: publishInbound
+    EventBus->>Agent: consume
+    Agent->>Provider: chat
+    Provider-->>Agent: response
+    Agent->>EventBus: publishOutbound
+    EventBus->>Channel: send
+    Channel-->>User: 返回响应
+```
+
+### 扩展机制
+
+```mermaid
+graph LR
+    subgraph Extensions["extensions/"]
+        ToolExt[工具扩展]
+        SkillExt[技能扩展]
+        ChannelExt[通道扩展]
+    end
+    
+    subgraph Core["Core SDK"]
+        ToolReg[ToolRegistry]
+        SkillLoad[SkillsLoader]
+        ChannelMgr[ChannelManager]
+    end
+    
+    ToolExt -->|register| ToolReg
+    SkillExt -->|load| SkillLoad
+    ChannelExt -->|add| ChannelMgr
+```
+
+### 目录结构
+
 ```
 packages/core/src/
 ├── container.ts        # 依赖注入容器

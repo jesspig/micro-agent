@@ -4,6 +4,44 @@
 
 Provider 抽象了 LLM 调用接口，支持 OpenAI 兼容的各种后端。
 
+## 智能路由流程
+
+```mermaid
+flowchart TD
+    Start([收到消息]) --> Analyze{意图分析}
+    
+    subgraph Intent[意图分析]
+        I1[提取关键词] --> I2[计算长度分数]
+        I2 --> I3[检测代码块]
+        I3 --> I4[评估复杂度]
+    end
+    
+    Analyze --> Match{匹配规则?}
+    
+    subgraph Rules[规则匹配]
+        R1[关键词匹配] --> R2[优先级排序]
+        R2 --> R3[返回级别]
+    end
+    
+    Match -->|匹配| Select[选择模型级别]
+    Match -->|不匹配| Default[默认 medium]
+    
+    Select --> Load[加载对应模型]
+    Default --> Load
+    Load --> Call[调用 LLM]
+    Call --> End([返回响应])
+```
+
+### 模型级别选择
+
+| 级别 | 关键词 | 适用场景 |
+|------|--------|----------|
+| fast | 你好、谢谢、再见 | 简单问候 |
+| low | 翻译、格式化 | 简单任务 |
+| medium | 解释、修改、比较 | 常规对话 |
+| high | 实现、调试、分析 | 复杂任务 |
+| ultra | 架构、重构、优化 | 专家级任务 |
+
 ## 接口定义
 
 ```typescript

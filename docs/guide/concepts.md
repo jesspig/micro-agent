@@ -1,5 +1,47 @@
 # 核心概念
 
+## 整体流程
+
+### 消息生命周期
+
+```mermaid
+sequenceDiagram
+    participant User as 用户
+    participant Channel as 通道
+    participant Bus as 消息总线
+    participant Agent as Agent
+
+    User->>Channel: 发送消息
+    Channel->>Bus: 发布入站消息
+    Bus->>Agent: 消费消息
+    Agent->>Agent: 处理
+    Agent->>Bus: 发布出站消息
+    Bus->>Channel: 发送回复
+    Channel-->>User: 收到回复
+```
+
+### Agent 内部处理
+
+```mermaid
+sequenceDiagram
+    participant Agent as Agent
+    participant Router as 智能路由
+    participant Provider as LLM
+    participant Tools as 工具
+
+    Agent->>Router: 分析意图
+    Router-->>Agent: 返回模型选择
+    
+    Agent->>Provider: 调用LLM
+    Provider-->>Agent: 返回响应
+    
+    alt 需要工具调用
+        Agent->>Tools: 执行工具
+        Tools-->>Agent: 返回结果
+        Agent->>Provider: 继续调用
+    end
+```
+
 ## 依赖注入容器
 
 Container 是 Microbot 的核心，提供依赖注入能力。
@@ -49,14 +91,55 @@ interface LLMProvider {
 
 ## Agent 循环
 
-Agent 循环实现了 ReAct（Reasoning + Acting）模式：
+Agent 循环实现了 ReAct（Reasoning + Acting）模式。
 
-1. 接收用户消息
-2. 构建上下文（记忆、技能、历史）
-3. 选择合适的模型
-4. 调用 LLM 生成响应
-5. 如需工具调用，执行工具并循环
-6. 保存会话并返回响应
+### 主流程
+
+```mermaid
+flowchart LR
+    A[接收消息] --> B[构建上下文]
+    B --> C[模型路由]
+    C --> D[调用LLM]
+    D --> E{完成?}
+    E -->|否| F[执行工具]
+    F --> D
+    E -->|是| G[保存会话]
+    G --> H[返回响应]
+```
+
+### ReAct 详细流程
+
+```mermaid
+flowchart TD
+    subgraph 思考
+        T1[分析意图] --> T2[评估复杂度]
+        T2 --> T3[选择模型]
+    end
+    
+    subgraph 行动
+        A1[调用LLM] --> A2{需要工具?}
+        A2 -->|是| A3[执行工具]
+        A3 --> A1
+        A2 -->|否| A4[生成响应]
+    end
+    
+    subgraph 观察
+        O1[工具结果] --> O2[更新上下文]
+    end
+    
+    T3 --> A1
+    A3 --> O1
+```
+
+### 执行步骤
+
+1. **接收用户消息** - 从通道获取输入
+2. **构建上下文** - 加载记忆、技能、历史
+3. **思考** - 分析意图，选择合适的模型
+4. **行动** - 调用 LLM，执行工具
+5. **观察** - 处理工具结果
+6. **循环** - 重复直到完成任务
+7. **保存会话** - 持久化对话历史
 
 ## 工具系统
 

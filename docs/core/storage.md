@@ -4,6 +4,40 @@
 
 存储层提供会话、记忆、定时任务的数据持久化。
 
+## 存储架构
+
+```mermaid
+flowchart TB
+    Agent[Agent 循环]
+    
+    subgraph Storage["存储层"]
+        Session[SessionStore<br/>会话存储]
+        Memory[MemoryStore<br/>记忆存储]
+        Cron[CronStore<br/>定时任务存储]
+    end
+    
+    subgraph Data["数据格式"]
+        JSONL[JSONL 文件]
+        SQLite[SQLite 数据库]
+    end
+    
+    Agent --> Session
+    Agent --> Memory
+    Agent --> Cron
+    
+    Session --> JSONL
+    Memory --> SQLite
+    Cron --> SQLite
+```
+
+### 存储对比
+
+| 类型 | 存储方式 | 用途 |
+|------|----------|------|
+| 会话 | JSONL 文件 | 对话历史 |
+| 记忆 | SQLite | 长期记忆 |
+| 定时任务 | SQLite | 任务配置 |
+
 ## 会话存储
 
 JSONL 格式存储会话历史。
