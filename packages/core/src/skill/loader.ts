@@ -66,10 +66,9 @@ export class SkillsLoader {
 
       try {
         const skill = this.parseSkill(skillMdPath, skillDir);
-        // 验证 name 与目录名匹配
         if (!this.validateSkillName(skill.name, entry.name)) {
           log.warn('技能名称不匹配目录名: {name} vs {dir}', { name: skill.name, dir: entry.name });
-          skill.name = entry.name; // 以目录名为准
+          skill.name = entry.name;
         }
         this.skills.set(skill.name, skill);
       } catch (error) {
@@ -87,6 +86,7 @@ export class SkillsLoader {
     return {
       name: fm.name ?? basename(skillDir),
       description: fm.description ?? '',
+      dependencies: fm.dependencies,
       license: fm.license,
       compatibility: fm.compatibility,
       always: fm.always ?? false,
@@ -107,9 +107,7 @@ export class SkillsLoader {
 
   /** 验证技能名称 */
   private validateSkillName(name: string, dirName: string): boolean {
-    // 名称格式验证
     if (!SKILL_NAME_REGEX.test(name)) return false;
-    // 名称必须匹配目录名
     return name === dirName;
   }
 
@@ -125,10 +123,7 @@ export class SkillsLoader {
 
   /** 获取技能摘要列表 */
   getSummaries(): SkillSummary[] {
-    return this.getAll().map(s => ({
-      name: s.name,
-      description: s.description,
-    }));
+    return this.getAll().map(s => ({ name: s.name, description: s.description }));
   }
 
   /** 获取 always=true 的技能 */

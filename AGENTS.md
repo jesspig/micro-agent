@@ -164,9 +164,7 @@ function process(data: unknown) {
 
 | 数据 | 存储 | 位置 |
 |------|------|------|
-| 会话 | SQLite | `~/.microbot/data/sessions.db` |
-| 定时任务 | SQLite | `~/.microbot/data/cron.db` |
-| 记忆 | SQLite + Markdown | `~/.microbot/data/memory.db` + `workspace/memory/` |
+| 会话 | JSONL | `~/.microbot/sessions/` |
 
 **LLM 优先级**：
 
@@ -208,11 +206,3 @@ llm:
 ```
 
 **类型**: `feat` | `fix` | `refactor` | `docs` | `chore`
-
-**示例**:
-```
-feat(tools): 新增 web_search 工具
-
-- 支持 Google 搜索 API
-- 返回结构化搜索结果
-```

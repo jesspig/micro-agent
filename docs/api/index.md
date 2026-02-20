@@ -76,33 +76,3 @@ store.addMessage('channel:chatId', 'assistant', 'Hi');
 // 获取会话
 const session = store.get('channel:chatId');
 ```
-
-### MemoryStore
-
-```typescript
-import { MemoryStore } from '@microbot/sdk/storage';
-
-const store = new MemoryStore('~/.microbot/data');
-
-// 保存记忆
-await store.save('key', '内容');
-
-// 读取记忆
-const content = await store.load('key');
-```
-
-### CronStore
-
-```typescript
-import { CronStore } from '@microbot/sdk/storage';
-
-const store = new CronStore('~/.microbot/data');
-
-// 添加任务
-await store.add({
-  id: 'task1',
-  schedule: '0 9 * * *',
-  enabled: true,
-  action: 'notify',
-});
-```

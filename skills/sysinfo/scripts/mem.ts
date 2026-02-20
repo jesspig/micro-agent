@@ -18,7 +18,7 @@ export function getMemInfo(): MemInfo {
   const totalMem = totalmem();
   const freeMem = freemem();
   const usedMem = totalMem - freeMem;
-  
+
   return {
     total: formatBytes(totalMem),
     used: formatBytes(usedMem),
@@ -28,8 +28,4 @@ export function getMemInfo(): MemInfo {
     usedBytes: usedMem,
     freeBytes: freeMem
   };
-}
-
-if (require.main === module) {
-  console.log(JSON.stringify(getMemInfo(), null, 2));
 }

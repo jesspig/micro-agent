@@ -18,8 +18,6 @@
 | 智能路由 | 根据任务复杂度自动选择模型 |
 | 多通道支持 | 飞书（更多通道开发中） |
 | 本地优先 LLM | Ollama / LM Studio / OpenAI Compatible |
-| 定时任务 | at / every / cron 三种调度方式 |
-| 记忆系统 | 日记 + 长期记忆，上下文自动注入 |
 
 ## 安装
 
@@ -72,7 +70,6 @@ microbot <command> [options]
 Commands:
   start       启动服务
   status      显示状态
-  cron        管理定时任务
 
 Options:
   -c, --config <path>   配置文件路径
@@ -89,11 +86,11 @@ Channel ──► ChannelManager ──► MessageBus
               ▼                      ▼                      ▼
          InboundQueue            AgentLoop             OutboundConsumer
                                      │
-              ┌──────────────────────┼──────────────────────┐
-              ▼                      ▼                      ▼
-        ContextBuilder          ToolRegistry           MemoryStore
-              │                      │                      │
-              └──────────────────────┴──────────────────────┘
+              ┌──────────────────────┴──────────────────────┐
+              ▼                      ▼                      
+        ContextBuilder          ToolRegistry           
+              │                      │                      
+              └──────────────────────┘                      
                                      │
                                      ▼
                                LLM Gateway
@@ -117,8 +114,7 @@ Channel ──► ChannelManager ──► MessageBus
 | 工具 | `packages/core/src/tool/` | 工具注册表 |
 | 通道 | `packages/core/src/channel/` | 通道管理器 |
 | 技能 | `packages/core/src/skill/` | 技能加载器 |
-| 存储 | `packages/core/src/storage/` | 会话、记忆、定时任务存储 |
-| 服务 | `packages/core/src/service/` | Cron、Heartbeat 服务 |
+| 存储 | `packages/core/src/storage/` | 会话存储 |
 
 ## 扩展模块
 
@@ -136,7 +132,6 @@ Channel ──► ChannelManager ──► MessageBus
 | `write_file` | 写入文件 |
 | `list_directory` | 列出目录 |
 | `exec` | 执行 Shell 命令 |
-| `web_search` | 网络搜索 |
 | `web_fetch` | 获取网页内容 |
 | `send_message` | 发送消息 |
 
@@ -197,10 +192,7 @@ providers:
 ```
 ~/.microbot/
 ├── settings.yaml          # 用户配置
-├── sessions/              # 会话存储（JSONL）
-└── data/                  # 数据库
-    ├── cron.db            # 定时任务
-    └── memory.db          # 记忆索引
+└── sessions/              # 会话存储（JSONL）
 ```
 
 ## 开发
@@ -229,16 +221,14 @@ microbot/
 │           ├── tool/
 │           ├── channel/
 │           ├── skill/
-│           ├── storage/
-│           └── service/
+│           └── storage/
 ├── extensions/
 │   ├── tool/               # 工具扩展
 │   ├── skill/              # 技能扩展
 │   └── channel/            # 通道扩展
 ├── src/
 │   ├── index.ts            # 应用入口
-│   ├── cli.ts              # CLI 命令
-│   └── db/                 # 数据库管理
+│   └── cli.ts              # CLI 命令
 ├── tests/                  # 测试
 ├── docs/                   # 文档
 └── workspace/              # 工作空间配置
