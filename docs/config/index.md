@@ -47,6 +47,10 @@ channels:
     enabled: true
     appId: xxx
     appSecret: xxx
+    allowFrom: []  # 允许所有人，或填入用户 ID 列表
+```
+
+详细的飞书配置步骤请参考 [通道扩展 - 飞书通道](/extensions/channels#飞书通道)。
 
 # 路由配置
 routing:

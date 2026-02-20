@@ -22,6 +22,36 @@ export interface GatewayConfig {
   fallbackEnabled: boolean;
 }
 
+/** 故障转移参数 */
+interface FallbackParams {
+  messages: LLMMessage[];
+  tools?: LLMToolDefinition[];
+  failedModel?: string;
+  failedProvider: string;
+  config?: GenerationConfig;
+}
+
+/** 同一 Provider 尝试参数 */
+interface SameProviderParams {
+  entry: ProviderEntry;
+  providerName: string;
+  failedModel?: string;
+  availableModels: string[];
+  messages: LLMMessage[];
+  tools?: LLMToolDefinition[];
+  config?: GenerationConfig;
+}
+
+/** 模型尝试参数 */
+interface TryModelParams {
+  entry: ProviderEntry;
+  providerName: string;
+  modelId: string;
+  messages: LLMMessage[];
+  tools?: LLMToolDefinition[];
+  config?: GenerationConfig;
+}
+
 const DEFAULT_CONFIG: GatewayConfig = {
   defaultProvider: 'ollama',
   fallbackEnabled: true,
@@ -73,44 +103,35 @@ export class LLMGateway implements LLMProvider {
 
       if (this.config.fallbackEnabled) {
         log.info('尝试故障转移到其他 Provider...');
-        return this.fallback(messages, tools, actualModel, providerName, config);
+        return this.fallback({
+          messages, tools, failedModel: actualModel, failedProvider: providerName, config
+        });
       }
       throw error;
     }
   }
 
-  private async fallback(
-    messages: LLMMessage[],
-    tools: LLMToolDefinition[] | undefined,
-    failedModel: string | undefined,
-    failedProvider: string,
-    config?: GenerationConfig
-  ): Promise<LLMResponse> {
+  private async fallback(params: FallbackParams): Promise<LLMResponse> {
+    const { messages, tools, failedModel, failedProvider, config } = params;
     const entry = this.providers.get(failedProvider);
 
     if (entry) {
       const availableModels = await entry.provider.listModels();
 
       if (availableModels !== null) {
-        // 提供商可用，尝试切换同一提供商的其他模型
-        const result = await this.trySameProvider(entry, failedProvider, failedModel, availableModels, messages, tools, config);
+        const result = await this.trySameProvider({
+          entry, providerName: failedProvider, failedModel, availableModels, messages, tools, config
+        });
         if (result) return result;
       }
     }
 
-    // 提供商不可用，尝试其他提供商
     return this.tryOtherProviders(messages, tools, failedProvider, config);
   }
 
-  private async trySameProvider(
-    entry: ProviderEntry,
-    providerName: string,
-    failedModel: string | undefined,
-    availableModels: string[],
-    messages: LLMMessage[],
-    tools: LLMToolDefinition[] | undefined,
-    config?: GenerationConfig
-  ): Promise<LLMResponse | null> {
+  private async trySameProvider(params: SameProviderParams): Promise<LLMResponse | null> {
+    const { entry, providerName, failedModel, availableModels, messages, tools, config } = params;
+
     log.info('[Fallback] 提供商 {provider} 可用，尝试切换模型', { provider: providerName });
 
     // 尝试配置的其他模型
@@ -118,14 +139,14 @@ export class LLMGateway implements LLMProvider {
     for (const modelId of otherModels) {
       if (availableModels.length > 0 && !availableModels.includes(modelId)) continue;
 
-      const result = await this.tryModel(entry, providerName, modelId, messages, tools, config);
+      const result = await this.tryModel({ entry, providerName, modelId, messages, tools, config });
       if (result) return result;
     }
 
     // 尝试默认模型
     const defaultModel = entry.provider.getDefaultModel();
     if (defaultModel !== failedModel) {
-      const result = await this.tryModel(entry, providerName, defaultModel, messages, tools, config);
+      const result = await this.tryModel({ entry, providerName, modelId: defaultModel, messages, tools, config });
       if (result) return result;
     }
 
@@ -133,14 +154,9 @@ export class LLMGateway implements LLMProvider {
     return null;
   }
 
-  private async tryModel(
-    entry: ProviderEntry,
-    providerName: string,
-    modelId: string,
-    messages: LLMMessage[],
-    tools: LLMToolDefinition[] | undefined,
-    config?: GenerationConfig
-  ): Promise<LLMResponse | null> {
+  private async tryModel(params: TryModelParams): Promise<LLMResponse | null> {
+    const { entry, providerName, modelId, messages, tools, config } = params;
+
     try {
       log.info('[Fallback] 尝试 {provider}/{model}', { provider: providerName, model: modelId });
       const response = await entry.provider.chat(messages, tools, modelId, config);

@@ -25,8 +25,18 @@ export default defineConfig({
       { text: '扩展', link: '/extensions/' },
       { text: '配置', link: '/config/' },
       { text: 'API', link: '/api/' },
+      { text: '更新日志', link: '/guide/changelog/' },
     ],
     sidebar: {
+      '/guide/changelog/': [
+        {
+          text: '更新日志',
+          items: [
+            { text: 'v0.1.1 (最新)', link: '/guide/changelog/' },
+            { text: 'v0.1.0', link: '/guide/changelog/v0.1.0' },
+          ],
+        },
+      ],
       '/guide/': [
         {
           text: '指南',
@@ -34,7 +44,6 @@ export default defineConfig({
             { text: '快速开始', link: '/guide/' },
             { text: '架构概述', link: '/guide/architecture' },
             { text: '核心概念', link: '/guide/concepts' },
-            { text: '更新日志', link: '/guide/changelog' },
           ],
         },
       ],
@@ -49,7 +58,6 @@ export default defineConfig({
             { text: 'Channel', link: '/core/channel' },
             { text: 'Storage', link: '/core/storage' },
             { text: 'Skill', link: '/core/skill' },
-            { text: 'Service', link: '/core/service' },
           ],
         },
       ],
@@ -90,6 +98,10 @@ export default defineConfig({
     },
     search: {
       provider: 'local',
+    },
+    outline: {
+      level: [2, 3],
+      label: '目录',
     },
   },
   vite: {

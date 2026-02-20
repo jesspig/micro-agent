@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'bun:test';
-import { Pipeline } from '../../src/core/pipeline';
+import { Pipeline } from '@microbot/core';
 
 describe('Pipeline', () => {
   let pipeline: Pipeline<{ value: number; order?: number[] }>;

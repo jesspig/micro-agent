@@ -1,10 +1,9 @@
 import { describe, it, expect, beforeEach } from 'bun:test';
-import { ChannelHelper, type Channel } from '../../src/core/channel/base';
-import type { OutboundMessage } from '../../src/core/bus/events';
-import type { MessageBus } from '../../src/core/bus/queue';
-import type { ChannelType } from '../../src/core/types/interfaces';
+import { ChannelHelper, type Channel } from '@microbot/core/channels';
+import type { OutboundMessage } from '@microbot/core/bus';
+import type { MessageBus } from '@microbot/core/bus';
+import type { ChannelType } from '@microbot/core';
 
-// Mock MessageBus
 class MockBus implements MessageBus {
   publishedInbound: unknown[] = [];
   publishedOutbound: unknown[] = [];
@@ -34,7 +33,6 @@ class MockBus implements MessageBus {
   }
 }
 
-// 测试用具体通道实现（使用组合模式）
 class TestChannel implements Channel {
   readonly name: ChannelType = 'feishu';
   private helper: ChannelHelper;
@@ -57,17 +55,21 @@ class TestChannel implements Channel {
   }
 
   async send(msg: OutboundMessage): Promise<void> {
-    // 测试实现
   }
 
-  // 暴露辅助方法供测试
   async handleInbound(
     senderId: string,
     chatId: string,
     content: string,
     media?: string[]
   ): Promise<void> {
-    return this.helper.handleInbound(this.name, senderId, chatId, content, media);
+    return this.helper.handleInbound({
+      channelName: this.name,
+      senderId,
+      chatId,
+      content,
+      media,
+    });
   }
 
   isAllowed(senderId: string): boolean {

@@ -1,11 +1,10 @@
 import { describe, it, expect, beforeEach } from 'bun:test';
-import { SubagentManager } from '../../src/core/agent/subagent';
-import type { ILLMProvider, LLMResponse } from '../../src/core/providers/base';
-import type { MessageBus } from '../../src/core/bus/queue';
-import type { InboundMessage } from '../../src/core/bus/events';
+import { SubagentManager } from '@microbot/core/agent';
+import type { LLMProvider, LLMResponse } from '@microbot/core/providers';
+import type { MessageBus } from '@microbot/core/bus';
+import type { InboundMessage } from '@microbot/core/bus';
 
-// Mock implementations
-class MockProvider implements ILLMProvider {
+class MockProvider implements LLMProvider {
   readonly name = 'mock';
   private response: LLMResponse = { content: 'Task done', hasToolCalls: false };
 
@@ -40,8 +39,8 @@ class MockBus implements MessageBus {
   async consumeOutbound(): Promise<unknown> {
     return {};
   }
-  getInboundLength(): number { return 0; }
-  getOutboundLength(): number { return 0; }
+  get inboundLength(): number { return 0; }
+  get outboundLength(): number { return 0; }
 }
 
 describe('SubagentManager', () => {
@@ -80,7 +79,6 @@ describe('SubagentManager', () => {
 
       await manager.spawn('Do something', 'my-task', 'feishu', 'chat123');
 
-      // 等待任务完成
       await new Promise(r => setTimeout(r, 100));
 
       expect(bus.publishedMessages.length).toBe(1);
@@ -95,14 +93,10 @@ describe('SubagentManager', () => {
     });
 
     it('should track running tasks', async () => {
-      // spawn 后任务立即开始执行（fire-and-forget）
       provider.setResponse({ content: 'Working...', hasToolCalls: false });
 
-      // spawn 会立即启动任务，由于 mock provider 响应很快，任务会迅速完成
       await manager.spawn('Task 1', 'task1', 'feishu', 'chat1');
 
-      // 由于 mock provider 同步响应，任务可能已经完成
-      // 主要验证任务完成后计数归零
       await new Promise(r => setTimeout(r, 50));
       expect(manager.runningCount).toBe(0);
     });

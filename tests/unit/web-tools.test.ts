@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'bun:test';
-import { WebFetchTool, WebSearchTool } from '../../extensions/tool';
-import { ToolRegistry } from '../../src/core/tool';
-import type { ToolContext } from '../../src/core/tool';
+import { WebFetchTool } from '../../extensions/tool';
+import { ToolRegistry } from '@microbot/core';
+import type { ToolContext } from '@microbot/core';
 
 const defaultCtx: ToolContext = {
   channel: 'test',
@@ -16,7 +16,6 @@ describe('Web Tools', () => {
   beforeEach(() => {
     registry = new ToolRegistry();
     registry.register(new WebFetchTool());
-    registry.register(new WebSearchTool());  // 无 API Key
   });
 
   describe('WebFetchTool', () => {
@@ -35,16 +34,6 @@ describe('Web Tools', () => {
       }, defaultCtx);
       
       expect(result).toContain('获取失败');
-    });
-  });
-
-  describe('WebSearchTool', () => {
-    it('should return error when no API key configured', async () => {
-      const result = await registry.execute('web_search', { 
-        query: 'test' 
-      }, defaultCtx);
-      
-      expect(result).toContain('未配置 Brave API Key');
     });
   });
 });

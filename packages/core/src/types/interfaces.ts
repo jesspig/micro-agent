@@ -19,36 +19,6 @@ export interface Container {
   has(token: string): boolean;
 }
 
-/** 结构化日志 */
-export interface Logger {
-  info(message: string, ...args: unknown[]): void;
-  warn(message: string, ...args: unknown[]): void;
-  error(message: string, ...args: unknown[]): void;
-  debug(message: string, ...args: unknown[]): void;
-}
-
-/** 数据库配置 */
-export interface DatabaseConfig {
-  /** 数据目录 */
-  dataDir: string;
-  /** Cron 数据库路径 */
-  cronDb: string;
-  /** 记忆数据库路径 */
-  memoryDb: string;
-}
-
-/** Cron 任务摘要 */
-export interface CronJobSummary {
-  /** 任务 ID */
-  id: string;
-  /** 任务名称 */
-  name: string;
-  /** 调度类型 */
-  scheduleKind: 'at' | 'every' | 'cron';
-  /** 调度值 */
-  scheduleValue?: string;
-}
-
 /** 应用实例接口 */
 export interface App {
   /** 启动所有服务 */
@@ -61,8 +31,4 @@ export interface App {
   getProviderStatus(): string;
   /** 获取路由状态 */
   getRouterStatus(): { auto: boolean; max: boolean; chatModel: string; checkModel?: string };
-  /** 获取 Cron 任务数量 */
-  getCronCount(): number;
-  /** 列出所有 Cron 任务摘要 */
-  listCronJobs(): CronJobSummary[];
 }

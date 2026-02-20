@@ -47,16 +47,11 @@
     "./skills": {
       "types": "./src/skill/index.ts",
       "default": "./src/skill/index.ts"
-    },
-    "./services": {
-      "types": "./src/service/index.ts",
-      "default": "./src/service/index.ts"
     }
   },
   "dependencies": {
     "@logtape/logtape": "^2.0.2",
     "ai": "^6.0.87",
-    "cron-schedule": "^6.0.0",
     "gray-matter": "^4.0.3",
     "js-yaml": "^4.1.1",
     "mitt": "^3.0.1",

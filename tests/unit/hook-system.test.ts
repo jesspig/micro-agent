@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'bun:test';
-import { HookSystem } from '../../src/core/hook-system';
+import { HookSystem } from '@microbot/core';
 
 describe('HookSystem', () => {
   let hooks: HookSystem;

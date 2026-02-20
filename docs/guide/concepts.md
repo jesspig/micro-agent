@@ -205,18 +205,6 @@ JSONL 格式存储会话历史：
 {"timestamp":"2024-01-01T00:00:01Z","role":"assistant","content":"你好"}
 ```
 
-### 记忆存储
-
-SQLite 数据库存储长期记忆：
-
-```typescript
-// 查询记忆
-const memories = await memoryStore.search('关键词');
-
-// 添加记忆
-await memoryStore.add('重要信息', '这是重要信息');
-```
-
 ## 消息通道
 
 通道是消息进出的抽象。

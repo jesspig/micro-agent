@@ -1,7 +1,7 @@
 import { describe, test, expect, beforeEach } from 'bun:test';
 import { writeFileSync, mkdirSync, rmSync, existsSync } from 'fs';
 import { join } from 'path';
-import { SkillsLoader } from '../../src/core/skill/loader';
+import { SkillsLoader } from '@microbot/core/skills';
 
 const TEST_DIR = join(process.cwd(), 'test-skills-temp');
 const WORKSPACE_DIR = join(TEST_DIR, 'workspace');
@@ -12,14 +12,19 @@ const USER_SKILLS_DIR = join(WORKSPACE_DIR, 'skills');
 function createSkill(
   baseDir: string,
   name: string,
-  frontmatter: Record<string, string>,
+  frontmatter: Record<string, string | string[]>,
   content: string
 ): void {
   const skillDir = join(baseDir, name);
   if (!existsSync(skillDir)) mkdirSync(skillDir, { recursive: true });
 
   const fm = Object.entries(frontmatter)
-    .map(([k, v]) => `${k}: "${v}"`)
+    .map(([k, v]) => {
+      if (Array.isArray(v)) {
+        return `${k}:\n${v.map(item => `  - ${item}`).join('\n')}`;
+      }
+      return `${k}: "${v}"`;
+    })
     .join('\n');
 
   writeFileSync(
@@ -146,6 +151,25 @@ describe('SkillsLoader', () => {
   });
 
   describe('可选字段', () => {
+    test('should parse dependencies', () => {
+      createSkill(
+        BUILTIN_DIR,
+        'dep-skill',
+        {
+          name: 'dep-skill',
+          description: 'With deps',
+          dependencies: ['bun>=1.0', 'python>=3.8'],
+        },
+        'Content'
+      );
+
+      const loader = new SkillsLoader(WORKSPACE_DIR, BUILTIN_DIR);
+      loader.load();
+
+      const skill = loader.get('dep-skill');
+      expect(skill?.dependencies).toEqual(['bun>=1.0', 'python>=3.8']);
+    });
+
     test('should parse license and compatibility', () => {
       createSkill(
         BUILTIN_DIR,
@@ -154,7 +178,7 @@ describe('SkillsLoader', () => {
           name: 'advanced-skill',
           description: 'Advanced',
           license: 'MIT',
-          compatibility: 'Requires bun >= 1.0',
+          compatibility: 'bun',
         },
         'Content'
       );
@@ -164,7 +188,7 @@ describe('SkillsLoader', () => {
 
       const skill = loader.get('advanced-skill');
       expect(skill?.license).toBe('MIT');
-      expect(skill?.compatibility).toBe('Requires bun >= 1.0');
+      expect(skill?.compatibility).toBe('bun');
     });
 
     test('should parse allowed-tools', () => {

@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach } from 'bun:test';
 import { MessageTool } from '../../extensions/tool';
-import { ToolRegistry } from '../../src/core/tool';
-import type { ToolContext } from '../../src/core/tool';
+import { ToolRegistry, type ToolContext } from '@microbot/core/tools';
 
 describe('MessageTool', () => {
   let registry: ToolRegistry;

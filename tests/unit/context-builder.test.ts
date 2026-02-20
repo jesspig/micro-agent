@@ -1,19 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import { mkdirSync, rmSync, writeFileSync, existsSync } from 'fs';
 import { join } from 'path';
-import { ContextBuilder } from '../../src/core/agent/context';
-import type { MemoryStore } from '../../src/core/storage/memory/store';
+import { ContextBuilder } from '@microbot/core';
 
 const testWorkspace = join(process.cwd(), 'test-agent-workspace');
-
-// Mock MemoryStore
-const mockMemoryStore: MemoryStore = {
-  readLongTerm: () => '',
-  writeLongTerm: () => {},
-  appendToday: () => {},
-  readToday: () => '',
-  getRecent: () => [],
-} as MemoryStore;
 
 describe('ContextBuilder', () => {
   let builder: ContextBuilder;
@@ -22,7 +12,7 @@ describe('ContextBuilder', () => {
     if (!existsSync(testWorkspace)) {
       mkdirSync(testWorkspace, { recursive: true });
     }
-    builder = new ContextBuilder(testWorkspace, mockMemoryStore);
+    builder = new ContextBuilder(testWorkspace);
   });
 
   afterEach(() => {

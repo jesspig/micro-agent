@@ -1,11 +1,9 @@
 import { describe, it, expect, beforeEach } from 'bun:test';
-import { ChannelManager } from '../../src/core/channel/manager';
-import { ChannelHelper, type Channel } from '../../src/core/channel/base';
-import type { OutboundMessage } from '../../src/core/bus/events';
-import type { MessageBus } from '../../src/core/bus/queue';
-import type { ChannelType } from '../../src/core/types/interfaces';
+import { ChannelManager, ChannelHelper, type Channel } from '@microbot/core/channels';
+import type { OutboundMessage } from '@microbot/core/bus';
+import type { MessageBus } from '@microbot/core/bus';
+import type { ChannelType } from '@microbot/core';
 
-// Mock MessageBus
 class MockBus implements MessageBus {
   async publishInbound(): Promise<void> {}
   async publishOutbound(): Promise<void> {}
@@ -15,7 +13,6 @@ class MockBus implements MessageBus {
   get outboundLength(): number { return 0; }
 }
 
-// Mock Channel (组合模式)
 class MockChannel implements Channel {
   readonly name: ChannelType;
   private helper: ChannelHelper;
@@ -148,7 +145,6 @@ describe('ChannelManager', () => {
       manager.register(stoppedChannel);
 
       await runningChannel.start();
-      // stoppedChannel not started
 
       const running = manager.getRunningChannels();
       expect(running).toContain('feishu');

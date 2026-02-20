@@ -8,33 +8,54 @@ import { z } from 'zod';
 import { which } from 'bun';
 import type { Tool, ToolContext } from '@microbot/core';
 
-/** Shell 执行工具 */
+/**
+ * Shell 执行工具
+ * 
+ * 执行命令或脚本，支持：
+ * - JS/TS 脚本 (自动用 bun 执行)
+ * - Shell 命令
+ * - Python 脚本
+ */
 export class ExecTool implements Tool {
+  /** 工具名称 */
   readonly name = 'exec';
+  /** 工具描述 */
   readonly description = `执行命令或脚本。支持:
 - JS/TS 脚本 (自动用 bun 执行)
 - Shell 命令
 - Python 脚本
 示例: "script.ts", "bun script.ts", "echo hello"`;
+  /** 输入参数 Schema */
   readonly inputSchema = z.object({
     command: z.string().describe('命令'),
     timeout: z.number().optional().describe('超时时间（毫秒）'),
   });
 
+  /** 工作目录 */
   private workingDir: string;
+  /** 默认超时时间 */
   private defaultTimeout: number;
 
+  /**
+   * 创建 ExecTool 实例
+   * @param workingDir - 工作目录
+   * @param defaultTimeout - 默认超时时间（毫秒）
+   */
   constructor(workingDir: string, defaultTimeout: number = 30000) {
     this.workingDir = workingDir;
     this.defaultTimeout = defaultTimeout;
   }
 
+  /**
+   * 执行命令
+   * @param input - 输入参数，包含命令和可选超时时间
+   * @returns 执行结果或错误信息
+   */
   async execute(input: { command: string; timeout?: number }): Promise<string> {
     const timeout = input.timeout ?? this.defaultTimeout;
     const cmd = input.command.trim();
 
     try {
-      // 确保工作目录存在
       const { existsSync, mkdirSync } = await import('fs');
       if (!existsSync(this.workingDir)) {
         mkdirSync(this.workingDir, { recursive: true });
@@ -42,7 +63,6 @@ export class ExecTool implements Tool {
       
       const { runner, args } = this.parseCommand(cmd);
       
-      // 查找可执行文件绝对路径
       const resolvedRunner = await this.resolveExecutable(runner);
       if (!resolvedRunner) {
         return `找不到可执行文件: ${runner}`;
@@ -72,6 +92,8 @@ export class ExecTool implements Tool {
 
   /**
    * 解析命令，返回运行时和参数
+   * @param cmd - 原始命令字符串
+   * @returns 运行时和参数数组
    */
   private parseCommand(cmd: string): { runner: string; args: string[] } {
     const parts = this.splitCommand(cmd);
@@ -97,7 +119,6 @@ export class ExecTool implements Tool {
     }
 
     // 检测脚本文件扩展名，自动选择运行时
-    // 注意：.js 文件也用 bun 执行，因为 bun 兼容 CommonJS 和 ESM
     if (first.endsWith('.ts') || first.endsWith('.tsx') || first.endsWith('.js') || first.endsWith('.mjs') || first.endsWith('.cjs')) {
       return { runner: 'bun', args: parts };
     }
@@ -116,6 +137,8 @@ export class ExecTool implements Tool {
 
   /**
    * 解析可执行文件路径
+   * @param name - 可执行文件名
+   * @returns 绝对路径或 null
    */
   private async resolveExecutable(name: string): Promise<string | null> {
     // 已经是绝对路径
@@ -130,9 +153,8 @@ export class ExecTool implements Tool {
 
     // 特殊处理 bun - 使用当前运行的 bun
     if (name === 'bun') {
-      // Bun 进程本身可以用 bun 命令
       const bunPath = which('bun');
-      return bunPath || process.execPath; // fallback 到当前进程
+      return bunPath || process.execPath;
     }
 
     // 使用 Bun.which 查找
@@ -161,6 +183,8 @@ export class ExecTool implements Tool {
 
   /**
    * 分割命令字符串（支持引号）
+   * @param cmd - 原始命令字符串
+   * @returns 分割后的参数数组
    */
   private splitCommand(cmd: string): string[] {
     const parts: string[] = [];
@@ -190,5 +214,5 @@ export class ExecTool implements Tool {
   }
 }
 
-// 导出工具
+/** Shell 工具类数组 */
 export const shellTools = [ExecTool];

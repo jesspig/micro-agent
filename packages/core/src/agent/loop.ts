@@ -5,7 +5,6 @@
 import type { LLMProvider, LLMMessage, LLMToolDefinition, ContentPart } from '../providers/base';
 import type { MessageBus } from '../bus/queue';
 import type { SessionStore } from '../storage/session/store';
-import type { MemoryStore } from '../storage/memory/store';
 import type { ToolRegistry, ToolContext } from '../tool/registry';
 import type { InboundMessage, OutboundMessage, SessionKey } from '../bus/events';
 import type { SkillsLoader } from '../skill/loader';
@@ -13,6 +12,14 @@ import type { GenerationConfig } from '../providers/base';
 import type { ModelConfig, RoutingConfig, ModelsConfig } from '../config/schema';
 import { ModelRouter, type ModelRouterConfig } from '../providers/router';
 import { ContextBuilder } from './context';
+import {
+  ZodSchemaWithJsonSchema,
+  formatArgs,
+  formatResult,
+  preview,
+  errorMsg,
+  convertToPlainText,
+} from './utils';
 import { getLogger } from '@logtape/logtape';
 
 const log = getLogger(['agent']);
@@ -54,7 +61,6 @@ export class AgentLoop {
     private bus: MessageBus,
     private provider: LLMProvider,
     private sessionStore: SessionStore,
-    private memoryStore: MemoryStore,
     private toolRegistry: ToolRegistry,
     private skillsLoader: SkillsLoader,
     private config: AgentConfig = DEFAULT_CONFIG
@@ -77,14 +83,14 @@ export class AgentLoop {
     while (this.running) {
       try {
         const msg = await this.bus.consumeInbound();
-        log.info('收到消息: {preview}', { preview: this.preview(msg.content) });
+        log.info('收到消息: {preview}', { preview: preview(msg.content) });
         const response = await this.processMessage(msg);
         if (response) {
           await this.bus.publishOutbound(response);
           log.info('回复已发送');
         }
       } catch (error) {
-        log.error('处理消息失败: {error}', { error: this.errorMsg(error) });
+        log.error('处理消息失败: {error}', { error: errorMsg(error) });
       }
     }
   }
@@ -103,7 +109,7 @@ export class AgentLoop {
     log.info('[Reply] {model} (level={level}): {content}', {
       model: currentModel,
       level: currentLevel,
-      content: this.preview(finalContent, 100)
+      content: preview(finalContent, 100)
     });
 
     return {
@@ -119,7 +125,7 @@ export class AgentLoop {
     msg: InboundMessage,
     sessionKey: SessionKey
   ): Promise<{ messages: LLMMessage[]; contextBuilder: ContextBuilder }> {
-    const contextBuilder = new ContextBuilder(this.config.workspace, this.memoryStore);
+    const contextBuilder = new ContextBuilder(this.config.workspace);
     contextBuilder.setCurrentDir(msg.currentDir || this.config.workspace);
 
     const alwaysSkills = this.skillsLoader.getAlwaysSkills();
@@ -148,7 +154,7 @@ export class AgentLoop {
     let finalContent = '';
     let currentModel = this.config.models.chat;
     let currentLevel = 'medium';
-    let contextBuilder = new ContextBuilder(this.config.workspace, this.memoryStore);
+    let contextBuilder = new ContextBuilder(this.config.workspace);
 
     while (iteration < this.config.maxIterations) {
       iteration++;
@@ -161,8 +167,7 @@ export class AgentLoop {
         log.debug('[Router] 复杂度={score}, 原因={reason}', { score: complexity, reason });
       }
 
-      // 非视觉模型需要转换多模态消息为纯文本
-      const processedMessages = modelConfig.vision ? messages : this.convertToPlainText(messages);
+      const processedMessages = modelConfig.vision ? messages : convertToPlainText(messages);
 
       const response = await this.provider.chat(processedMessages, this.getToolDefinitions(), model, generationConfig);
 
@@ -176,7 +181,6 @@ export class AgentLoop {
         break;
       }
 
-      // 添加助手消息并执行工具
       messages = contextBuilder.addAssistantMessage(messages, response.content, response.toolCalls);
       messages = await this.executeTools(response.toolCalls, msg, messages, currentModel);
     }
@@ -207,13 +211,13 @@ export class AgentLoop {
     messages: LLMMessage[],
     currentModel: string
   ): Promise<LLMMessage[]> {
-    const contextBuilder = new ContextBuilder(this.config.workspace, this.memoryStore);
+    const contextBuilder = new ContextBuilder(this.config.workspace);
 
     for (const tc of toolCalls) {
       log.info('[Tool] {model} 调用: {name}({args})', {
         model: currentModel,
         name: tc.name,
-        args: this.formatArgs(tc.arguments)
+        args: formatArgs(tc.arguments)
       });
 
       const startTime = Date.now();
@@ -223,17 +227,11 @@ export class AgentLoop {
       const isSuccess = !result.startsWith('错误') && !result.startsWith('参数错误');
       if (isSuccess) {
         log.info('[Tool] {model} 成功: {name} ({ms}ms) → {result}', {
-          model: currentModel,
-          name: tc.name,
-          ms: elapsed,
-          result: this.formatResult(result)
+          model: currentModel, name: tc.name, ms: elapsed, result: formatResult(result)
         });
       } else {
         log.error('[Tool] {model} 失败: {name} ({ms}ms) → {result}', {
-          model: currentModel,
-          name: tc.name,
-          ms: elapsed,
-          result: this.formatResult(result)
+          model: currentModel, name: tc.name, ms: elapsed, result: formatResult(result)
         });
       }
 
@@ -268,16 +266,34 @@ export class AgentLoop {
 
   private getToolDefinitions(): LLMToolDefinition[] | undefined {
     const defs = this.toolRegistry.getDefinitions();
+    log.debug('ToolRegistry.getDefinitions(): {count} 个工具', { count: defs?.length ?? 0 });
+    
     if (!defs || defs.length === 0) return undefined;
 
-    return defs.map(d => ({
-      type: 'function' as const,
-      function: {
-        name: d.name,
-        description: d.description,
-        parameters: d.inputSchema as Record<string, unknown>,
-      },
-    }));
+    const result = defs.map(d => {
+      const schema = d.inputSchema as ZodSchemaWithJsonSchema;
+      const jsonSchema: Record<string, unknown> = 
+        typeof schema.toJSONSchema === 'function' 
+          ? schema.toJSONSchema() 
+          : schema;
+      
+      log.debug('工具 {name}: jsonSchema keys={keys}', { 
+        name: d.name, 
+        keys: Object.keys(jsonSchema || {}).join(', ') 
+      });
+      
+      return {
+        type: 'function' as const,
+        function: {
+          name: d.name,
+          description: d.description,
+          parameters: jsonSchema,
+        },
+      };
+    });
+    
+    log.debug('返回工具定义: {count} 个', { count: result.length });
+    return result;
   }
 
   private createContext(msg: InboundMessage): ToolContext {
@@ -298,50 +314,5 @@ export class AgentLoop {
     if (modelConfig.topP !== undefined) merged.topP = modelConfig.topP;
     if (modelConfig.frequencyPenalty !== undefined) merged.frequencyPenalty = modelConfig.frequencyPenalty;
     return merged;
-  }
-
-  private formatArgs(args: Record<string, unknown>): string {
-    const parts = Object.entries(args).map(([k, v]) => `${k}=${this.truncate(JSON.stringify(v), 50)}`);
-    const result = parts.join(', ');
-    return result.length > 200 ? result.slice(0, 200) + '...' : result;
-  }
-
-  private formatResult(result: string): string {
-    return this.truncate(result.replace(/\n/g, ' '), 150);
-  }
-
-  private preview(text: string, max = 30): string {
-    const preview = text.slice(0, max).replace(/\n/g, ' ');
-    return preview + (text.length > max ? '...' : '');
-  }
-
-  private truncate(str: string, max: number): string {
-    return str.length <= max ? str : str.slice(0, max) + '...';
-  }
-
-  private errorMsg(error: unknown): string {
-    return error instanceof Error ? error.message : String(error);
-  }
-
-  /**
-   * 将多模态消息转换为纯文本格式
-   * 用于不支持 vision 的模型
-   */
-  private convertToPlainText(messages: LLMMessage[]): LLMMessage[] {
-    return messages.map(msg => {
-      if (typeof msg.content === 'string') return msg;
-
-      // ContentPart[] -> 纯文本
-      const textParts: string[] = [];
-      for (const part of msg.content) {
-        if (part.type === 'text') {
-          textParts.push(part.text);
-        } else if (part.type === 'image_url') {
-          textParts.push('[图片]');
-        }
-      }
-
-      return { ...msg, content: textParts.join('\n') };
-    });
   }
 }

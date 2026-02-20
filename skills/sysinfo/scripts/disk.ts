@@ -13,20 +13,20 @@ export interface DiskInfo {
   free: string;
   usage: string;
   mount?: string;
+  error?: string;
 }
 
 export function getDiskInfo(): DiskInfo[] {
   const plat = platform();
-  
+
   try {
     if (plat === 'win32') {
-      // 使用 PowerShell 获取磁盘信息（wmic 已弃用）
       const output = execSync(
-        'powershell -Command "Get-PSDrive -PSProvider FileSystem | Select-Object Name, Used, Free | ConvertTo-Csv -NoTypeInformation"', 
+        'powershell -Command "Get-PSDrive -PSProvider FileSystem | Select-Object Name, Used, Free | ConvertTo-Csv -NoTypeInformation"',
         { encoding: 'utf8' }
       ).trim();
       const lines = output.split('\n').slice(1).filter(Boolean);
-      
+
       return lines.map(line => {
         const [name, usedStr, freeStr] = line.replace(/"/g, '').split(',');
         const used = parseInt(usedStr) || 0;
@@ -40,28 +40,16 @@ export function getDiskInfo(): DiskInfo[] {
           usage: total ? `${((used / total) * 100).toFixed(1)}%` : 'N/A'
         };
       });
-    } else {
-      const output = execSync("df -h | awk 'NR>1 {print $1,$2,$3,$4,$5,$6}'", 
-        { encoding: 'utf8' }).trim();
-      const lines = output.split('\n');
-      
-      return lines.slice(0, 10).map(line => {
-        const [filesystem, size, used, avail, usage, mount] = line.split(/\s+/);
-        return {
-          filesystem,
-          total: size,
-          used,
-          free: avail,
-          usage,
-          mount
-        };
-      });
     }
-  } catch {
-    return [{ error: '无法获取磁盘信息' }] as unknown as DiskInfo[];
-  }
-}
 
-if (require.main === module) {
-  console.log(JSON.stringify(getDiskInfo(), null, 2));
+    const output = execSync("df -h | awk 'NR>1 {print $1,$2,$3,$4,$5,$6}'", { encoding: 'utf8' }).trim();
+    const lines = output.split('\n');
+
+    return lines.slice(0, 10).map(line => {
+      const [filesystem, size, used, avail, usage, mount] = line.split(/\s+/);
+      return { filesystem, total: size, used, free: avail, usage, mount };
+    });
+  } catch {
+    return [{ total: '', used: '', free: '', usage: '', error: '无法获取磁盘信息' }];
+  }
 }

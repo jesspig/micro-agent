@@ -7,8 +7,11 @@ import { existsSync, readdirSync, readFileSync } from 'fs';
 import { join, basename, resolve } from 'path';
 import { homedir } from 'os';
 import matter from 'gray-matter';
+import { getLogger } from '@logtape/logtape';
 import type { Skill, SkillSummary, SkillFrontmatter } from './types';
 import { SKILL_NAME_REGEX } from './types';
+
+const log = getLogger(['skill', 'loader']);
 
 /** 用户技能目录 */
 const USER_SKILLS_DIR = '~/.microbot/skills';
@@ -63,14 +66,13 @@ export class SkillsLoader {
 
       try {
         const skill = this.parseSkill(skillMdPath, skillDir);
-        // 验证 name 与目录名匹配
         if (!this.validateSkillName(skill.name, entry.name)) {
-          console.warn(`技能名称不匹配目录名: ${skill.name} vs ${entry.name}`);
-          skill.name = entry.name; // 以目录名为准
+          log.warn('技能名称不匹配目录名: {name} vs {dir}', { name: skill.name, dir: entry.name });
+          skill.name = entry.name;
         }
         this.skills.set(skill.name, skill);
       } catch (error) {
-        console.error(`加载技能失败: ${entry.name}`, error);
+        log.error('加载技能失败: {name}', { name: entry.name, error });
       }
     }
   }
@@ -84,6 +86,7 @@ export class SkillsLoader {
     return {
       name: fm.name ?? basename(skillDir),
       description: fm.description ?? '',
+      dependencies: fm.dependencies,
       license: fm.license,
       compatibility: fm.compatibility,
       always: fm.always ?? false,
@@ -104,9 +107,7 @@ export class SkillsLoader {
 
   /** 验证技能名称 */
   private validateSkillName(name: string, dirName: string): boolean {
-    // 名称格式验证
     if (!SKILL_NAME_REGEX.test(name)) return false;
-    // 名称必须匹配目录名
     return name === dirName;
   }
 
@@ -122,10 +123,7 @@ export class SkillsLoader {
 
   /** 获取技能摘要列表 */
   getSummaries(): SkillSummary[] {
-    return this.getAll().map(s => ({
-      name: s.name,
-      description: s.description,
-    }));
+    return this.getAll().map(s => ({ name: s.name, description: s.description }));
   }
 
   /** 获取 always=true 的技能 */

@@ -4,8 +4,6 @@
  * 用于分析用户请求，直接推荐合适的模型
  */
 
-import type { ModelConfig } from '../core/config/schema';
-
 /** 模型信息（用于提示词） */
 export interface ModelInfo {
   /** 模型 ID（provider/model 格式） */
@@ -16,6 +14,8 @@ export interface ModelInfo {
   vision: boolean;
   /** 是否支持思考链 */
   think: boolean;
+  /** 是否支持工具调用 */
+  tool: boolean;
 }
 
 /**
@@ -27,6 +27,7 @@ export function buildIntentSystemPrompt(models: ModelInfo[]): string {
     const caps = [];
     if (m.vision) caps.push('视觉');
     if (m.think) caps.push('深度思考');
+    if (m.tool) caps.push('工具调用');
     const capStr = caps.length > 0 ? ` [${caps.join(', ')}]` : '';
     return `- ${m.id} (${m.level})${capStr}`;
   }).join('\n');
@@ -44,13 +45,14 @@ ${modelList}
 - ultra: 架构设计、复杂系统分析、高难度推理、需要深度思考的问题
 
 ## 选择规则
-1. 代码相关任务至少选择 medium 级别
-2. 涉及修改、重构至少选择 high 级别
-3. 架构、设计模式、优化分析选择 ultra 级别
-4. 简单问答、问候选择 fast 或 low 级别
-5. 如果消息包含图片，必须选择带 [视觉] 标记的模型
-6. 复杂推理任务优先选择带 [深度思考] 标记的模型
-7. 从可用模型列表中选择，不要推荐不存在的模型
+1. **工具调用优先**：如果任务需要执行系统命令、查看系统状态、读写文件、网络请求等操作，必须选择带 [工具调用] 标记的模型
+2. 代码相关任务至少选择 medium 级别
+3. 涉及修改、重构至少选择 high 级别
+4. 架构、设计模式、优化分析选择 ultra 级别
+5. 简单问答、问候选择 fast 或 low 级别
+6. 如果消息包含图片，必须选择带 [视觉] 标记的模型
+7. 复杂推理任务优先选择带 [深度思考] 标记的模型
+8. 从可用模型列表中选择，不要推荐不存在的模型
 
 请以 JSON 格式返回分析结果：
 {

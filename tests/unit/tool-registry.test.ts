@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'bun:test';
 import { z } from 'zod';
-import { ToolRegistry, type Tool, type ToolContext } from '../../src/core/tool';
+import { ToolRegistry, type Tool, type ToolContext } from '@microbot/core/tools';
 
 // 测试用工具
 class TestTool implements Tool {

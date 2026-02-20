@@ -9,10 +9,6 @@ import {
   loadConfig,
   MessageBus,
   SessionStore,
-  MemoryStore,
-  CronStore,
-  CronService,
-  HeartbeatService,
   SkillsLoader,
   ToolRegistry,
   LLMGateway,
@@ -24,12 +20,10 @@ import {
 } from '@microbot/core';
 import type {
   App,
-  CronJobSummary,
   Config,
   ProviderEntry,
   ModelConfig,
 } from '@microbot/core';
-import { DatabaseManager, DEFAULT_DB_CONFIG } from './db/manager';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { getLogger } from '@logtape/logtape';
@@ -38,7 +32,7 @@ import { homedir } from 'os';
 // 扩展组件导入
 import { ReadFileTool, WriteFileTool, ListDirTool } from '../extensions/tool/filesystem';
 import { ExecTool } from '../extensions/tool/shell';
-import { WebSearchTool, WebFetchTool } from '../extensions/tool/web';
+import { WebFetchTool } from '../extensions/tool/web';
 import { MessageTool } from '../extensions/tool/message';
 import { FeishuChannel } from '../extensions/channel/feishu';
 
@@ -47,7 +41,7 @@ const log = getLogger(['app']);
 /** 获取内置技能路径 */
 function getBuiltinSkillsPath(): string {
   const currentDir = dirname(fileURLToPath(import.meta.url));
-  return resolve(currentDir, '../extensions/skill');
+  return resolve(currentDir, '../skills');
 }
 
 /**
@@ -55,13 +49,9 @@ function getBuiltinSkillsPath(): string {
  */
 class AppImpl implements App {
   private running = false;
-  private dbManager: DatabaseManager | null = null;
-  private cronService: CronService | null = null;
-  private heartbeatService: HeartbeatService | null = null;
   private agentLoop: AgentLoop | null = null;
   private channelManager: ChannelManager;
   private gateway: LLMGateway;
-  private cronStore: CronStore | null = null;
   /** 可用模型列表（用于自动路由） */
   private availableModels = new Map<string, ModelConfig[]>();
 
@@ -83,52 +73,37 @@ class AppImpl implements App {
     if (this.running) return;
     this.running = true;
 
-    // 1. 初始化数据库（仅用于 cron 和 memory）
-    const dataDir = expandPath(DEFAULT_DB_CONFIG.dataDir);
-    this.dbManager = new DatabaseManager({
-      ...DEFAULT_DB_CONFIG,
-      dataDir,
-      cronDb: `${dataDir}/cron.db`,
-      memoryDb: `${dataDir}/memory.db`,
-    });
-    this.dbManager.init();
-
-    // 2. 初始化存储
-    // SessionStore 使用 JSONL 格式，独立于数据库
+    // 1. 初始化会话存储
     const sessionStore = new SessionStore({
       sessionsDir: `${homedir()}/.microbot/sessions`,
       sessionTimeout: 30 * 60 * 1000, // 30 分钟超时
     });
-    const memoryStore = new MemoryStore(this.dbManager.getMemoryDb());
-    this.cronStore = new CronStore(this.dbManager.getCronDb());
 
-    // 3. 初始化消息总线
+    // 2. 初始化消息总线
     const messageBus = new MessageBus();
 
-    // 4. 初始化工具注册表
+    // 3. 初始化工具注册表
     const toolRegistry = new ToolRegistry();
     toolRegistry.register(new ReadFileTool());
     toolRegistry.register(new WriteFileTool());
     toolRegistry.register(new ListDirTool());
     toolRegistry.register(new ExecTool(this.workspace));
-    toolRegistry.register(new WebSearchTool());
     toolRegistry.register(new WebFetchTool());
     toolRegistry.register(new MessageTool());
 
-    // 5. 初始化 Provider Gateway
+    // 4. 初始化 Provider Gateway
     this.initProviders();
 
-    // 6. 初始化技能加载器
+    // 5. 初始化技能加载器
     const skillsLoader = new SkillsLoader(this.workspace, getBuiltinSkillsPath());
     skillsLoader.load();
 
-    // 7. 初始化 Agent
+    // 6. 初始化 Agent
     const agentConfig = this.config.agents;
     this.agentLoop = new AgentLoop(
       messageBus,
       this.gateway,
       sessionStore,
-      memoryStore,
       toolRegistry,
       skillsLoader,
       {
@@ -149,53 +124,19 @@ class AppImpl implements App {
       }
     );
 
-    // 8. 初始化 Cron 服务
-    this.cronService = new CronService(
-      this.cronStore,
-      async (job) => {
-        await messageBus.publishInbound({
-          channel: (job.channel as 'feishu' | 'system') || 'system',
-          senderId: 'cron',
-          chatId: job.toAddress || 'system',
-          content: job.message,
-          timestamp: new Date(),
-          media: [],
-          metadata: { cronJobId: job.id },
-        });
-        return 'ok';
-      }
-    );
-    await this.cronService.start();
-
-    // 9. 初始化 Heartbeat 服务
-    this.heartbeatService = new HeartbeatService(
-      async (prompt) => {
-        await messageBus.publishInbound({
-          channel: 'system',
-          senderId: 'heartbeat',
-          chatId: 'system',
-          content: prompt,
-          timestamp: new Date(),
-          media: [],
-          metadata: {},
-        });
-        return 'HEARTBEAT_OK';
-      },
-      { intervalMs: 30 * 60 * 1000, workspace: this.workspace }
-    );
-    this.heartbeatService.start();
-
-    // 10. 初始化通道
+    // 7. 初始化通道
     this.initChannels(messageBus);
 
-    // 11. 启动通道
+    // 8. 启动通道
     await this.channelManager.startAll();
 
-    // 12. 启动出站消息消费者
+    // 9. 启动出站消息消费者
     this.startOutboundConsumer(messageBus);
 
-    // 13. 启动 Agent 循环
-    this.agentLoop.run().catch(console.error);
+    // 10. 启动 Agent 循环
+    this.agentLoop.run().catch(error => {
+      log.error('Agent 循环异常: {error}', { error: error instanceof Error ? error.message : String(error) });
+    });
   }
 
   private startOutboundConsumer(messageBus: MessageBus): void {
@@ -208,7 +149,9 @@ class AppImpl implements App {
           log.error('发送消息失败: {error}', { error: error instanceof Error ? error.message : String(error) });
         }
       }
-    })().catch(console.error);
+    })().catch(error => {
+      log.error('出站消费者异常: {error}', { error: error instanceof Error ? error.message : String(error) });
+    });
   }
 
   async stop(): Promise<void> {
@@ -216,10 +159,7 @@ class AppImpl implements App {
     this.running = false;
 
     this.agentLoop?.stop();
-    this.heartbeatService?.stop();
-    this.cronService?.stop();
     await this.channelManager.stopAll();
-    this.dbManager?.close();
   }
 
   getRunningChannels(): string[] {
@@ -241,21 +181,6 @@ class AppImpl implements App {
       chatModel: this.config.agents.models?.chat || '未配置',
       checkModel: this.config.agents.models?.check,
     };
-  }
-
-  getCronCount(): number {
-    if (!this.cronStore) return 0;
-    return this.cronStore.list(false).length;
-  }
-
-  listCronJobs(): CronJobSummary[] {
-    if (!this.cronStore) return [];
-    return this.cronStore.list(true).map(job => ({
-      id: job.id,
-      name: job.name,
-      scheduleKind: job.scheduleKind,
-      scheduleValue: job.scheduleValue,
-    }));
   }
 
   private initProviders(): void {
@@ -311,7 +236,7 @@ export async function createApp(configPath?: string): Promise<App> {
   const baseConfig = loadConfig(configPath ? { configPath } : {});
   const workspace = expandPath(baseConfig.agents.workspace);
   
-  // 确保 workspace 目录存在，避免 Bun.spawnSync 报 ENOENT 错误
+  // 确保 workspace 目录存在
   const { mkdirSync, existsSync } = await import('fs');
   if (!existsSync(workspace)) {
     mkdirSync(workspace, { recursive: true });
@@ -323,7 +248,7 @@ export async function createApp(configPath?: string): Promise<App> {
 }
 
 // 导出类型
-export type { App, CronJobSummary } from '@microbot/core';
+export type { App } from '@microbot/core';
 
 // SDK 子路径导出
 export * as core from '@microbot/core';

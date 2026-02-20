@@ -1,7 +1,9 @@
 ---
 name: sysinfo
 description: 系统信息工具 - 获取 CPU/内存/磁盘/网络/进程等系统信息
-compatibility: Requires bun
+dependencies:
+  - bun>=1.0
+compatibility: bun
 always: true
 allowed-tools: []
 ---
@@ -10,14 +12,14 @@ allowed-tools: []
 
 多功能系统监控工具，支持获取各类系统资源信息。
 
-**脚本目录: `<skill-dir>/src/`**
+**脚本目录: `<skill-dir>/scripts/`**
 
 ## 目录结构
 
 ```
 sysinfo/
 ├── SKILL.md
-└── src/
+└── scripts/
     ├── index.ts     # 主入口，路由到各子模块
     ├── shared.ts    # 共享工具函数
     ├── cpu.ts       # CPU 信息
@@ -32,14 +34,14 @@ sysinfo/
 
 ```bash
 # 主入口（推荐）
-bun <skill-dir>/src/index.ts
-bun <skill-dir>/src/index.ts --type cpu
-bun <skill-dir>/src/index.ts --type mem
+bun <skill-dir>/scripts/index.ts
+bun <skill-dir>/scripts/index.ts --type cpu
+bun <skill-dir>/scripts/index.ts --type mem
 
 # 直接运行子模块
-bun <skill-dir>/src/cpu.ts
-bun <skill-dir>/src/mem.ts
-bun <skill-dir>/src/disk.ts
+bun <skill-dir>/scripts/cpu.ts
+bun <skill-dir>/scripts/mem.ts
+bun <skill-dir>/scripts/disk.ts
 ```
 
 ## 命令行选项

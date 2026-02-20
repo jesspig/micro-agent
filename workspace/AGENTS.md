@@ -10,7 +10,7 @@
 
 - 文件操作：read_file, write_file, edit_file
 - Shell 执行：exec
-- Web 操作：web_search, web_fetch
+- Web 操作：web_fetch
 - 消息发送：message
 
 ## 响应规则

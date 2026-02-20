@@ -12,9 +12,9 @@ export interface NetworkInfo {
 export function getNetworkInfo(): NetworkInfo[] {
   const interfaces = networkInterfaces();
   const result: NetworkInfo[] = [];
-  
+
   for (const [name, addrs] of Object.entries(interfaces)) {
-    const ipv4 = addrs.find(a => a.family === 'IPv4' && !a.internal);
+    const ipv4 = addrs?.find(a => a.family === 'IPv4' && !a.internal);
     if (ipv4) {
       result.push({
         interface: name,
@@ -23,10 +23,6 @@ export function getNetworkInfo(): NetworkInfo[] {
       });
     }
   }
-  
-  return result;
-}
 
-if (require.main === module) {
-  console.log(JSON.stringify(getNetworkInfo(), null, 2));
+  return result;
 }

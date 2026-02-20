@@ -23,7 +23,3 @@ export function getSysInfo(): SysInfo {
     release: release()
   };
 }
-
-if (require.main === module) {
-  console.log(JSON.stringify(getSysInfo(), null, 2));
-}

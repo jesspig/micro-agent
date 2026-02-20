@@ -1,7 +1,9 @@
 ---
 name: time
 description: 时间处理工具 - 获取时间、时区转换、时间差计算、时间戳转换
-compatibility: Requires bun
+dependencies:
+  - bun>=1.0
+compatibility: bun
 always: true
 allowed-tools: []
 ---
@@ -10,14 +12,14 @@ allowed-tools: []
 
 多功能时间工具，支持时区转换、时间差计算、时间戳转换等。
 
-**脚本目录: `<skill-dir>/src/`**
+**脚本目录: `<skill-dir>/scripts/`**
 
 ## 目录结构
 
 ```
 time/
 ├── SKILL.md
-└── src/
+└── scripts/
     ├── index.ts     # 主入口，路由到各子模块
     ├── shared.ts   # 共享常量和工具函数
     ├── format.ts   # 时间格式化
@@ -30,19 +32,19 @@ time/
 
 ```bash
 # 主入口（推荐）
-bun <skill-dir>/src/index.ts
-bun <skill-dir>/src/index.ts --timezone Asia/Tokyo
-bun <skill-dir>/src/index.ts --format "YYYY年MM月DD日 dddd"
-bun <skill-dir>/src/index.ts --diff "2026-12-31"
-bun <skill-dir>/src/index.ts --timestamp 1700000000
-bun <skill-dir>/src/index.ts --unix
+bun <skill-dir>/scripts/index.ts
+bun <skill-dir>/scripts/index.ts --timezone Asia/Tokyo
+bun <skill-dir>/scripts/index.ts --format "YYYY年MM月DD日 dddd"
+bun <skill-dir>/scripts/index.ts --diff "2026-12-31"
+bun <skill-dir>/scripts/index.ts --timestamp 1700000000
+bun <skill-dir>/scripts/index.ts --unix
 
 # 直接运行子模块
-bun <skill-dir>/src/format.ts
-bun <skill-dir>/src/diff.ts --diff "2026-12-31"
-bun <skill-dir>/src/timestamp.ts --timestamp 1700000000
-bun <skill-dir>/src/timestamp.ts --unix
-bun <skill-dir>/src/timezone.ts --timezone Asia/Tokyo
+bun <skill-dir>/scripts/format.ts
+bun <skill-dir>/scripts/diff.ts --diff "2026-12-31"
+bun <skill-dir>/scripts/timestamp.ts --timestamp 1700000000
+bun <skill-dir>/scripts/timestamp.ts --unix
+bun <skill-dir>/scripts/timezone.ts --timezone Asia/Tokyo
 ```
 
 ## 命令行选项

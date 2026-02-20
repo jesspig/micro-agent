@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import { writeFileSync, mkdirSync, rmSync, existsSync } from 'fs';
 import { join } from 'path';
-import { loadConfig, expandPath, findTemplateFile } from '@microbot/core/config';
+import { loadConfig, expandPath, findTemplateFile, getSystemDefaultsPath } from '@microbot/core/config';
 
 const TEST_DIR = join(import.meta.dir, '__config_test__');
 
@@ -125,21 +125,18 @@ providers:
 
   describe('findTemplateFile', () => {
     it('should find template upward in directory hierarchy', () => {
-      // 创建目录结构: workspace/A/B/C
       const workspace = join(TEST_DIR, 'workspace');
       const dirA = join(workspace, 'A');
       const dirB = join(dirA, 'B');
       const dirC = join(dirB, 'C');
       
-      // 确保所有目录都存在
       mkdirSync(dirC, { recursive: true });
       
-      // 只在 A 目录创建 SOUL.md
       const soulPath = join(dirA, 'SOUL.md');
       writeFileSync(soulPath, '# Soul from A');
 
-      // 在 C 目录查找，应该找到 A 的 SOUL.md
-      const found = findTemplateFile('SOUL.md', workspace, dirC);
+      const systemDefaultsDir = getSystemDefaultsPath();
+      const found = findTemplateFile('SOUL.md', systemDefaultsDir, workspace, dirC);
       expect(found).toBe(soulPath);
     });
   });

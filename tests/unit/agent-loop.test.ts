@@ -1,12 +1,7 @@
 import { describe, it, expect, beforeEach } from 'bun:test';
-import { AgentLoop, type AgentConfig } from '../../src/core/agent/loop';
-import type { LLMProvider, LLMMessage, LLMResponse } from '../../src/core/providers/base';
-import type { ModelConfig } from '../../src/core/config/schema';
-import type { MessageBus } from '../../src/core/bus/queue';
-import type { SessionStore } from '../../src/core/storage/session/store';
-import type { MemoryStore } from '../../src/core/storage/memory/store';
-import type { ToolRegistry } from '../../src/core/tool/registry';
-import type { InboundMessage } from '../../src/core/bus/events';
+import { AgentLoop, type AgentConfig } from '@microbot/core';
+import type { LLMProvider, LLMResponse } from '@microbot/core';
+import type { ModelConfig, MessageBus, SessionStore, ToolRegistry, InboundMessage } from '@microbot/core';
 
 // Mock implementations
 class MockProvider implements LLMProvider {
@@ -91,14 +86,6 @@ class MockSessionStore implements SessionStore {
   cleanup() { return 0; }
 }
 
-const mockMemoryStore: MemoryStore = {
-  readLongTerm: () => '',
-  writeLongTerm: () => {},
-  appendToday: () => {},
-  readToday: () => '',
-  getRecent: () => [],
-} as MemoryStore;
-
 const mockToolRegistry: ToolRegistry = {
   register: () => {},
   get: () => undefined,
@@ -133,7 +120,6 @@ describe('AgentLoop', () => {
       bus,
       provider,
       sessionStore,
-      mockMemoryStore,
       mockToolRegistry,
       mockSkillsLoader as any,
       config
@@ -198,7 +184,6 @@ describe('AgentLoop', () => {
         bus,
         provider,
         sessionStore,
-        mockMemoryStore,
         toolRegistry,
         mockSkillsLoader as any,
         config

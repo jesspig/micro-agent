@@ -1,10 +1,7 @@
 /**
  * 飞书通道实现
  */
-import type { OutboundMessage } from '@microbot/core';
-import type { MessageBus } from '@microbot/core';
-import type { ChannelType } from '@microbot/core';
-import type { Channel, ChannelHelper } from '@microbot/core';
+import type { OutboundMessage, MessageBus, ChannelType, Channel, ChannelHelper } from '@microbot/core';
 import * as lark from '@larksuiteoapi/node-sdk';
 import { getLogger } from '@logtape/logtape';
 import type { FeishuConfig, FeishuMessageData } from './types';
@@ -14,25 +11,44 @@ const log = getLogger(['feishu']);
 
 /**
  * 飞书通道
+ * 
+ * 通过 WebSocket 长连接接收飞书消息，支持私聊和群聊。
  */
 export class FeishuChannel implements Channel {
+  /** 通道类型 */
   readonly name: ChannelType = 'feishu';
+  /** Lark 客户端 */
   private client: lark.Client | null = null;
+  /** WebSocket 客户端 */
   private wsClient: lark.WSClient | null = null;
+  /** 已处理消息 ID 集合 */
   private processedMessageIds = new Set<string>();
+  /** 最大已处理 ID 数量 */
   private readonly MAX_PROCESSED_IDS = 500;
+  /** 运行状态 */
   private _running = false;
 
+  /**
+   * 创建飞书通道实例
+   * @param bus - 消息总线
+   * @param config - 飞书配置
+   * @param helper - 通道辅助工具
+   */
   constructor(
     private bus: MessageBus,
     private config: FeishuConfig,
     private helper: ChannelHelper
   ) {}
 
+  /** 获取运行状态 */
   get isRunning(): boolean {
     return this._running;
   }
 
+  /**
+   * 启动飞书通道
+   * @returns Promise
+   */
   async start(): Promise<void> {
     const baseConfig = {
       appId: this.config.appId,
@@ -57,6 +73,10 @@ export class FeishuChannel implements Channel {
     log.info('飞书通道已启动 (WebSocket 长连接)');
   }
 
+  /**
+   * 停止飞书通道
+   * @returns Promise
+   */
   async stop(): Promise<void> {
     this.wsClient = null;
     this.client = null;
@@ -64,6 +84,11 @@ export class FeishuChannel implements Channel {
     log.info('飞书通道已停止');
   }
 
+  /**
+   * 发送消息
+   * @param msg - 出站消息
+   * @returns Promise
+   */
   async send(msg: OutboundMessage): Promise<void> {
     if (!this.client) {
       throw new Error('飞书通道未启动');
@@ -95,6 +120,10 @@ export class FeishuChannel implements Channel {
     }
   }
 
+  /**
+   * 处理接收到的消息
+   * @param data - 消息数据
+   */
   private async handleMessage(data: unknown): Promise<void> {
     try {
       let message: { message_id: string; chat_id: string; chat_type: string; message_type: string; content: string } | undefined;
@@ -134,7 +163,6 @@ export class FeishuChannel implements Channel {
 
       await this.addReaction(messageId, 'THUMBSUP');
 
-      // 解析消息内容
       const { content, media } = await parseMessageContent(
         this.client!,
         messageId,
@@ -168,6 +196,11 @@ export class FeishuChannel implements Channel {
     }
   }
 
+  /**
+   * 添加消息反应
+   * @param messageId - 消息 ID
+   * @param emojiType - 表情类型
+   */
   private async addReaction(messageId: string, emojiType: string): Promise<void> {
     if (!this.client) return;
 

@@ -61,8 +61,6 @@ class ToolRegistry {
 | 数据 | 存储 |
 |------|------|
 | 会话 | JSONL |
-| 记忆 | SQLite |
-| 定时任务 | SQLite |
 
 ## 模块架构
 
@@ -94,7 +92,6 @@ graph TB
     subgraph 支撑层
         Storage[Storage<br/>存储层]
         Skills[Skill<br/>技能系统]
-        Services[Service<br/>后台服务]
     end
     
     Agent --> Providers
@@ -102,7 +99,6 @@ graph TB
     Agent --> Storage
     Agent --> Skills
     Channels --> Agent
-    Services --> Storage
 ```
 
 ### 消息流向
@@ -169,14 +165,9 @@ packages/core/src/
 │   ├── base.ts        # 通道接口
 │   └── manager.ts     # 通道管理器
 ├── storage/            # 存储层
-│   ├── session/       # 会话存储
-│   ├── memory/        # 记忆存储
-│   └── cron/          # 定时任务存储
-├── skill/              # 技能系统
-│   └── loader.ts      # 技能加载器
-└── service/            # 服务
-    ├── cron/          # 定时任务服务
-    └── heartbeat/    # 心跳服务
+│   └── session/       # 会话存储
+└── skill/              # 技能系统
+    └── loader.ts      # 技能加载器
 ```
 
 ## 扩展机制

@@ -6,6 +6,9 @@
 import type { ChannelType } from '../types/interfaces';
 import type { Channel } from './base';
 import type { OutboundMessage } from '../bus/events';
+import { getLogger } from '@logtape/logtape';
+
+const log = getLogger(['channel', 'manager']);
 
 /**
  * 通道管理器
@@ -35,7 +38,7 @@ export class ChannelManager {
       try {
         await channel.start();
       } catch (error) {
-        console.error(`启动通道 ${channel.name} 失败:`, error);
+        log.error('启动通道 {name} 失败', { name: channel.name, error });
       }
     }
   }
@@ -48,7 +51,7 @@ export class ChannelManager {
       try {
         await channel.stop();
       } catch (error) {
-        console.error(`停止通道 ${channel.name} 失败:`, error);
+        log.error('停止通道 {name} 失败', { name: channel.name, error });
       }
     }
   }
