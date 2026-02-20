@@ -12,6 +12,9 @@
 import type { LLMProvider, LLMMessage, LLMResponse, LLMToolDefinition, OpenAIResponse, GenerationConfig } from './base';
 import { parseOpenAIResponse, toOpenAIMessages } from './base';
 import type { ModelConfig } from '../config/schema';
+import { getLogger } from '@logtape/logtape';
+
+const log = getLogger(['provider', 'openai']);
 
 /** OpenAI Compatible 配置 */
 export interface OpenAICompatibleConfig {
@@ -96,8 +99,21 @@ export class OpenAICompatibleProvider implements LLMProvider {
     }
 
     // 仅当模型支持工具调用且有工具时才发送
+    log.debug('tools 参数: {count} 个, 模型能力 tool: {tool}', { 
+      count: tools?.length ?? 0, 
+      tool: capabilities.tool 
+    });
+    
     if (capabilities.tool && tools?.length) {
       body.tools = tools;
+      body.tool_choice = 'auto';
+      log.debug('已添加 tools 到请求体，格式示例: {example}', { 
+        example: JSON.stringify(tools[0]) 
+      });
+    } else {
+      log.debug('未添加 tools，原因: {reason}', { 
+        reason: !capabilities.tool ? '模型不支持' : '无工具定义' 
+      });
     }
 
     const response = await fetch(`${this.config.baseUrl}/chat/completions`, {
@@ -112,6 +128,10 @@ export class OpenAICompatibleProvider implements LLMProvider {
     }
 
     const data = await response.json() as OpenAIResponse;
+    log.debug('API 响应 content 长度: {contentLen}, tool_calls: {toolCalls} 个', { 
+      contentLen: data.choices?.[0]?.message?.content?.length ?? 0,
+      toolCalls: data.choices?.[0]?.message?.tool_calls?.length ?? 0
+    });
     return parseOpenAIResponse(data);
   }
 

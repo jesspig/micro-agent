@@ -15,6 +15,12 @@ import { ModelRouter, type ModelRouterConfig } from '../providers/router';
 import { ContextBuilder } from './context';
 import { getLogger } from '@logtape/logtape';
 
+/** Zod Schema 类型（支持 Zod 4.x 的 .toJSONSchema() 方法） */
+interface ZodSchemaWithJsonSchema {
+  toJSONSchema?: () => Record<string, unknown>;
+  [key: string]: unknown;
+}
+
 const log = getLogger(['agent']);
 
 /** Agent 配置 */
@@ -268,16 +274,35 @@ export class AgentLoop {
 
   private getToolDefinitions(): LLMToolDefinition[] | undefined {
     const defs = this.toolRegistry.getDefinitions();
+    log.debug('ToolRegistry.getDefinitions(): {count} 个工具', { count: defs?.length ?? 0 });
+    
     if (!defs || defs.length === 0) return undefined;
 
-    return defs.map(d => ({
-      type: 'function' as const,
-      function: {
-        name: d.name,
-        description: d.description,
-        parameters: d.inputSchema as Record<string, unknown>,
-      },
-    }));
+    const result = defs.map(d => {
+      // Zod 4.x: 使用 .toJSONSchema() 方法转换为 JSON Schema 格式
+      const schema = d.inputSchema as ZodSchemaWithJsonSchema;
+      const jsonSchema: Record<string, unknown> = 
+        typeof schema.toJSONSchema === 'function' 
+          ? schema.toJSONSchema() 
+          : schema;
+      
+      log.debug('工具 {name}: jsonSchema keys={keys}', { 
+        name: d.name, 
+        keys: Object.keys(jsonSchema || {}).join(', ') 
+      });
+      
+      return {
+        type: 'function' as const,
+        function: {
+          name: d.name,
+          description: d.description,
+          parameters: jsonSchema,
+        },
+      };
+    });
+    
+    log.debug('返回工具定义: {count} 个', { count: result.length });
+    return result;
   }
 
   private createContext(msg: InboundMessage): ToolContext {

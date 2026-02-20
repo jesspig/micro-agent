@@ -75,6 +75,7 @@ export class ModelRouter {
 
     const hasImage = hasImageMedia(media);
     const content = messages.map(m => m.content).join(' ');
+    const requireTool = this.needsToolCalling(content);
 
     // 图片优先选择视觉模型
     if (hasImage) {
@@ -84,14 +85,14 @@ export class ModelRouter {
 
     // 性能优先模式
     if (this.max) {
-      const result = this.selectModelByLevel('ultra');
+      const result = this.selectModelByLevel('ultra', false, requireTool);
       if (result) return { ...result, complexity: 100, reason: '性能优先模式' };
     }
 
     // 复杂度路由
     const complexity = calculateComplexity(messages, content, content.length, this.routing);
     const level = complexityToLevel(complexity);
-    const result = this.selectModelByLevel(level);
+    const result = this.selectModelByLevel(level, false, requireTool);
 
     if (result) {
       return { ...result, complexity, reason: `复杂度评分: ${complexity}` };
@@ -198,6 +199,7 @@ export class ModelRouter {
           level: config.level,
           vision: config.vision,
           think: config.think,
+          tool: config.tool ?? true,
         });
       }
     }
@@ -211,12 +213,13 @@ export class ModelRouter {
   ): IntentResult {
     const content = messages.map(m => m.content).join(' ');
     const hasImage = hasImageMedia(media);
+    const requireTool = this.needsToolCalling(content);
 
     // 规则匹配
     if (this.routing.enabled && this.routing.rules.length > 0) {
       const matchedRule = this.matchRule(content, content.length);
       if (matchedRule) {
-        const result = this.selectModelByLevel(matchedRule.level, hasImage);
+        const result = this.selectModelByLevel(matchedRule.level, hasImage, requireTool);
         if (result) return { model: result.model, reason: '关键词匹配' };
       }
     }
@@ -224,10 +227,27 @@ export class ModelRouter {
     // 复杂度计算
     const complexity = calculateComplexity(messages, content, content.length, this.routing);
     const level = complexityToLevel(complexity);
-    const result = this.selectModelByLevel(level, hasImage);
+    const result = this.selectModelByLevel(level, hasImage, requireTool);
 
     if (result) return { model: result.model, reason: `复杂度评分: ${complexity}` };
     return { model: this.chatModel, reason: '回退到默认模型' };
+  }
+
+  /** 检测用户请求是否需要工具调用 */
+  private needsToolCalling(content: string): boolean {
+    const toolKeywords = [
+      // 系统操作
+      'CPU', '内存', '磁盘', '网络', '进程', '状态', '占用', '负载',
+      '查看', '获取', '读取', '写入', '删除', '列出', '执行', '运行',
+      // 文件操作
+      '文件', '目录', '路径', '创建', '修改',
+      // 网络操作
+      '搜索', '网页', '请求', '下载', '上传',
+      // 工具相关
+      '工具', '命令', '脚本', 'shell', 'bash',
+    ];
+    const contentLower = content.toLowerCase();
+    return toolKeywords.some(k => contentLower.includes(k.toLowerCase()));
   }
 
   private matchRule(content: string, length: number): RoutingRule | null {
@@ -293,11 +313,11 @@ export class ModelRouter {
     return models;
   }
 
-  private selectModelByLevel(targetLevel: ModelLevel, visionOnly = false): RouteResult | null {
-    const candidates = this.findCandidates(targetLevel, visionOnly);
+  private selectModelByLevel(targetLevel: ModelLevel, visionOnly = false, requireTool = false): RouteResult | null {
+    const candidates = this.findCandidates(targetLevel, visionOnly, requireTool);
 
     if (candidates.length === 0) {
-      return this.selectNearestModel(targetLevel, visionOnly);
+      return this.selectNearestModel(targetLevel, visionOnly, requireTool);
     }
 
     const selected = candidates[0];
@@ -311,7 +331,8 @@ export class ModelRouter {
 
   private findCandidates(
     targetLevel: ModelLevel,
-    visionOnly: boolean
+    visionOnly: boolean,
+    requireTool: boolean
   ): Array<{ provider: string; config: ModelConfig }> {
     const candidates: Array<{ provider: string; config: ModelConfig }> = [];
 
@@ -319,6 +340,7 @@ export class ModelRouter {
       for (const config of models) {
         if (config.level !== targetLevel) continue;
         if (visionOnly && !config.vision) continue;
+        if (requireTool && !config.tool) continue;
         candidates.push({ provider, config });
       }
     }
@@ -326,9 +348,9 @@ export class ModelRouter {
     return candidates;
   }
 
-  private selectNearestModel(targetLevel: ModelLevel, visionOnly = false): RouteResult | null {
+  private selectNearestModel(targetLevel: ModelLevel, visionOnly = false, requireTool = false): RouteResult | null {
     const targetPriority = LEVEL_PRIORITY[targetLevel];
-    const candidates = this.buildCandidates(visionOnly, targetPriority);
+    const candidates = this.buildCandidates(visionOnly, targetPriority, requireTool);
 
     if (candidates.length === 0) return null;
 
@@ -345,13 +367,15 @@ export class ModelRouter {
 
   private buildCandidates(
     visionOnly: boolean,
-    targetPriority: number
+    targetPriority: number,
+    requireTool: boolean
   ): Array<{ provider: string; config: ModelConfig; diff: number; priority: number }> {
     const candidates: Array<{ provider: string; config: ModelConfig; diff: number; priority: number }> = [];
 
     for (const [provider, models] of this.models) {
       for (const config of models) {
         if (visionOnly && !config.vision) continue;
+        if (requireTool && !config.tool) continue;
         const priority = LEVEL_PRIORITY[config.level];
         candidates.push({ provider, config, diff: priority - targetPriority, priority });
       }
