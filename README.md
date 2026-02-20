@@ -1,13 +1,13 @@
 # MicroBot
 
-[![Version](https://img.shields.io/badge/Version-0.1.0-blue.svg)](https://github.com/jesspig/microbot)
+[![Version](https://img.shields.io/badge/Version-0.1.1-blue.svg)](https://github.com/jesspig/microbot)
 [![Bun](https://img.shields.io/badge/Bun-1.3.9-black?logo=bun)](https://bun.sh/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9.3-blue?logo=typescript)](https://www.typescriptlang.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 基于 **Bun + TypeScript** 的超轻量级个人 AI 助手框架。
 
-**[📖 在线文档](https://jesspig.github.io/microbot/)** | **[📦 更新日志](https://jesspig.github.io/microbot/guide/changelog)**
+**[📖 在线文档](https://jesspig.github.io/microbot/)** | **[📦 更新日志](https://jesspig.github.io/microbot/guide/changelog/)**
 
 ## 特性
 
@@ -121,7 +121,7 @@ Channel ──► ChannelManager ──► MessageBus
 | 模块 | 路径 | 说明 |
 |------|------|------|
 | 工具 | `extensions/tool/` | 文件、Shell、Web 工具 |
-| 技能 | `extensions/skill/` | time、sysinfo |
+| 技能 | `skills/` | time、sysinfo |
 | 通道 | `extensions/channel/` | 飞书 |
 
 ## 内置工具
@@ -137,10 +137,10 @@ Channel ──► ChannelManager ──► MessageBus
 
 ## 内置技能
 
-| 技能 | 说明 |
-|------|------|
-| `time` | 时间查询、格式转换、时区处理 |
-| `sysinfo` | CPU、内存、磁盘、网络状态 |
+| 技能 | 说明 | 依赖 |
+|------|------|------|
+| `time` | 时间查询、格式转换、时区处理 | - |
+| `sysinfo` | CPU、内存、磁盘、网络、进程状态 | bun>=1.0 |
 
 ## 通道配置
 
@@ -224,8 +224,10 @@ microbot/
 │           └── storage/
 ├── extensions/
 │   ├── tool/               # 工具扩展
-│   ├── skill/              # 技能扩展
 │   └── channel/            # 通道扩展
+├── skills/                 # 技能目录
+│   ├── sysinfo/            # 系统信息技能
+│   └── time/               # 时间技能
 ├── src/
 │   ├── index.ts            # 应用入口
 │   └── cli.ts              # CLI 命令

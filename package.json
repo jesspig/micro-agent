@@ -1,6 +1,6 @@
 {
   "name": "microbot",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "超轻量级个人 AI 助手框架",
   "type": "module",
   "author": "jesspig",
