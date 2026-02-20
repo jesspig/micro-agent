@@ -6,8 +6,3 @@
 
 // 飞书通道
 export { FeishuChannel } from './feishu';
-
-// 内置通道列表
-import { FeishuChannel } from './feishu';
-
-export const channelClasses = [FeishuChannel];

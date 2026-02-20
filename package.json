@@ -28,7 +28,6 @@
     "test": "bun test",
     "test:container": "bun test tests/unit/container.test.ts",
     "test:config": "bun test tests/unit/config.test.ts",
-    "test:db": "bun test tests/unit/db.test.ts",
     "test:unit": "bun test tests/unit/",
     "test:integration": "bun test tests/integration/",
     "test:e2e": "bun test tests/e2e/",
@@ -40,19 +39,15 @@
     "@logtape/logtape": "^2.0.2",
     "@logtape/pretty": "^2.0.2",
     "ai": "^6.0.92",
-    "cron-schedule": "^6.0.0",
     "gray-matter": "^4.0.3",
-    "imapflow": "^1.2.10",
     "js-yaml": "^4.1.1",
     "mitt": "^3.0.1",
-    "nodemailer": "^8.0.1",
     "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/bun": "latest",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^25.3.0",
-    "@types/nodemailer": "^7.0.10",
     "typescript": "^5.9.3"
   }
 }

@@ -1,6 +1,15 @@
 import type { LLMProvider, LLMMessage } from '../providers/base';
 import type { MessageBus } from '../bus/queue';
 
+/** 任务执行参数 */
+interface TaskParams {
+  taskId: string;
+  taskName: string;
+  task: string;
+  originChannel: string;
+  originChatId: string;
+}
+
 /**
  * 子代理管理器
  * 
@@ -32,13 +41,9 @@ export class SubagentManager {
     const taskId = crypto.randomUUID().slice(0, 8);
     const taskName = label ?? `task-${taskId}`;
 
-    const taskPromise = this.executeTask(
-      taskId,
-      taskName,
-      task,
-      originChannel,
-      originChatId
-    );
+    const taskPromise = this.executeTask({
+      taskId, taskName, task, originChannel, originChatId
+    });
     this.runningTasks.set(taskId, taskPromise);
 
     return `已启动子代理 [${taskName}] (${taskId})，完成后将通知您。`;
@@ -47,13 +52,9 @@ export class SubagentManager {
   /**
    * 执行任务
    */
-  private async executeTask(
-    taskId: string,
-    taskName: string,
-    task: string,
-    originChannel: string,
-    originChatId: string
-  ): Promise<void> {
+  private async executeTask(params: TaskParams): Promise<void> {
+    const { taskId, taskName, task, originChannel, originChatId } = params;
+
     try {
       const messages: LLMMessage[] = [
         {
@@ -65,7 +66,6 @@ export class SubagentManager {
 
       const response = await this.provider.chat(messages, undefined, this.model);
 
-      // 发送完成通知
       await this.bus.publishInbound({
         channel: 'system',
         senderId: `subagent:${taskId}`,

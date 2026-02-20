@@ -41,7 +41,7 @@ const log = getLogger(['app']);
 /** 获取内置技能路径 */
 function getBuiltinSkillsPath(): string {
   const currentDir = dirname(fileURLToPath(import.meta.url));
-  return resolve(currentDir, '../extensions/skill');
+  return resolve(currentDir, '../skills');
 }
 
 /**

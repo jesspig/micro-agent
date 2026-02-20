@@ -4,8 +4,6 @@
  * 用于分析用户请求，直接推荐合适的模型
  */
 
-import type { ModelConfig } from '../core/config/schema';
-
 /** 模型信息（用于提示词） */
 export interface ModelInfo {
   /** 模型 ID（provider/model 格式） */

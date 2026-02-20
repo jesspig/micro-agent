@@ -19,14 +19,6 @@ export interface Container {
   has(token: string): boolean;
 }
 
-/** 结构化日志 */
-export interface Logger {
-  info(message: string, ...args: unknown[]): void;
-  warn(message: string, ...args: unknown[]): void;
-  error(message: string, ...args: unknown[]): void;
-  debug(message: string, ...args: unknown[]): void;
-}
-
 /** 应用实例接口 */
 export interface App {
   /** 启动所有服务 */

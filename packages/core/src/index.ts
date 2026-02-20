@@ -50,6 +50,3 @@ export * from './skill';
 
 // Storage 模块
 export * from './storage';
-
-// Service 模块
-export * from './service';
