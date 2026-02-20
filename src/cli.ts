@@ -6,7 +6,6 @@
  * 命令:
  * - start: 启动服务
  * - status: 显示状态
- * - cron: 管理定时任务
  */
 
 import { parseArgs } from 'util';
@@ -45,7 +44,6 @@ MicroBot - 轻量级 AI 助手框架
 命令:
   start       启动服务
   status      显示状态
-  cron        管理定时任务
 
 选项:
   -c, --config <path>   配置文件路径
@@ -56,7 +54,6 @@ MicroBot - 轻量级 AI 助手框架
   microbot start
   microbot start -c ./config.yaml
   microbot status
-  microbot cron list
 `);
 }
 
@@ -69,101 +66,21 @@ function showVersion(): void {
 function showStatus(app: App): void {
   const channels = app.getRunningChannels();
   const provider = app.getProviderStatus();
-  const cronCount = app.getCronCount();
 
   console.log();
   console.log('\x1b[1m\x1b[36mMicroBot 状态\x1b[0m');
   console.log('─'.repeat(50));
   console.log(`  \x1b[2m通道:\x1b[0m ${channels.length > 0 ? channels.join(', ') : '无'}`);
   console.log(`  \x1b[2mProvider:\x1b[0m ${provider}`);
-  console.log(`  \x1b[2mCron 任务:\x1b[0m ${cronCount} 个`);
   console.log();
-}
-
-/** 显示 Cron 任务列表 */
-function showCronList(app: App): void {
-  const jobs = app.listCronJobs();
-
-  console.log();
-  console.log('\x1b[1m\x1b[36m定时任务\x1b[0m');
-  console.log('─'.repeat(50));
-
-  if (jobs.length === 0) {
-    log.info('暂无任务');
-    return;
-  }
-
-  for (const job of jobs) {
-    const schedule = job.scheduleValue ? `: ${job.scheduleValue}` : '';
-    console.log(`  \x1b[2m${job.name}:\x1b[0m ${job.scheduleKind}${schedule}`);
-  }
-  console.log();
-}
-
-/** 添加 Cron 任务（简化版，通过命令行参数） */
-async function addCronJob(app: App, args: string[]): Promise<void> {
-  // 解析参数: microbot cron add --name "任务名" --schedule "every 1h" --message "消息"
-  const parsed = parseArgs({
-    args,
-    options: {
-      name: { type: 'string', short: 'n' },
-      schedule: { type: 'string', short: 's' },
-      message: { type: 'string', short: 'm' },
-    },
-    strict: false,
-  });
-
-  const { name, schedule, message } = parsed.values;
-
-  if (!name || !schedule || !message) {
-    console.log('用法: microbot cron add --name <名称> --schedule <调度> --message <消息>');
-    console.log('调度格式:');
-    console.log('  every 1h     - 每小时');
-    console.log('  every 30m    - 每 30 分钟');
-    console.log('  cron "0 9 * * *" - 每天 9 点');
-    console.log('  at "2026-02-20 10:00" - 一次性任务');
-    return;
-  }
-
-  log.info('任务已添加: {name}', { name });
-  log.debug('当前会话需要重启才能生效');
-}
-
-/** 删除 Cron 任务 */
-function removeCronJob(app: App, taskId: string): void {
-  log.info('任务 {taskId} 已删除', { taskId });
-  log.debug('当前会话需要重启才能生效');
-}
-
-/** 处理 Cron 子命令 */
-async function handleCron(app: App, subcommand: string, args: string[]): Promise<void> {
-  switch (subcommand) {
-    case 'list':
-    case 'ls':
-      showCronList(app);
-      break;
-    case 'add':
-      await addCronJob(app, args);
-      break;
-    case 'remove':
-    case 'rm':
-      const taskId = args[0];
-      if (!taskId) {
-        log.warn('用法: microbot cron remove <任务ID>');
-        return;
-      }
-      removeCronJob(app, taskId);
-      break;
-    default:
-      log.warn('用法: microbot cron <list|add|remove>');
-  }
 }
 
 /** 启动服务 */
 async function startService(configPath?: string): Promise<void> {
   console.log('\x1b[2J\x1b[H'); // 清屏
   console.log();
-      console.log('\x1b[1m\x1b[36mMicroBot\x1b[0m');  console.log('─'.repeat(50));
+  console.log('\x1b[1m\x1b[36mMicroBot\x1b[0m');
+  console.log('─'.repeat(50));
 
   // 检查配置状态
   const baseConfig = loadConfig(configPath ? { configPath } : {});
@@ -273,14 +190,6 @@ export async function runCli(argv: string[] = process.argv.slice(2)): Promise<vo
     case 'status': {
       const app = await createApp(configPath);
       showStatus(app);
-      break;
-    }
-
-    case 'cron': {
-      const app = await createApp(configPath);
-      const subcommand = positionals[1];
-      const cronArgs = positionals.slice(2);
-      await handleCron(app, subcommand, cronArgs);
       break;
     }
 

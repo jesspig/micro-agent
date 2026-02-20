@@ -1,5 +1,4 @@
 import type { LLMMessage, ToolCall, ContentPart } from '../providers/base';
-import type { MemoryStore } from '../storage/memory/store';
 import type { SkillSummary, Skill } from '../skill';
 import { loadTemplateFile } from '../config/loader';
 
@@ -13,7 +12,6 @@ const BOOTSTRAP_FILES = ['AGENTS.md', 'IDENTITY.md', 'USER.md', 'TOOLS.md', 'SOU
  * - 系统消息（bootstrap 文件，按层级查找）
  * - Always 技能（自动加载完整内容）
  * - 技能摘要（渐进式披露）
- * - 记忆上下文
  * - 历史消息
  * - 当前消息（支持多模态）
  */
@@ -27,12 +25,8 @@ export class ContextBuilder {
 
   /**
    * @param workspace - 工作目录（项目级）
-   * @param memoryStore - 记忆存储
    */
-  constructor(
-    private workspace: string,
-    private memoryStore: MemoryStore
-  ) {
+  constructor(private workspace: string) {
     // 默认 currentDir 为 workspace
     this.currentDir = workspace;
   }
@@ -97,12 +91,6 @@ export class ContextBuilder {
     const skillsContent = this.buildSkillsContent();
     if (skillsContent) {
       messages.push({ role: 'system', content: skillsContent });
-    }
-
-    // 记忆上下文
-    const memoryContent = this.buildMemoryContent();
-    if (memoryContent) {
-      messages.push({ role: 'system', content: `# 记忆上下文\n\n${memoryContent}` });
     }
 
     // 历史消息
@@ -209,29 +197,6 @@ export class ContextBuilder {
         }
       } catch {
         // 文件读取失败，跳过
-      }
-    }
-
-    return parts.join('\n\n');
-  }
-
-  /**
-   * 构建记忆上下文
-   */
-  private buildMemoryContent(): string {
-    const parts: string[] = [];
-
-    // 长期记忆
-    const longTerm = this.memoryStore.readLongTerm();
-    if (longTerm.trim()) {
-      parts.push(`### 长期记忆\n${longTerm}`);
-    }
-
-    // 最近日记
-    const recent = this.memoryStore.getRecent(7);
-    for (const entry of recent) {
-      if (entry.summary) {
-        parts.push(`### ${entry.date}\n${entry.summary}`);
       }
     }
 

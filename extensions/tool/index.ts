@@ -11,7 +11,7 @@ export { ReadFileTool, WriteFileTool, ListDirTool, filesystemTools } from './fil
 export { ExecTool, shellTools } from './shell';
 
 // Web 工具
-export { WebSearchTool, WebFetchTool, webTools } from './web';
+export { WebFetchTool, webTools } from './web';
 
 // 消息工具
 export { MessageTool, messageTools } from './message';

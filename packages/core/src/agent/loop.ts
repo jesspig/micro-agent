@@ -5,7 +5,6 @@
 import type { LLMProvider, LLMMessage, LLMToolDefinition, ContentPart } from '../providers/base';
 import type { MessageBus } from '../bus/queue';
 import type { SessionStore } from '../storage/session/store';
-import type { MemoryStore } from '../storage/memory/store';
 import type { ToolRegistry, ToolContext } from '../tool/registry';
 import type { InboundMessage, OutboundMessage, SessionKey } from '../bus/events';
 import type { SkillsLoader } from '../skill/loader';
@@ -60,7 +59,6 @@ export class AgentLoop {
     private bus: MessageBus,
     private provider: LLMProvider,
     private sessionStore: SessionStore,
-    private memoryStore: MemoryStore,
     private toolRegistry: ToolRegistry,
     private skillsLoader: SkillsLoader,
     private config: AgentConfig = DEFAULT_CONFIG
@@ -125,7 +123,7 @@ export class AgentLoop {
     msg: InboundMessage,
     sessionKey: SessionKey
   ): Promise<{ messages: LLMMessage[]; contextBuilder: ContextBuilder }> {
-    const contextBuilder = new ContextBuilder(this.config.workspace, this.memoryStore);
+    const contextBuilder = new ContextBuilder(this.config.workspace);
     contextBuilder.setCurrentDir(msg.currentDir || this.config.workspace);
 
     const alwaysSkills = this.skillsLoader.getAlwaysSkills();
@@ -154,7 +152,7 @@ export class AgentLoop {
     let finalContent = '';
     let currentModel = this.config.models.chat;
     let currentLevel = 'medium';
-    let contextBuilder = new ContextBuilder(this.config.workspace, this.memoryStore);
+    let contextBuilder = new ContextBuilder(this.config.workspace);
 
     while (iteration < this.config.maxIterations) {
       iteration++;
@@ -213,7 +211,7 @@ export class AgentLoop {
     messages: LLMMessage[],
     currentModel: string
   ): Promise<LLMMessage[]> {
-    const contextBuilder = new ContextBuilder(this.config.workspace, this.memoryStore);
+    const contextBuilder = new ContextBuilder(this.config.workspace);
 
     for (const tc of toolCalls) {
       log.info('[Tool] {model} 调用: {name}({args})', {
