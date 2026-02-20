@@ -195,7 +195,9 @@ class AppImpl implements App {
     this.startOutboundConsumer(messageBus);
 
     // 13. 启动 Agent 循环
-    this.agentLoop.run().catch(console.error);
+    this.agentLoop.run().catch(error => {
+      log.error('Agent 循环异常: {error}', { error: error instanceof Error ? error.message : String(error) });
+    });
   }
 
   private startOutboundConsumer(messageBus: MessageBus): void {
@@ -208,7 +210,9 @@ class AppImpl implements App {
           log.error('发送消息失败: {error}', { error: error instanceof Error ? error.message : String(error) });
         }
       }
-    })().catch(console.error);
+    })().catch(error => {
+      log.error('出站消费者异常: {error}', { error: error instanceof Error ? error.message : String(error) });
+    });
   }
 
   async stop(): Promise<void> {

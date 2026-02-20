@@ -10,8 +10,11 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync, readdirSync } from 'fs';
 import { resolve, join } from 'path';
 import { homedir } from 'os';
+import { getLogger } from '@logtape/logtape';
 import type { SessionKey } from '../../bus/events';
 import type { ContentPart } from '../../providers/base';
+
+const log = getLogger(['session']);
 
 /** 会话消息 */
 export interface SessionMessage {
@@ -235,7 +238,7 @@ export class SessionStore {
         lastConsolidated: metadata.lastConsolidated,
       };
     } catch (e) {
-      console.error(`加载会话失败: ${key}`, e);
+      log.error('加载会话失败: {key}', { key, error: e });
       return null;
     }
   }

@@ -7,8 +7,11 @@ import { existsSync, readdirSync, readFileSync } from 'fs';
 import { join, basename, resolve } from 'path';
 import { homedir } from 'os';
 import matter from 'gray-matter';
+import { getLogger } from '@logtape/logtape';
 import type { Skill, SkillSummary, SkillFrontmatter } from './types';
 import { SKILL_NAME_REGEX } from './types';
+
+const log = getLogger(['skill', 'loader']);
 
 /** 用户技能目录 */
 const USER_SKILLS_DIR = '~/.microbot/skills';
@@ -65,12 +68,12 @@ export class SkillsLoader {
         const skill = this.parseSkill(skillMdPath, skillDir);
         // 验证 name 与目录名匹配
         if (!this.validateSkillName(skill.name, entry.name)) {
-          console.warn(`技能名称不匹配目录名: ${skill.name} vs ${entry.name}`);
+          log.warn('技能名称不匹配目录名: {name} vs {dir}', { name: skill.name, dir: entry.name });
           skill.name = entry.name; // 以目录名为准
         }
         this.skills.set(skill.name, skill);
       } catch (error) {
-        console.error(`加载技能失败: ${entry.name}`, error);
+        log.error('加载技能失败: {name}', { name: entry.name, error });
       }
     }
   }

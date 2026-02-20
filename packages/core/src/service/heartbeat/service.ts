@@ -1,5 +1,8 @@
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
+import { getLogger } from '@logtape/logtape';
+
+const log = getLogger(['heartbeat']);
 
 const DEFAULT_INTERVAL_MS = 30 * 60 * 1000; // 30 分钟
 const HEARTBEAT_PROMPT = `Read HEARTBEAT.md in your workspace (if it exists).
@@ -82,7 +85,7 @@ export class HeartbeatService {
         // Agent 无需处理
       }
     } catch (error) {
-      console.error('Heartbeat 执行失败:', error);
+      log.error('Heartbeat 执行失败: {error}', { error });
     }
   }
 

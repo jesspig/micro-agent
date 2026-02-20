@@ -1,6 +1,9 @@
 import type { CronJob, ScheduleKind } from '../../storage/cron/store';
 import { CronStore } from '../../storage/cron/store';
 import { parseCronExpression } from 'cron-schedule';
+import { getLogger } from '@logtape/logtape';
+
+const log = getLogger(['cron']);
 
 /** Cron 服务配置 */
 interface CronServiceConfig {
@@ -75,7 +78,7 @@ export class CronService {
         job.lastStatus = 'ok';
       } catch (error) {
         job.lastStatus = 'error';
-        console.error(`Cron 任务执行失败: ${job.name}`, error);
+        log.error('Cron 任务执行失败: {name}', { name: job.name, error });
       }
 
       // 计算下次执行时间
