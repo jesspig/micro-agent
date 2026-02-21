@@ -21,17 +21,31 @@ export const ReadFileTool = defineTool({
     },
     required: ['path'],
   } satisfies JSONSchema,
-  execute: async (input: { path: string; limit?: number }, ctx: ToolContext) => {
-    const filePath = isAbsolute(input.path) ? input.path : resolve(ctx.workspace, input.path);
+  execute: async (input: unknown, ctx: ToolContext) => {
+    // 兼容多种输入格式
+    let path: string;
+    let limit: number | undefined;
+    
+    if (typeof input === 'string') {
+      path = input;
+    } else if (input && typeof input === 'object') {
+      const obj = input as Record<string, unknown>;
+      path = String(obj.path ?? obj.action_input ?? '');
+      if (typeof obj.limit === 'number') limit = obj.limit;
+    } else {
+      return '错误: 无效的输入格式';
+    }
+
+    const filePath = isAbsolute(path) ? path : resolve(ctx.workspace, path);
 
     if (!existsSync(filePath)) {
-      return `错误: 文件不存在 ${input.path}`;
+      return `错误: 文件不存在 ${path}`;
     }
 
     const content = readFileSync(filePath, 'utf-8');
 
-    if (input.limit && input.limit > 0) {
-      const lines = content.split('\n').slice(0, input.limit);
+    if (limit && limit > 0) {
+      const lines = content.split('\n').slice(0, limit);
       return lines.join('\n');
     }
 
@@ -69,16 +83,27 @@ export const ListDirTool = defineTool({
     },
     required: ['path'],
   } satisfies JSONSchema,
-  execute: async (input: { path: string }, ctx: ToolContext) => {
-    const dirPath = isAbsolute(input.path) ? input.path : resolve(ctx.workspace, input.path);
+  execute: async (input: unknown, ctx: ToolContext) => {
+    // 兼容多种输入格式
+    let path: string;
+    if (typeof input === 'string') {
+      path = input;
+    } else if (input && typeof input === 'object') {
+      const obj = input as Record<string, unknown>;
+      path = String(obj.path ?? obj.action_input ?? '');
+    } else {
+      return '错误: 无效的输入格式';
+    }
+
+    const dirPath = isAbsolute(path) ? path : resolve(ctx.workspace, path);
 
     if (!existsSync(dirPath)) {
-      return `错误: 目录不存在 ${input.path}`;
+      return `错误: 目录不存在 ${path}`;
     }
 
     const stat = statSync(dirPath);
     if (!stat.isDirectory()) {
-      return `错误: ${input.path} 不是目录`;
+      return `错误: ${path} 不是目录`;
     }
 
     const entries = readdirSync(dirPath, { withFileTypes: true });

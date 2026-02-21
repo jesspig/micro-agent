@@ -34,9 +34,24 @@ export function createExecTool(workingDir: string, defaultTimeout: number = 3000
       },
       required: ['command'],
     } satisfies JSONSchema,
-    execute: async (input: { command: string; timeout?: number }) => {
-      const timeout = input.timeout ?? defaultTimeout;
-      const cmd = input.command.trim();
+    execute: async (input: unknown) => {
+      // 兼容多种输入格式
+      let cmd: string;
+      let timeout: number = defaultTimeout;
+      
+      if (typeof input === 'string') {
+        cmd = input;
+      } else if (input && typeof input === 'object') {
+        const obj = input as Record<string, unknown>;
+        cmd = String(obj.command ?? obj.action_input ?? '');
+        if (typeof obj.timeout === 'number') {
+          timeout = obj.timeout;
+        }
+      } else {
+        return '错误: 无效的输入格式，需要字符串或 { command: string }';
+      }
+      
+      cmd = cmd.trim();
 
       try {
         if (!existsSync(workingDir)) {

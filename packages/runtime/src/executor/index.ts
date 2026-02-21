@@ -286,10 +286,23 @@ export class AgentExecutor {
       }
 
       // 执行工具
-      const toolName = ReActActionToTool[reactResponse.action];
+      // 1. 尝试从映射表获取工具名
+      let toolName = ReActActionToTool[reactResponse.action];
+      
+      // 2. 如果映射为 null，尝试直接使用 action 名（动态工具发现）
       if (!toolName) {
-        log.warn('⚠️ 未知动作', { action: reactResponse.action });
-        const obsMsg = '错误: 未知动作 "' + reactResponse.action + '"';
+        toolName = reactResponse.action;
+      }
+      
+      // 3. 检查工具是否存在
+      const toolExists = this.getToolDefinitions().some(t => t.name === toolName);
+      if (!toolExists) {
+        log.warn('⚠️ 未知动作', { action: reactResponse.action, resolvedTool: toolName });
+        const obsMsg = JSON.stringify({
+          error: true,
+          message: `未找到工具: ${toolName}`,
+          action: reactResponse.action
+        });
         messages.push({ role: 'assistant', content: response.content });
         messages.push({ role: 'user', content: this.buildObservation(obsMsg) });
         continue;
@@ -329,7 +342,11 @@ export class AgentExecutor {
       return result;
     } catch (error) {
       log.error('❌ 工具执行失败', { tool: name, error: this.safeErrorMsg(error) });
-      return JSON.stringify({ error: '工具执行失败', tool: name, message: this.safeErrorMsg(error) });
+      return JSON.stringify({
+        error: true,
+        message: '工具执行失败: ' + this.safeErrorMsg(error),
+        tool: name
+      });
     }
   }
 

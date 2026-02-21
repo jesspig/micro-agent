@@ -5,9 +5,9 @@
 import { z } from 'zod';
 
 /**
- * ReAct 动作类型
+ * 预定义的 ReAct 动作类型
  */
-export const ReActActionSchema = z.enum([
+export const PredefinedActions = [
   'finish',
   'read_file',
   'write_file',
@@ -15,16 +15,27 @@ export const ReActActionSchema = z.enum([
   'shell_exec',
   'web_fetch',
   'send_message',
-]);
+] as const;
+
+/**
+ * 预定义动作类型（用于类型安全）
+ */
+export type PredefinedAction = typeof PredefinedActions[number];
+
+/**
+ * ReAct 动作类型（支持动态工具名称）
+ */
+export type ReActAction = string;
 
 /**
  * ReAct 响应 Schema
+ * action 支持任意字符串，允许动态工具调用
  */
 export const ReActResponseSchema = z.object({
   /** 思考过程 */
   thought: z.string().describe('分析当前情况，思考下一步该做什么'),
-  /** 动作类型 */
-  action: ReActActionSchema.describe('要执行的动作'),
+  /** 动作类型（支持动态工具名称） */
+  action: z.string().min(1).describe('要执行的动作或工具名称'),
   /** 动作参数 */
   action_input: z.union([
     z.string(),
@@ -39,15 +50,10 @@ export const ReActResponseSchema = z.object({
 export type ReActResponse = z.infer<typeof ReActResponseSchema>;
 
 /**
- * ReAct 动作类型
- */
-export type ReActAction = z.infer<typeof ReActActionSchema>;
-
-/**
  * 动作别名映射
  * LLM 可能返回变体名称，统一映射到标准动作
  */
-const ActionAliases: Record<string, ReActAction> = {
+const ActionAliases: Record<string, string> = {
   // finish 别名
   'finish': 'finish',
   'done': 'finish',
@@ -93,6 +99,8 @@ const ActionAliases: Record<string, ReActAction> = {
 
 /**
  * 解析 LLM 响应为 ReAct 格式
+ * 
+ * 支持预定义动作和动态工具名称
  */
 export function parseReActResponse(content: string): ReActResponse | null {
   // 尝试提取 JSON（可能被 markdown 代码块包裹）
@@ -125,14 +133,9 @@ export function parseReActResponse(content: string): ReActResponse | null {
       return null;
     }
     
-    // 将动作别名映射到标准动作
-    const originalAction = String(parsed.action).toLowerCase();
-    const normalizedAction = ActionAliases[originalAction];
-    
-    if (!normalizedAction) {
-      logDebug('未知动作类型', { original: originalAction, available: Object.keys(ActionAliases) });
-      return null;
-    }
+    // 将动作别名映射到标准动作，或保留原始动作名（动态工具）
+    const originalAction = String(parsed.action).toLowerCase().trim();
+    const normalizedAction = ActionAliases[originalAction] ?? originalAction;
     
     const normalized = {
       thought: parsed.thought,
@@ -164,24 +167,25 @@ function logDebug(message: string, data: unknown): void {
 /**
  * 工具名称到 ReAct 动作的映射
  */
-export const ToolToReActAction: Record<string, ReActAction> = {
+export const ToolToReActAction: Record<string, string> = {
   'read_file': 'read_file',
   'write_file': 'write_file',
   'list_dir': 'list_dir',
-  'shell_exec': 'shell_exec',
+  'exec': 'shell_exec',
   'web_fetch': 'web_fetch',
-  'send_message': 'send_message',
+  'message': 'send_message',
 };
 
 /**
  * ReAct 动作到工具名称的映射
+ * 仅用于预定义动作，动态工具直接使用 action 名称
  */
-export const ReActActionToTool: Record<ReActAction, string | null> = {
+export const ReActActionToTool: Record<string, string | null> = {
   'finish': null,
   'read_file': 'read_file',
   'write_file': 'write_file',
   'list_dir': 'list_dir',
-  'shell_exec': 'shell_exec',
+  'shell_exec': 'exec',
   'web_fetch': 'web_fetch',
-  'send_message': 'send_message',
+  'send_message': 'message',
 };

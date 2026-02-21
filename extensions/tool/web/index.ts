@@ -18,9 +18,20 @@ export const WebFetchTool = defineTool({
     },
     required: ['url'],
   } satisfies JSONSchema,
-  execute: async (input: { url: string }) => {
+  execute: async (input: unknown) => {
+    // 兼容多种输入格式
+    let url: string;
+    if (typeof input === 'string') {
+      url = input;
+    } else if (input && typeof input === 'object') {
+      const obj = input as Record<string, unknown>;
+      url = String(obj.url ?? obj.action_input ?? '');
+    } else {
+      return '错误: 无效的输入格式，需要字符串或 { url: string }';
+    }
+    
     try {
-      const response = await fetch(input.url);
+      const response = await fetch(url);
 
       if (!response.ok) {
         return `获取失败: HTTP ${response.status}`;

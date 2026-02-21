@@ -24,10 +24,11 @@ export { AgentExecutor, type AgentExecutorConfig, type ToolRegistryLike, type Re
 export { ReActAgent, type ReActAgentConfig, type ReActTool, type ReActResult } from './react';
 export {
   ReActResponseSchema,
-  ReActActionSchema,
+  PredefinedActions,
   parseReActResponse,
   ToolToReActAction,
   ReActActionToTool,
   type ReActResponse,
   type ReActAction,
+  type PredefinedAction,
 } from './react-types';

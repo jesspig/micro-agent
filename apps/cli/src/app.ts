@@ -18,6 +18,7 @@ import {
   MessageBus,
   SessionStore,
   AgentExecutor,
+  createSkillTools,
 } from '@microbot/sdk';
 import {
   ReadFileTool,
@@ -189,7 +190,7 @@ class AppImpl implements App {
       console.log(`  已创建配置文件: ${created.join(', ')}`);
     }
 
-    // 1. 注册内置工具
+    // 1. 注册内置工具（基础工具）
     this.registerBuiltinTools();
 
     // 2. 初始化 Provider Gateway
@@ -201,6 +202,9 @@ class AppImpl implements App {
     if (this.skillsLoader.count > 0) {
       const skillNames = this.skillsLoader.getAll().map(s => s.name).join(', ');
       console.log(`  已加载 ${this.skillsLoader.count} 个技能: ${skillNames}`);
+      
+      // 3.1 注册技能工具
+      this.registerSkillTools();
     } else {
       console.log('  未找到任何技能');
     }
@@ -282,7 +286,26 @@ class AppImpl implements App {
     this.toolRegistry.register(createExecTool(this.workspace));
     this.toolRegistry.register(WebFetchTool);
     this.toolRegistry.register(MessageTool);
-    console.log(`  已注册 ${this.toolRegistry.getDefinitions().length} 个工具: ${this.toolRegistry.getDefinitions().map(t => t.name).join(', ')}`);
+    console.log(`  已注册 ${this.toolRegistry.getDefinitions().length} 个基础工具: ${this.toolRegistry.getDefinitions().map(t => t.name).join(', ')}`);
+  }
+
+  private registerSkillTools(): void {
+    if (!this.skillsLoader || this.skillsLoader.count === 0) return;
+
+    const skillTools = createSkillTools(this.skillsLoader.getAll());
+    let registered = 0;
+    for (const tool of skillTools) {
+      try {
+        this.toolRegistry.register(tool);
+        registered++;
+      } catch {
+        // 工具名称冲突时跳过
+        console.warn(`  技能工具 ${tool.name} 已存在，跳过注册`);
+      }
+    }
+    if (registered > 0) {
+      console.log(`  已注册 ${registered} 个技能工具: ${skillTools.map(t => t.name).join(', ')}`);
+    }
   }
 
   private startOutboundConsumer(): void {

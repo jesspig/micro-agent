@@ -5,36 +5,21 @@
 import { describe, test, expect } from 'bun:test';
 import {
   ReActResponseSchema,
-  ReActActionSchema,
   parseReActResponse,
   ToolToReActAction,
   ReActActionToTool,
+  PredefinedActions,
   type ReActResponse,
-  type ReActAction,
 } from '@microbot/runtime';
 
 describe('ReAct Types', () => {
-  describe('ReActActionSchema', () => {
-    test('应接受有效的动作类型', () => {
-      const validActions: ReActAction[] = [
-        'finish',
-        'read_file',
-        'write_file',
-        'list_dir',
-        'shell_exec',
-        'web_fetch',
-        'send_message',
-      ];
-
-      for (const action of validActions) {
-        const result = ReActActionSchema.safeParse(action);
-        expect(result.success).toBe(true);
-      }
-    });
-
-    test('应拒绝无效的动作类型', () => {
-      const result = ReActActionSchema.safeParse('invalid_action');
-      expect(result.success).toBe(false);
+  describe('PredefinedActions', () => {
+    test('应包含预定义动作', () => {
+      expect(PredefinedActions).toContain('finish');
+      expect(PredefinedActions).toContain('read_file');
+      expect(PredefinedActions).toContain('shell_exec');
+      expect(PredefinedActions).toContain('web_fetch');
+      expect(PredefinedActions).toContain('send_message');
     });
   });
 
@@ -139,11 +124,21 @@ describe('parseReActResponse', () => {
     expect(result).toBeNull();
   });
 
-  test('无效的动作类型应返回 null', () => {
-    const content = '{"thought": "思考", "action": "invalid_action", "action_input": "test"}';
+  test('应接受动态工具名称作为动作', () => {
+    const content = '{"thought": "获取系统信息", "action": "sysinfo", "action_input": "--type cpu"}';
     const result = parseReActResponse(content);
 
-    expect(result).toBeNull();
+    expect(result).not.toBeNull();
+    expect(result?.action).toBe('sysinfo');
+    expect(result?.action_input).toBe('--type cpu');
+  });
+
+  test('应接受自定义技能名称作为动作', () => {
+    const content = '{"thought": "执行自定义技能", "action": "my_custom_skill", "action_input": "arg1 arg2"}';
+    const result = parseReActResponse(content);
+
+    expect(result).not.toBeNull();
+    expect(result?.action).toBe('my_custom_skill');
   });
 
   describe('动作别名映射', () => {
@@ -226,22 +221,52 @@ describe('Tool Mappings', () => {
   test('ToolToReActAction 应正确映射工具名称', () => {
     expect(ToolToReActAction['read_file']).toBe('read_file');
     expect(ToolToReActAction['write_file']).toBe('write_file');
-    expect(ToolToReActAction['shell_exec']).toBe('shell_exec');
+    expect(ToolToReActAction['exec']).toBe('shell_exec');
+    expect(ToolToReActAction['message']).toBe('send_message');
   });
 
   test('ReActActionToTool 应正确映射动作到工具', () => {
     expect(ReActActionToTool['finish']).toBeNull();
     expect(ReActActionToTool['read_file']).toBe('read_file');
-    expect(ReActActionToTool['shell_exec']).toBe('shell_exec');
+    expect(ReActActionToTool['shell_exec']).toBe('exec');
+    expect(ReActActionToTool['send_message']).toBe('message');
   });
 
   test('映射应该双向一致', () => {
-    const toolNames = Object.keys(ToolToReActAction) as ReActAction[];
-    for (const name of toolNames) {
-      const action = ToolToReActAction[name];
+    const toolNames = Object.keys(ToolToReActAction);
+    for (const toolName of toolNames) {
+      const action = ToolToReActAction[toolName];
       if (action && ReActActionToTool[action]) {
-        expect(ReActActionToTool[action]).toBe(name);
+        expect(ReActActionToTool[action]).toBe(toolName);
       }
     }
+  });
+});
+
+describe('Error Message Format', () => {
+  test('工具执行错误应返回 JSON 格式', () => {
+    const errorResult = JSON.stringify({
+      error: true,
+      message: '工具执行失败: 测试错误',
+      tool: 'test_tool'
+    });
+
+    const parsed = JSON.parse(errorResult);
+    expect(parsed.error).toBe(true);
+    expect(parsed.message).toContain('工具执行失败');
+    expect(parsed.tool).toBe('test_tool');
+  });
+
+  test('未知动作错误应返回 JSON 格式', () => {
+    const errorResult = JSON.stringify({
+      error: true,
+      message: '未找到工具: unknown_action',
+      action: 'unknown_action'
+    });
+
+    const parsed = JSON.parse(errorResult);
+    expect(parsed.error).toBe(true);
+    expect(parsed.message).toContain('未找到工具');
+    expect(parsed.action).toBe('unknown_action');
   });
 });
