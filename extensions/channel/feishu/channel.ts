@@ -1,7 +1,9 @@
 /**
  * 飞书通道实现
  */
-import type { OutboundMessage, MessageBus, ChannelType, Channel, ChannelHelper } from '@microbot/core';
+
+import type { OutboundMessage, InboundMessage, ChannelType, Channel } from '@microbot/types';
+import type { MessageBus } from '@microbot/runtime';
 import * as lark from '@larksuiteoapi/node-sdk';
 import { getLogger } from '@logtape/logtape';
 import type { FeishuConfig, FeishuMessageData } from './types';
@@ -11,7 +13,7 @@ const log = getLogger(['feishu']);
 
 /**
  * 飞书通道
- * 
+ *
  * 通过 WebSocket 长连接接收飞书消息，支持私聊和群聊。
  */
 export class FeishuChannel implements Channel {
@@ -32,12 +34,10 @@ export class FeishuChannel implements Channel {
    * 创建飞书通道实例
    * @param bus - 消息总线
    * @param config - 飞书配置
-   * @param helper - 通道辅助工具
    */
   constructor(
     private bus: MessageBus,
-    private config: FeishuConfig,
-    private helper: ChannelHelper
+    private config: FeishuConfig
   ) {}
 
   /** 获取运行状态 */
@@ -161,6 +161,12 @@ export class FeishuChannel implements Channel {
       const chatType = message.chat_type;
       const msgType = message.message_type;
 
+      // 检查发送者权限
+      if (!this.isSenderAllowed(senderId)) {
+        log.debug('发送者不在允许列表中: {senderId}', { senderId });
+        return;
+      }
+
       await this.addReaction(messageId, 'THUMBSUP');
 
       const { content, media } = await parseMessageContent(
@@ -181,19 +187,36 @@ export class FeishuChannel implements Channel {
         media: mediaInfo,
       });
 
-      await this.helper.handleInbound({
-        channelName: this.name,
+      // 发布入站消息到总线
+      const inboundMsg: InboundMessage = {
+        channel: this.name,
         senderId,
         chatId: replyTo,
         content,
         media,
+        timestamp: new Date(),
         metadata: { messageId, chatType, msgType },
-      });
+      };
+
+      await this.bus.publishInbound(inboundMsg);
     } catch (error) {
       log.error('处理飞书消息失败: {error}', {
         error: error instanceof Error ? error.message : String(error),
       });
     }
+  }
+
+  /**
+   * 检查发送者是否在允许列表中
+   * @param senderId - 发送者 ID
+   * @returns 是否允许
+   */
+  private isSenderAllowed(senderId: string): boolean {
+    const allowFrom = this.config.allowFrom;
+    if (!allowFrom || allowFrom.length === 0) {
+      return true; // 未配置允许列表时，允许所有人
+    }
+    return allowFrom.includes(senderId) || allowFrom.includes('*');
   }
 
   /**
