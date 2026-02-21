@@ -13,6 +13,15 @@ import { getLogger } from '@logtape/logtape';
 
 const log = getLogger(['executor']);
 
+/** 最大会话数量（防止内存泄漏） */
+const MAX_SESSIONS = 1000;
+
+/** 每个会话最大历史消息数 */
+const MAX_HISTORY_PER_SESSION = 50;
+
+/** 最大媒体数量 */
+const MAX_MEDIA_COUNT = 10;
+
 /**
  * 工具注册表接口（避免循环依赖）
  */
@@ -81,6 +90,8 @@ export class AgentExecutor {
   private running = false;
   private conversationHistory = new Map<string, LLMMessage[]>();
   private router: ModelRouter;
+  /** 缓存的工具定义 */
+  private cachedToolDefinitions: LLMToolDefinition[] | null = null;
 
   constructor(
     private bus: MessageBus,
@@ -88,7 +99,6 @@ export class AgentExecutor {
     private tools: ToolRegistryLike,
     private config: AgentExecutorConfig = DEFAULT_CONFIG
   ) {
-    // 初始化路由器
     this.router = new ModelRouter({
       chatModel: config.chatModel || '',
       checkModel: config.checkModel,
@@ -111,8 +121,7 @@ export class AgentExecutor {
       maxTokens: this.config.maxTokens,
       temperature: this.config.temperature,
     });
-    
-    // 显示路由配置
+
     const routerStatus = this.router.getStatus();
     log.info('路由配置: auto={auto}, max={max}, chatModel={chatModel}', {
       auto: routerStatus.auto,
@@ -122,22 +131,15 @@ export class AgentExecutor {
     if (routerStatus.rulesCount > 0) {
       log.info('路由规则: {count} 条', { count: routerStatus.rulesCount });
     }
-    
-    // 显示可用工具
+
     const tools = this.tools.getDefinitions();
-    log.info('可用工具 ({count}个): {tools}', { 
-      count: tools.length, 
-      tools: tools.map(t => t.name).join(', ') 
+    log.info('可用工具 ({count}个): {tools}', {
+      count: tools.length,
+      tools: tools.map(t => t.name).join(', ')
     });
-    
-    // 显示系统提示词长度
+
     if (this.config.systemPrompt) {
       log.info('系统提示词: {length} 字符', { length: this.config.systemPrompt.length });
-      log.debug('系统提示词预览:\n{preview}', { 
-        preview: this.config.systemPrompt.length > 500 
-          ? this.config.systemPrompt.slice(0, 500) + '...\n[已截断]' 
-          : this.config.systemPrompt 
-      });
     }
 
     while (this.running) {
@@ -148,11 +150,11 @@ export class AgentExecutor {
         log.info('  通道: {channel}, 聊天ID: {chatId}', { channel: msg.channel, chatId: msg.chatId });
         log.info('  发送者: {senderId}', { senderId: msg.senderId });
         log.info('  内容: {content}', { content: msg.content });
-        
+
         const startTime = Date.now();
         const response = await this.processMessage(msg);
         const elapsed = Date.now() - startTime;
-        
+
         if (response) {
           await this.bus.publishOutbound(response);
           log.info('📤 回复已发送 (耗时 {elapsed}ms)', { elapsed });
@@ -160,7 +162,7 @@ export class AgentExecutor {
         }
         log.info('════════════════════════════════════════════════════════════');
       } catch (error) {
-        log.error('❌ 处理消息失败: {error}', { error: this.errorMsg(error) });
+        log.error('❌ 处理消息失败: {error}', { error: this.safeErrorMsg(error) });
       }
     }
   }
@@ -174,175 +176,242 @@ export class AgentExecutor {
   }
 
   /**
-   * 处理单条消息（供外部调用）
+   * 处理单条消息
    */
   async processMessage(msg: InboundMessage): Promise<OutboundMessage | null> {
     const sessionKey = `${msg.channel}:${msg.chatId}`;
-    
-    // 获取会话历史（不包含系统消息）
     const sessionHistory = this.conversationHistory.get(sessionKey) ?? [];
-    log.debug('会话历史长度: {length}', { length: sessionHistory.length });
-    
-    // 构建发送给 LLM 的消息列表（包含系统提示词）
+
+    // 构建消息
+    const messages = this.buildMessages(sessionHistory, msg);
+
+    try {
+      const result = await this.runReActLoop(messages, msg);
+
+      // 更新会话历史（跳过系统消息）
+      this.updateHistory(sessionKey, messages.slice(1));
+
+      return {
+        channel: msg.channel,
+        chatId: msg.chatId,
+        content: result.content || '处理完成',
+        media: [],
+        metadata: msg.metadata,
+      };
+    } catch (error) {
+      log.error('❌ 处理消息异常: {error}', { error: this.safeErrorMsg(error) });
+      return this.createErrorResponse(msg);
+    }
+  }
+
+  /**
+   * 构建发送给 LLM 的消息列表
+   */
+  private buildMessages(history: LLMMessage[], msg: InboundMessage): LLMMessage[] {
     const messages: LLMMessage[] = [];
 
-    // 1. 添加系统消息（每次都重新添加）
+    // 系统消息
     if (this.config.systemPrompt) {
       messages.push({ role: 'system', content: this.config.systemPrompt });
     }
 
-    // 2. 添加历史消息
-    messages.push(...sessionHistory);
+    // 历史消息
+    messages.push(...history);
 
-    // 3. 添加当前用户消息（包含媒体）
+    // 用户消息（包含媒体）
     const userContent: MessageContent = buildUserContent(msg.content, msg.media);
     messages.push({ role: 'user', content: userContent });
 
     // 记录媒体信息
     if (msg.media && msg.media.length > 0) {
       log.info('  媒体: {count} 个', { count: msg.media.length });
+      if (msg.media.length > MAX_MEDIA_COUNT) {
+        log.warn('  ⚠️ 媒体数量超限，已截断为 {max} 个', { max: MAX_MEDIA_COUNT });
+      }
     }
 
+    return messages;
+  }
+
+  /**
+   * 运行 ReAct 循环
+   */
+  private async runReActLoop(messages: LLMMessage[], msg: InboundMessage): Promise<{ content: string }> {
+    let iteration = 0;
+    let lastContent = '';
+
+    // 获取工具定义（缓存）
+    const toolDefinitions = this.getToolDefinitions();
+
+    while (iteration < this.config.maxIterations) {
+      iteration++;
+      log.info('🔄 ReAct 迭代 #{iteration}', { iteration });
+
+      const routeResult = await this.selectModel(messages, msg.media, iteration);
+      const generationConfig = this.mergeGenerationConfig(routeResult.config);
+
+      // 视觉检查
+      const processedMessages = routeResult.config.vision
+        ? messages
+        : convertToPlainText(messages);
+
+      // 调用 LLM
+      log.info('  🤖 调用 LLM: {model}', { model: routeResult.model });
+      log.info('    路由原因: {reason}', { reason: routeResult.reason });
+      log.info('    视觉支持: {vision}', { vision: routeResult.config.vision ?? false });
+
+      const response = await this.gateway.chat(processedMessages, toolDefinitions, routeResult.model, generationConfig);
+
+      // 记录响应
+      this.logResponse(response);
+
+      // 添加助手消息
+      messages.push(this.buildAssistantMessage(response));
+
+      // 无工具调用则返回
+      if (!response.hasToolCalls || !response.toolCalls || response.toolCalls.length === 0) {
+        log.info('  📝 无工具调用，返回最终回复');
+        return { content: response.content };
+      }
+
+      // 执行工具调用
+      lastContent = await this.executeToolCalls(response.toolCalls, msg, messages);
+    }
+
+    log.warn('  ⚠️ 达到最大迭代次数 {maxIterations}', { maxIterations: this.config.maxIterations });
+    return { content: lastContent };
+  }
+
+  /**
+   * 获取工具定义（带缓存）
+   */
+  private getToolDefinitions(): LLMToolDefinition[] {
+    if (!this.cachedToolDefinitions) {
+      this.cachedToolDefinitions = toLLMToolDefinitions(this.tools.getDefinitions());
+    }
+    return this.cachedToolDefinitions;
+  }
+
+  /**
+   * 记录 LLM 响应
+   */
+  private logResponse(response: { content: string; usedProvider?: string; usedModel?: string; usage?: { inputTokens: number; outputTokens: number; totalTokens: number } }): void {
+    log.info('  ✅ LLM 响应');
+    log.info('    模型: {provider}/{model}', {
+      provider: response.usedProvider ?? 'unknown',
+      model: response.usedModel ?? 'unknown'
+    });
+    if (response.usage) {
+      log.info('    Token: 输入={input}, 输出={output}, 总计={total}', {
+        input: response.usage.inputTokens,
+        output: response.usage.outputTokens,
+        total: response.usage.totalTokens,
+      });
+    }
+    if (response.content) {
+      log.info('    回复: {content}', { content: this.preview(response.content, 500) });
+    }
+  }
+
+  /**
+   * 构建助手消息
+   */
+  private buildAssistantMessage(response: { content: string; toolCalls?: ToolCall[] }): LLMMessage {
+    const msg: LLMMessage = { role: 'assistant', content: response.content };
+    if (response.toolCalls && response.toolCalls.length > 0) {
+      msg.toolCalls = response.toolCalls;
+    }
+    return msg;
+  }
+
+  /**
+   * 执行工具调用
+   */
+  private async executeToolCalls(toolCalls: ToolCall[], msg: InboundMessage, messages: LLMMessage[]): Promise<string> {
+    log.info('  🔧 执行 {count} 个工具调用...', { count: toolCalls.length });
+    let lastResult = '';
+
+    for (const toolCall of toolCalls) {
+      log.info('    ▶ 工具: {name}', { name: toolCall.name });
+      log.info('      参数: {args}', { args: JSON.stringify(toolCall.arguments, null, 2) });
+
+      const startTime = Date.now();
+      const result = await this.runTool(toolCall, msg);
+      const elapsed = Date.now() - startTime;
+
+      log.info('      ✅ 完成 (耗时 {elapsed}ms)', { elapsed: elapsed });
+      log.info('      结果: {result}', { result: this.preview(result, 500) });
+
+      messages.push({ role: 'tool', content: result, toolCallId: toolCall.id });
+      lastResult = result;
+    }
+
+    return lastResult;
+  }
+
+  /**
+   * 执行单个工具
+   */
+  private async runTool(toolCall: ToolCall, msg: InboundMessage): Promise<string> {
     try {
-      // ReAct 循环
-      let iteration = 0;
-      let lastContent = '';
-      
-      // 获取工具定义
-      const availableTools = this.tools.getDefinitions();
-      log.debug('可用工具: {tools}', { tools: availableTools.map(t => t.name).join(', ') });
-      
-      while (iteration < this.config.maxIterations) {
-        iteration++;
-        log.info('🔄 ReAct 迭代 #{iteration}', { iteration });
-        
-        // 获取工具定义并转换为 LLM 格式
-        const toolDefinitions = toLLMToolDefinitions(availableTools);
-        
-        // 选择模型
-        const routeResult = await this.selectModel(messages, msg.media, iteration);
-        const generationConfig = this.mergeGenerationConfig(routeResult.config);
-        
-        // 视觉检查：非视觉模型需要转换消息为纯文本
-        const processedMessages = routeResult.config.vision 
-          ? messages 
-          : convertToPlainText(messages);
-        
-        // 调用 LLM
-        const llmStartTime = Date.now();
-        log.info('  🤖 调用 LLM: {model}', { model: routeResult.model });
-        log.info('    路由原因: {reason}', { reason: routeResult.reason });
-        log.info('    视觉支持: {vision}', { vision: routeResult.config.vision ?? false });
-        
-        const response = await this.gateway.chat(processedMessages, toolDefinitions, routeResult.model, generationConfig);
-        const llmElapsed = Date.now() - llmStartTime;
-
-        // 记录 LLM 响应详情
-        log.info('  ✅ LLM 响应 (耗时 {elapsed}ms)', { elapsed: llmElapsed });
-        log.info('    模型: {provider}/{model}', { 
-          provider: response.usedProvider ?? 'unknown', 
-          model: response.usedModel ?? 'unknown' 
-        });
-        if (response.usage) {
-          log.info('    Token: 输入={input}, 输出={output}, 总计={total}', {
-            input: response.usage.inputTokens,
-            output: response.usage.outputTokens,
-            total: response.usage.totalTokens,
-          });
-        }
-        // 显示 LLM 回复内容
-        if (response.content) {
-          log.info('    回复: {content}', { content: this.preview(response.content, 500) });
-        }
-
-        // 添加助手回复到消息列表
-        const assistantMessage: LLMMessage = {
-          role: 'assistant',
-          content: response.content,
-        };
-        if (response.toolCalls && response.toolCalls.length > 0) {
-          assistantMessage.toolCalls = response.toolCalls;
-        }
-        messages.push(assistantMessage);
-
-        // 如果没有工具调用，返回最终回复
-        if (!response.hasToolCalls || !response.toolCalls || response.toolCalls.length === 0) {
-          log.info('  📝 无工具调用，返回最终回复');
-          lastContent = response.content;
-          break;
-        }
-
-        // 执行工具调用
-        log.info('  🔧 执行 {count} 个工具调用...', { count: response.toolCalls.length });
-        for (const toolCall of response.toolCalls) {
-          log.info('    ▶ 工具: {name}', { name: toolCall.name });
-          log.info('      参数: {args}', { args: JSON.stringify(toolCall.arguments, null, 2) });
-          
-          const toolStartTime = Date.now();
-          const toolResult = await this.executeToolCall(toolCall, msg);
-          const toolElapsed = Date.now() - toolStartTime;
-          
-          log.info('      ✅ 完成 (耗时 {elapsed}ms)', { elapsed: toolElapsed });
-          log.info('      结果: {result}', { result: this.preview(toolResult, 500) });
-          
-          // 添加工具结果到消息列表
-          messages.push({
-            role: 'tool',
-            content: toolResult,
-            toolCallId: toolCall.id,
-          });
-        }
-      }
-
-      if (iteration >= this.config.maxIterations) {
-        log.warn('  ⚠️ 达到最大迭代次数 {maxIterations}', { maxIterations: this.config.maxIterations });
-      }
-
-      // 更新会话历史
-      // 存储完整的消息历史（不包含系统消息，系统消息每次都会重新添加）
-      // messages[0] 是系统消息，从 messages[1] 开始是用户消息历史 + 当前对话
-      const newHistory = messages.slice(1); // 跳过系统消息
-      this.conversationHistory.set(sessionKey, newHistory);
-
-      // 返回出站消息
-      return {
-        channel: msg.channel,
-        chatId: msg.chatId,
-        content: lastContent || '处理完成',
-        media: [],
-        metadata: msg.metadata,
-      };
+      return await this.tools.execute(toolCall.name, toolCall.arguments, this.createContext(msg));
     } catch (error) {
-      log.error('❌ 处理消息异常: {error}', { error: this.errorMsg(error) });
-      log.error('堆栈: {stack}', { stack: error instanceof Error ? error.stack : '' });
-      
-      return {
-        channel: msg.channel,
-        chatId: msg.chatId,
-        content: `处理消息时出错: ${this.errorMsg(error)}`,
-        media: [],
-        metadata: msg.metadata,
-      };
+      const errorMsg = this.safeErrorMsg(error);
+      log.error('      ❌ 工具执行失败: {error}', { error: errorMsg });
+      return JSON.stringify({ error: '工具执行失败', tool: toolCall.name });
     }
+  }
+
+  /**
+   * 更新会话历史
+   */
+  private updateHistory(sessionKey: string, history: LLMMessage[]): void {
+    // 限制历史长度
+    const trimmed = history.length > MAX_HISTORY_PER_SESSION
+      ? history.slice(-MAX_HISTORY_PER_SESSION)
+      : history;
+
+    this.conversationHistory.set(sessionKey, trimmed);
+
+    // 清理过期会话
+    this.trimSessions();
+  }
+
+  /**
+   * 清理过期会话
+   */
+  private trimSessions(): void {
+    if (this.conversationHistory.size <= MAX_SESSIONS) return;
+
+    // 删除最旧的会话
+    const keysToDelete = Array.from(this.conversationHistory.keys())
+      .slice(0, this.conversationHistory.size - MAX_SESSIONS);
+
+    for (const key of keysToDelete) {
+      this.conversationHistory.delete(key);
+    }
+
+    log.debug('清理了 {count} 个过期会话', { count: keysToDelete.length });
+  }
+
+  /**
+   * 创建错误响应
+   */
+  private createErrorResponse(msg: InboundMessage): OutboundMessage {
+    return {
+      channel: msg.channel,
+      chatId: msg.chatId,
+      content: '处理消息时发生内部错误，请稍后重试',
+      media: [],
+      metadata: msg.metadata,
+    };
   }
 
   /**
    * 执行工具调用
    */
   private async executeToolCall(toolCall: ToolCall, msg: InboundMessage): Promise<string> {
-    const ctx = this.createContext(msg);
-    
-    try {
-      const result = await this.tools.execute(toolCall.name, toolCall.arguments, ctx);
-      return result;
-    } catch (error) {
-      const errorMsg = this.errorMsg(error);
-      log.error('      ❌ 工具执行失败: {error}', { error: errorMsg });
-      return JSON.stringify({
-        error: errorMsg,
-        tool: toolCall.name,
-      });
-    }
+    return this.runTool(toolCall, msg);
   }
 
   /**
@@ -375,17 +444,15 @@ export class AgentExecutor {
     media: string[] | undefined,
     iteration: number
   ): Promise<RouteResult> {
-    // 第一次迭代且启用自动路由时，进行意图识别
     if (iteration === 1 && this.config.auto) {
       const intent = await this.router.analyzeIntent(messages, media);
-      log.info('  🎯 意图识别: model={model}, reason={reason}', { 
-        model: intent.model, 
-        reason: intent.reason 
+      log.info('  🎯 意图识别: model={model}, reason={reason}', {
+        model: intent.model,
+        reason: intent.reason
       });
       return this.router.selectModelByIntent(intent);
     }
-    
-    // 后续迭代使用路由规则
+
     return this.router.route(messages, iteration === 1 ? media : undefined);
   }
 
@@ -397,14 +464,13 @@ export class AgentExecutor {
       maxTokens: this.config.maxTokens,
       temperature: this.config.temperature,
     };
-    
-    // 模型特定配置覆盖默认配置
+
     if (modelConfig.maxTokens !== undefined) merged.maxTokens = modelConfig.maxTokens;
     if (modelConfig.temperature !== undefined) merged.temperature = modelConfig.temperature;
     if (modelConfig.topK !== undefined) merged.topK = modelConfig.topK;
     if (modelConfig.topP !== undefined) merged.topP = modelConfig.topP;
     if (modelConfig.frequencyPenalty !== undefined) merged.frequencyPenalty = modelConfig.frequencyPenalty;
-    
+
     return merged;
   }
 
@@ -413,6 +479,27 @@ export class AgentExecutor {
     return text.length > maxLen ? text.slice(0, maxLen) + '...' : text;
   }
 
+  /**
+   * 安全的错误消息（脱敏）
+   */
+  private safeErrorMsg(error: unknown): string {
+    if (!(error instanceof Error)) return '未知错误';
+
+    // 移除可能的敏感信息
+    let msg = error.message;
+
+    // 移除路径
+    msg = msg.replace(/[A-Z]:\\[^\s]+/gi, '[路径]');
+
+    // 移除 API 密钥
+    msg = msg.replace(/[a-zA-Z0-9_-]{20,}/g, '[密钥]');
+
+    return msg;
+  }
+
+  /**
+   * 完整的错误消息（仅用于日志）
+   */
   private errorMsg(error: unknown): string {
     return error instanceof Error ? error.message : String(error);
   }

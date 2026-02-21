@@ -104,4 +104,4 @@ export {
 } from './mcp';
 
 // 工具函数
-export { convertToPlainText, buildUserContent } from './utils';
+export { convertToPlainText, buildUserContent, isValidImageUrl, isImageUrl } from './utils';
