@@ -8,7 +8,6 @@ import {
   loadConfig,
   expandPath,
   parseModelConfigs,
-  getConfigStatus,
 } from '@microbot/config';
 import {
   ToolRegistry,
@@ -29,24 +28,110 @@ import type { ModelConfig } from '@microbot/config';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { homedir } from 'os';
-import { readFileSync, existsSync } from 'fs';
+import { readFileSync, existsSync, mkdirSync, writeFileSync, copyFileSync } from 'fs';
 
-// 扩展组件导入
-import {
-  ReadFileTool,
-  WriteFileTool,
-  ListDirTool,
-  createExecTool,
-  WebFetchTool,
-  MessageTool,
-} from '../../../extensions/tool';
-import { FeishuChannel } from '../../../extensions/channel/feishu';
+/** 用户级配置目录 */
+const USER_CONFIG_DIR = resolve(homedir(), '.microbot');
 
 /** 获取内置技能路径 */
 function getBuiltinSkillsPath(): string {
   const currentDir = dirname(fileURLToPath(import.meta.url));
-  // 技能已迁移到 extensions/skills/
   return resolve(currentDir, '../../../extensions/skills');
+}
+
+/** 获取模板路径 */
+function getTemplatesPath(): string {
+  const currentDir = dirname(fileURLToPath(import.meta.url));
+  return resolve(currentDir, '../../../templates/prompts/agent');
+}
+
+/**
+ * 确保用户级配置文件存在
+ *
+ * 首次启动时创建默认的 SOUL.md、USER.md、AGENTS.md
+ */
+function ensureUserConfigFiles(): { created: string[] } {
+  const created: string[] = [];
+
+  // 确保用户配置目录存在
+  if (!existsSync(USER_CONFIG_DIR)) {
+    mkdirSync(USER_CONFIG_DIR, { recursive: true });
+  }
+
+  const templatesPath = getTemplatesPath();
+  const files = [
+    { name: 'SOUL.md', template: 'soul.md' },
+    { name: 'USER.md', template: 'user.md' },
+    { name: 'AGENTS.md', template: 'agents.md' },
+  ];
+
+  for (const file of files) {
+    const targetPath = resolve(USER_CONFIG_DIR, file.name);
+    const templatePath = resolve(templatesPath, file.template);
+
+    // 文件不存在且模板存在时创建
+    if (!existsSync(targetPath) && existsSync(templatePath)) {
+      copyFileSync(templatePath, targetPath);
+      created.push(file.name);
+    }
+  }
+
+  return { created };
+}
+
+/**
+ * 加载系统提示词
+ *
+ * 优先级：用户级 ~/.microbot/ > workspace/
+ */
+function loadSystemPromptFromUserConfig(workspace: string): string {
+  const parts: string[] = [];
+
+  // 1. 加载 SOUL.md（身份）
+  const soulPaths = [
+    resolve(USER_CONFIG_DIR, 'SOUL.md'),
+    resolve(workspace, 'SOUL.md'),
+  ];
+
+  for (const soulPath of soulPaths) {
+    if (existsSync(soulPath)) {
+      parts.push(readFileSync(soulPath, 'utf-8'));
+      break;
+    }
+  }
+
+  // 2. 加载 USER.md（用户信息）
+  const userPaths = [
+    resolve(USER_CONFIG_DIR, 'USER.md'),
+    resolve(workspace, 'USER.md'),
+  ];
+
+  for (const userPath of userPaths) {
+    if (existsSync(userPath)) {
+      parts.push('\n\n---\n\n' + readFileSync(userPath, 'utf-8'));
+      break;
+    }
+  }
+
+  // 3. 加载 AGENTS.md（行为指南）
+  const agentsPaths = [
+    resolve(USER_CONFIG_DIR, 'AGENTS.md'),
+    resolve(workspace, 'AGENTS.md'),
+  ];
+
+  for (const agentsPath of agentsPaths) {
+    if (existsSync(agentsPath)) {
+      parts.push('\n\n---\n\n' + readFileSync(agentsPath, 'utf-8'));
+      break;
+    }
+  }
+
+  if (parts.length > 0) {
+    return parts.join('');
+  }
+
+  // 默认提示词
+  return '你是一个有帮助的 AI 助手。';
 }
 
 /**
@@ -56,7 +141,6 @@ class AppImpl implements App {
   private running = false;
   private channelManager: ChannelManager;
   private gateway: LLMGateway;
-  /** 可用模型列表（用于自动路由） */
   private availableModels = new Map<string, ModelConfig[]>();
   private config: Config;
   private workspace: string;
@@ -77,7 +161,6 @@ class AppImpl implements App {
     });
     this.toolRegistry = new ToolRegistry();
 
-    // 从模型配置解析 provider：格式为 "provider/model"
     const chatModel = config.agents.models?.chat || '';
     const slashIndex = chatModel.indexOf('/');
     const defaultProvider = slashIndex > 0
@@ -89,6 +172,12 @@ class AppImpl implements App {
   async start(): Promise<void> {
     if (this.running) return;
     this.running = true;
+
+    // 0. 确保用户级配置文件存在
+    const { created } = ensureUserConfigFiles();
+    if (created.length > 0) {
+      console.log(`  已创建配置文件: ${created.join(', ')}`);
+    }
 
     // 1. 注册内置工具
     this.registerBuiltinTools();
@@ -126,7 +215,6 @@ class AppImpl implements App {
         maxTokens: this.config.agents.maxTokens ?? 8192,
         temperature: this.config.agents.temperature ?? 0.7,
         systemPrompt: this.loadSystemPrompt(),
-        // 路由配置
         auto: this.config.agents.auto ?? false,
         max: this.config.agents.max ?? false,
         chatModel: this.config.agents.models?.chat,
@@ -135,30 +223,20 @@ class AppImpl implements App {
         routing: this.config.routing,
       }
     );
-    
-    // 在后台运行执行器
+
     this.executor.run().catch(error => {
       console.error('执行器异常:', error instanceof Error ? error.message : String(error));
     });
   }
 
   private loadSystemPrompt(): string {
-    // 尝试加载 workspace 下的 SOUL.md 或 USER.md
-    const soulPath = resolve(this.workspace, 'SOUL.md');
-    const userPath = resolve(this.workspace, 'USER.md');
-    
-    let basePrompt = '你是一个有帮助的 AI 助手。';
-    
-    if (existsSync(soulPath)) {
-      basePrompt = readFileSync(soulPath, 'utf-8');
-    } else if (existsSync(userPath)) {
-      basePrompt = readFileSync(userPath, 'utf-8');
-    }
-    
-    // 构建技能部分（模仿 nanobot 的方式）
+    // 加载基础提示词（SOUL.md + USER.md + AGENTS.md）
+    const basePrompt = loadSystemPromptFromUserConfig(this.workspace);
+
+    // 构建技能部分
     const parts: string[] = [];
-    
-    // 1. Always 技能：自动加载完整内容
+
+    // Always 技能
     if (this.skillsLoader && this.skillsLoader.count > 0) {
       const alwaysSkills = this.skillsLoader.getAlwaysSkills();
       if (alwaysSkills.length > 0) {
@@ -166,24 +244,20 @@ class AppImpl implements App {
           const content = skill.content.replace(/<skill-dir>/g, skill.skillPath);
           return `### ${skill.name}\n${skill.description}\n\n**目录:** ${skill.skillPath}\n\n${content}`;
         }).join('\n\n---\n\n');
-        parts.push(`# 自动加载技能\n\n以下技能已自动加载到上下文中，无需读取文件：\n\n${alwaysContent}`);
+        parts.push(`# 自动加载技能\n\n以下技能已自动加载到上下文中：\n\n${alwaysContent}`);
       }
     }
-    
-    // 2. 可用技能：XML 摘要 + 明确引导
+
+    // 可用技能摘要
     if (this.skillsLoader && this.skillsLoader.count > 0) {
       const skillsSummary = this.skillsLoader.buildSkillsSummary();
-      parts.push(`# 技能
-
-以下技能可以扩展你的能力。要使用某个技能，先用 \`read_file\` 工具读取其 SKILL.md 文件了解详细用法，然后执行相应命令。
-
-${skillsSummary}`);
+      parts.push(`# 技能\n\n以下技能可以扩展你的能力：\n\n${skillsSummary}`);
     }
-    
+
     if (parts.length > 0) {
       return basePrompt + '\n\n---\n\n' + parts.join('\n\n---\n\n');
     }
-    
+
     return basePrompt;
   }
 
@@ -216,7 +290,6 @@ ${skillsSummary}`);
     if (!this.running) return;
     this.running = false;
 
-    // 停止执行器
     if (this.executor) {
       this.executor.stop();
     }
@@ -248,7 +321,6 @@ ${skillsSummary}`);
     const providers = this.config.providers as Record<string, ProviderEntry | undefined>;
     const chatModel = this.config.agents.models?.chat || '';
 
-    // 从模型配置解析默认 provider
     const slashIndex = chatModel.indexOf('/');
     const defaultProviderName = slashIndex > 0 ? chatModel.slice(0, slashIndex) : null;
     const defaultModelId = slashIndex > 0 ? chatModel.slice(slashIndex + 1) : chatModel;
@@ -256,11 +328,9 @@ ${skillsSummary}`);
     for (const [name, config] of Object.entries(providers)) {
       if (!config) continue;
 
-      // 解析模型配置（支持字符串简写和完整对象）
       const modelConfigs = config.models ? parseModelConfigs(config.models) : [];
       const modelIds = modelConfigs.map(m => m.id);
 
-      // 存储模型配置用于自动路由
       if (modelConfigs.length > 0) {
         this.availableModels.set(name, modelConfigs);
       }
@@ -272,7 +342,6 @@ ${skillsSummary}`);
         modelConfigs,
       });
 
-      // 默认 provider 优先级为 1，其他为 100
       const priority = name === defaultProviderName ? 1 : 100;
       this.gateway.registerProvider(name, provider, modelIds.length > 0 ? modelIds : ['*'], priority, modelConfigs);
     }
@@ -297,7 +366,6 @@ export async function createApp(configPath?: string): Promise<App> {
   const workspace = expandPath(baseConfig.agents.workspace);
 
   // 确保 workspace 目录存在
-  const { mkdirSync, existsSync } = await import('fs');
   if (!existsSync(workspace)) {
     mkdirSync(workspace, { recursive: true });
   }
@@ -307,5 +375,4 @@ export async function createApp(configPath?: string): Promise<App> {
   return new AppImpl(config, workspace);
 }
 
-// 导出类型
 export type { App } from '@microbot/types';
