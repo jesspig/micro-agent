@@ -1,0 +1,187 @@
+/**
+ * ReAct 类型定义和解析器
+ */
+
+import { z } from 'zod';
+
+/**
+ * ReAct 动作类型
+ */
+export const ReActActionSchema = z.enum([
+  'finish',
+  'read_file',
+  'write_file',
+  'list_dir',
+  'shell_exec',
+  'web_fetch',
+  'send_message',
+]);
+
+/**
+ * ReAct 响应 Schema
+ */
+export const ReActResponseSchema = z.object({
+  /** 思考过程 */
+  thought: z.string().describe('分析当前情况，思考下一步该做什么'),
+  /** 动作类型 */
+  action: ReActActionSchema.describe('要执行的动作'),
+  /** 动作参数 */
+  action_input: z.union([
+    z.string(),
+    z.object({}).passthrough(),
+    z.null(),
+  ]).describe('动作的输入参数'),
+});
+
+/**
+ * ReAct 响应类型
+ */
+export type ReActResponse = z.infer<typeof ReActResponseSchema>;
+
+/**
+ * ReAct 动作类型
+ */
+export type ReActAction = z.infer<typeof ReActActionSchema>;
+
+/**
+ * 动作别名映射
+ * LLM 可能返回变体名称，统一映射到标准动作
+ */
+const ActionAliases: Record<string, ReActAction> = {
+  // finish 别名
+  'finish': 'finish',
+  'done': 'finish',
+  'complete': 'finish',
+  'answer': 'finish',
+  'reply': 'finish',
+  // shell_exec 别名
+  'shell_exec': 'shell_exec',
+  'shell': 'shell_exec',
+  'exec': 'shell_exec',
+  'execute': 'shell_exec',
+  'run': 'shell_exec',
+  'command': 'shell_exec',
+  'bash': 'shell_exec',
+  // read_file 别名
+  'read_file': 'read_file',
+  'read': 'read_file',
+  'cat': 'read_file',
+  'file_read': 'read_file',
+  // write_file 别名
+  'write_file': 'write_file',
+  'write': 'write_file',
+  'save': 'write_file',
+  'file_write': 'write_file',
+  // list_dir 别名
+  'list_dir': 'list_dir',
+  'ls': 'list_dir',
+  'dir': 'list_dir',
+  'list': 'list_dir',
+  'list_directory': 'list_dir',
+  // web_fetch 别名
+  'web_fetch': 'web_fetch',
+  'fetch': 'web_fetch',
+  'http': 'web_fetch',
+  'get': 'web_fetch',
+  'curl': 'web_fetch',
+  // send_message 别名
+  'send_message': 'send_message',
+  'message': 'send_message',
+  'send': 'send_message',
+  'say': 'send_message',
+};
+
+/**
+ * 解析 LLM 响应为 ReAct 格式
+ */
+export function parseReActResponse(content: string): ReActResponse | null {
+  // 尝试提取 JSON（可能被 markdown 代码块包裹）
+  let jsonStr: string | null = null;
+
+  // 尝试提取 ```json ... ``` 中的内容
+  const jsonBlockMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (jsonBlockMatch) {
+    jsonStr = jsonBlockMatch[1].trim();
+  } else {
+    // 尝试直接匹配 JSON 对象
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      jsonStr = jsonMatch[0];
+    }
+  }
+
+  if (!jsonStr) return null;
+
+  try {
+    const parsed = JSON.parse(jsonStr);
+    
+    // 验证必需字段存在
+    if (typeof parsed.thought !== 'string') {
+      logDebug('缺少 thought 字段', parsed);
+      return null;
+    }
+    if (parsed.action === undefined || parsed.action === null) {
+      logDebug('缺少 action 字段', parsed);
+      return null;
+    }
+    
+    // 将动作别名映射到标准动作
+    const originalAction = String(parsed.action).toLowerCase();
+    const normalizedAction = ActionAliases[originalAction];
+    
+    if (!normalizedAction) {
+      logDebug('未知动作类型', { original: originalAction, available: Object.keys(ActionAliases) });
+      return null;
+    }
+    
+    const normalized = {
+      thought: parsed.thought,
+      action: normalizedAction,
+      action_input: parsed.action_input ?? null,
+    };
+    
+    const result = ReActResponseSchema.safeParse(normalized);
+    if (result.success) {
+      return result.data;
+    }
+    logDebug('ReAct 解析失败', result.error.errors);
+  } catch (e) {
+    logDebug('JSON 解析失败', e);
+  }
+
+  return null;
+}
+
+/**
+ * 调试日志（仅在开发环境输出）
+ */
+function logDebug(message: string, data: unknown): void {
+  if (process.env.NODE_ENV === 'development') {
+    console.debug(`[ReAct] ${message}`, data);
+  }
+}
+
+/**
+ * 工具名称到 ReAct 动作的映射
+ */
+export const ToolToReActAction: Record<string, ReActAction> = {
+  'read_file': 'read_file',
+  'write_file': 'write_file',
+  'list_dir': 'list_dir',
+  'shell_exec': 'shell_exec',
+  'web_fetch': 'web_fetch',
+  'send_message': 'send_message',
+};
+
+/**
+ * ReAct 动作到工具名称的映射
+ */
+export const ReActActionToTool: Record<ReActAction, string | null> = {
+  'finish': null,
+  'read_file': 'read_file',
+  'write_file': 'write_file',
+  'list_dir': 'list_dir',
+  'shell_exec': 'shell_exec',
+  'web_fetch': 'web_fetch',
+  'send_message': 'send_message',
+};

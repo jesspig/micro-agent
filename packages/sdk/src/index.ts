@@ -59,10 +59,7 @@ export {
   calculateComplexity,
   complexityToLevel,
   hasImageMedia,
-  needsToolCalling,
   matchRule,
-  buildIntentSystemPrompt,
-  buildIntentUserPrompt,
   parseOpenAIResponse,
   toOpenAIMessages,
 } from '@microbot/providers';
@@ -76,6 +73,8 @@ export type {
   ComplexityScore,
   IntentResult,
   ModelInfo,
+  IntentPromptBuilder,
+  UserPromptBuilder,
 } from '@microbot/providers';
 
 // ============ Extension System - 扩展系统 ============

@@ -12,19 +12,8 @@ import {
   LEVEL_PRIORITY,
   type ComplexityScore,
 } from './complexity';
-import {
-  needsToolCalling,
-  matchRule,
-  collectVisionModels,
-  findCandidates,
-  buildCandidates,
-} from './router-utils';
-import {
-  buildIntentSystemPrompt,
-  buildIntentUserPrompt,
-  type IntentResult,
-  type ModelInfo,
-} from './prompts';
+import { matchRule, collectVisionModels } from './router-utils';
+import type { IntentResult, ModelInfo, IntentPromptBuilder, UserPromptBuilder } from './prompts';
 import { getLogger } from '@logtape/logtape';
 
 const log = getLogger(['router']);
@@ -32,11 +21,15 @@ const log = getLogger(['router']);
 /** 模型路由配置 */
 export interface ModelRouterConfig {
   chatModel: string;
-  checkModel?: string;
+  intentModel?: string;
   auto: boolean;
   max: boolean;
   models: Map<string, ModelConfig[]>;
   routing?: RoutingConfig;
+  /** 意图识别 System Prompt 构建函数 */
+  buildIntentPrompt?: IntentPromptBuilder;
+  /** 用户 Prompt 构建函数 */
+  buildUserPrompt?: UserPromptBuilder;
 }
 
 /** 路由结果 */
@@ -53,19 +46,23 @@ export interface RouteResult {
 export class ModelRouter {
   private models: Map<string, ModelConfig[]>;
   private chatModel: string;
-  private checkModel: string;
+  private intentModel: string;
   private auto: boolean;
   private max: boolean;
   private routing: RoutingConfig;
+  private buildIntentPrompt?: IntentPromptBuilder;
+  private buildUserPrompt?: UserPromptBuilder;
   private provider: LLMProvider | null = null;
 
   constructor(config: ModelRouterConfig) {
     this.models = config.models;
     this.chatModel = config.chatModel;
-    this.checkModel = config.checkModel ?? config.chatModel;
+    this.intentModel = config.intentModel ?? config.chatModel;
     this.auto = config.auto;
     this.max = config.max;
     this.routing = config.routing ?? DEFAULT_ROUTING_CONFIG;
+    this.buildIntentPrompt = config.buildIntentPrompt;
+    this.buildUserPrompt = config.buildUserPrompt;
   }
 
   setProvider(provider: LLMProvider): void {
@@ -77,23 +74,20 @@ export class ModelRouter {
 
     const hasImage = hasImageMedia(media);
     const content = messages.map(m => m.content).join(' ');
-    const requireTool = needsToolCalling(content);
 
     if (hasImage) {
       const result = this.selectVisionModel(messages, content);
       if (result) return result;
     }
 
-    if (this.max) {
-      const result = this.selectModelByLevel('ultra', false, requireTool);
-      if (result) return { ...result, complexity: 100, reason: '性能优先模式' };
-    }
-
     const complexity = calculateComplexity(messages, content, content.length, this.routing);
     const level = complexityToLevel(complexity);
-    const result = this.selectModelByLevel(level, false, requireTool);
+    const result = this.selectModelByLevel(level, false);
 
-    if (result) return { ...result, complexity, reason: `复杂度评分: ${complexity}` };
+    if (result) {
+      const mode = this.max ? '性能优先' : '速度优先';
+      return { ...result, complexity, reason: `${mode}, 复杂度: ${complexity}` };
+    }
     return this.defaultResult(complexity);
   }
 
@@ -104,19 +98,33 @@ export class ModelRouter {
     const modelInfos = this.buildModelInfos(hasImage);
     const userContent = messages.map(m => `${m.role}: ${m.content}`).join('\n');
 
+    log.info('[Router] 意图分析', { hasImage, contentLength: userContent.length });
+
+    if (!this.buildIntentPrompt || !this.buildUserPrompt) {
+      log.warn('[Router] 未配置提示词构建函数，回退到默认路由');
+      return this.fallbackIntent(messages, media);
+    }
+
     const analysisMessages: LLMMessage[] = [
-      { role: 'system', content: buildIntentSystemPrompt(modelInfos) },
-      { role: 'user', content: buildIntentUserPrompt(userContent, hasImage) },
+      { role: 'system', content: this.buildIntentPrompt(modelInfos) },
+      { role: 'user', content: this.buildUserPrompt(userContent, hasImage) },
     ];
 
     try {
-      const response = await this.provider.chat(analysisMessages, [], this.checkModel, { maxTokens: 200, temperature: 0.3 });
+      const response = await this.provider.chat(analysisMessages, [], this.intentModel, { maxTokens: 200, temperature: 0.3 });
       const jsonMatch = response.content.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         const parsed = JSON.parse(jsonMatch[0]) as { model: string; reason: string };
-        if (modelInfos.find(m => m.id === parsed.model)) {
+        log.info('[Router] LLM 选择', { model: parsed.model, reason: parsed.reason });
+        const selectedModel = modelInfos.find(m => m.id === parsed.model);
+        if (selectedModel) {
+          if (hasImage && !selectedModel.vision) {
+            log.warn('[Router] LLM 选择了不支持视觉的模型，自动纠正');
+            return this.fallbackIntent(messages, media);
+          }
           return { model: parsed.model, reason: parsed.reason };
         }
+        log.warn('[Router] LLM 选择的模型不在可用列表中', { model: parsed.model });
       }
     } catch (error) {
       log.warn('[Router] 意图识别失败: {error}', { error: error instanceof Error ? error.message : String(error) });
@@ -131,7 +139,7 @@ export class ModelRouter {
 
   updateConfig(config: Partial<ModelRouterConfig>): void {
     if (config.chatModel !== undefined) this.chatModel = config.chatModel;
-    if (config.checkModel !== undefined) this.checkModel = config.checkModel;
+    if (config.intentModel !== undefined) this.intentModel = config.intentModel;
     if (config.auto !== undefined) this.auto = config.auto;
     if (config.max !== undefined) this.max = config.max;
     if (config.models !== undefined) this.models = config.models;
@@ -140,8 +148,8 @@ export class ModelRouter {
 
   getRoutingConfig(): RoutingConfig { return this.routing; }
 
-  getStatus(): { auto: boolean; max: boolean; rulesCount: number; chatModel: string; checkModel: string } {
-    return { auto: this.auto, max: this.max, rulesCount: this.routing.rules.length, chatModel: this.chatModel, checkModel: this.checkModel };
+  getStatus(): { auto: boolean; max: boolean; rulesCount: number; chatModel: string; intentModel: string } {
+    return { auto: this.auto, max: this.max, rulesCount: this.routing.rules.length, chatModel: this.chatModel, intentModel: this.intentModel };
   }
 
   private defaultResult(complexity: ComplexityScore = 0): RouteResult {
@@ -153,29 +161,39 @@ export class ModelRouter {
     for (const [provider, models] of this.models) {
       for (const config of models) {
         if (requireVision && !config.vision) continue;
-        infos.push({ id: `${provider}/${config.id}`, level: config.level, vision: config.vision, think: config.think, tool: config.tool ?? true });
+        infos.push({ id: `${provider}/${config.id}`, level: config.level, vision: config.vision, think: config.think });
       }
     }
+    log.info('[Router] 可用模型列表', { count: infos.length });
     return infos;
   }
 
   private fallbackIntent(messages: Array<{ role: string; content: string }>, media?: string[]): IntentResult {
     const content = messages.map(m => m.content).join(' ');
     const hasImage = hasImageMedia(media);
-    const requireTool = needsToolCalling(content);
 
-    if (this.routing.enabled && this.routing.rules.length > 0) {
+    log.info('[Router] Fallback 路由', { hasImage });
+
+    if (this.routing.rules.length > 0) {
       const matchedRule = matchRule(content, content.length, this.routing);
       if (matchedRule) {
-        const result = this.selectModelByLevel(matchedRule.level, hasImage, requireTool);
-        if (result) return { model: result.model, reason: '关键词匹配' };
+        const result = this.selectModelByLevel(matchedRule.level, hasImage);
+        if (result) {
+          log.info('[Router] 规则匹配', { level: matchedRule.level, model: result.model });
+          return { model: result.model, reason: '关键词匹配' };
+        }
       }
     }
 
     const complexity = calculateComplexity(messages, content, content.length, this.routing);
     const level = complexityToLevel(complexity);
-    const result = this.selectModelByLevel(level, hasImage, requireTool);
-    if (result) return { model: result.model, reason: `复杂度评分: ${complexity}` };
+    const result = this.selectModelByLevel(level, hasImage);
+    if (result) {
+      log.info('[Router] 复杂度匹配', { level, model: result.model, complexity });
+      return { model: result.model, reason: `复杂度评分: ${complexity}` };
+    }
+
+    log.warn('[Router] 回退到默认模型', { model: this.chatModel });
     return { model: this.chatModel, reason: '回退到默认模型' };
   }
 
@@ -201,16 +219,37 @@ export class ModelRouter {
     return null;
   }
 
-  private selectModelByLevel(targetLevel: ModelLevel, visionOnly = false, requireTool = false): RouteResult | null {
-    const candidates = findCandidates({ targetLevel, visionOnly, requireTool, models: this.models });
-    if (candidates.length === 0) return this.selectNearestModel(targetLevel, visionOnly, requireTool);
-    const selected = candidates[0];
-    return { model: `${selected.provider}/${selected.config.id}`, config: selected.config, complexity: 0, reason: '' };
+  private selectModelByLevel(targetLevel: ModelLevel, visionOnly = false): RouteResult | null {
+    const candidates: Array<{ provider: string; config: ModelConfig }> = [];
+
+    for (const [provider, configs] of this.models) {
+      for (const config of configs) {
+        if (config.level !== targetLevel) continue;
+        if (visionOnly && !config.vision) continue;
+        candidates.push({ provider, config });
+      }
+    }
+
+    if (candidates.length > 0) {
+      const selected = candidates[0];
+      return { model: `${selected.provider}/${selected.config.id}`, config: selected.config, complexity: 0, reason: '' };
+    }
+
+    return this.selectNearestModel(targetLevel, visionOnly);
   }
 
-  private selectNearestModel(targetLevel: ModelLevel, visionOnly = false, requireTool = false): RouteResult | null {
+  private selectNearestModel(targetLevel: ModelLevel, visionOnly = false): RouteResult | null {
     const targetPriority = LEVEL_PRIORITY[targetLevel];
-    const candidates = buildCandidates(visionOnly, targetPriority, requireTool, this.models);
+    const candidates: Array<{ provider: string; config: ModelConfig; diff: number; priority: number }> = [];
+
+    for (const [provider, configs] of this.models) {
+      for (const config of configs) {
+        if (visionOnly && !config.vision) continue;
+        const priority = LEVEL_PRIORITY[config.level];
+        candidates.push({ provider, config, diff: priority - targetPriority, priority });
+      }
+    }
+
     if (candidates.length === 0) return null;
 
     const filtered = this.filterByMode(candidates, targetPriority);
@@ -234,7 +273,7 @@ export class ModelRouter {
       const found = models?.find(m => m.id === id);
       if (found) return found;
     }
-    return { id: id || modelId, vision: false, think: false, tool: true, level: 'medium' };
+    return { id: id || modelId, vision: false, think: false, level: 'medium' };
   }
 }
 

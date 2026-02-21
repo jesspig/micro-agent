@@ -8,8 +8,8 @@ import { z } from 'zod';
 export const ModelsConfigSchema = z.object({
   /** 对话模型 */
   chat: z.string().optional(),
-  /** 意图识别模型（可选，默认使用 chat） */
-  check: z.string().optional(),
+  /** 意图识别模型（可选，默认使用 chat，不会被路由） */
+  intent: z.string().optional(),
 });
 
 /** 工作区配置 Schema */
@@ -63,8 +63,6 @@ export const ModelConfigSchema = z.object({
   vision: z.boolean().default(false),
   /** 支持思考能力（如 DeepSeek-R1 的 reasoning） */
   think: z.boolean().default(false),
-  /** 支持工具调用 */
-  tool: z.boolean().default(true),
   /** 性能级别：fast(最快) -> ultra(最强) */
   level: ModelLevelSchema.default('medium'),
   /** 生成的最大 token 数量 */
@@ -92,8 +90,6 @@ export interface ModelConfigInput {
   vision?: boolean;
   /** 支持思考能力 */
   think?: boolean;
-  /** 支持工具调用 */
-  tool?: boolean;
   /** 性能级别 */
   level?: ModelLevel;
   /** 生成的最大 token 数量 */
@@ -129,8 +125,6 @@ export type RoutingRule = z.infer<typeof RoutingRuleSchema>;
 
 /** 路由配置 */
 export const RoutingConfigSchema = z.object({
-  /** 启用路由规则 */
-  enabled: z.boolean().default(true),
   /** 路由规则列表（按优先级排序执行） */
   rules: z.array(RoutingRuleSchema).default([]),
   /** 默认复杂度基础分数 */
@@ -167,7 +161,6 @@ export const DEFAULT_ROUTING_RULES: RoutingRule[] = [
 
 /** 默认路由配置 */
 export const DEFAULT_ROUTING_CONFIG: RoutingConfig = {
-  enabled: true,
   rules: DEFAULT_ROUTING_RULES,
   baseScore: 30,
   lengthWeight: 5,
@@ -230,13 +223,12 @@ export type ProviderConfig = z.infer<typeof ProviderConfigSchema>;
 export function parseModelConfigs(models: (string | ModelConfigInput)[]): ModelConfig[] {
   return models.map(m => {
     if (typeof m === 'string') {
-      return { id: m, vision: false, think: false, tool: true, level: 'medium' };
+      return { id: m, vision: false, think: false, level: 'medium' };
     }
     return {
       id: m.id,
       vision: m.vision ?? false,
       think: m.think ?? false,
-      tool: m.tool ?? true,
       level: m.level ?? 'medium',
       maxTokens: m.maxTokens,
       temperature: m.temperature,
@@ -257,7 +249,7 @@ export function getModelCapabilities(
 ): ModelConfig {
   const configs = parseModelConfigs(models);
   const found = configs.find(m => m.id === modelId);
-  return found ?? { id: modelId, vision: false, think: false, tool: true, level: 'medium' };
+  return found ?? { id: modelId, vision: false, think: false, level: 'medium' };
 }
 
 /**

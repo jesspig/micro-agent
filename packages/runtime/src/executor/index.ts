@@ -2,13 +2,15 @@
  * Agent 执行器
  *
  * 实现 ReAct 循环处理消息并协调工具调用。
+ * 所有模型统一使用 ReAct JSON 模式，不依赖原生 function calling。
  */
 
-import type { InboundMessage, OutboundMessage, ToolContext, ToolCall, ToolResult } from '@microbot/types';
-import type { LLMGateway, LLMMessage, LLMToolDefinition, GenerationConfig, MessageContent } from '@microbot/providers';
+import type { InboundMessage, OutboundMessage, ToolContext } from '@microbot/types';
+import type { LLMGateway, LLMMessage, GenerationConfig, MessageContent, IntentPromptBuilder, UserPromptBuilder } from '@microbot/providers';
 import type { MessageBus } from '../bus/queue';
 import type { ModelConfig, RoutingConfig } from '@microbot/config';
 import { ModelRouter, convertToPlainText, buildUserContent, type RouteResult } from '@microbot/providers';
+import { parseReActResponse, ReActActionToTool } from '../react-types';
 import { getLogger } from '@logtape/logtape';
 
 const log = getLogger(['executor']);
@@ -19,9 +21,6 @@ const MAX_SESSIONS = 1000;
 /** 每个会话最大历史消息数 */
 const MAX_HISTORY_PER_SESSION = 50;
 
-/** 最大媒体数量 */
-const MAX_MEDIA_COUNT = 10;
-
 /**
  * 工具注册表接口（避免循环依赖）
  */
@@ -30,19 +29,9 @@ export interface ToolRegistryLike {
   execute(name: string, input: unknown, ctx: ToolContext): Promise<string>;
 }
 
-/**
- * 将工具定义转换为 LLM 格式
- */
-function toLLMToolDefinitions(tools: Array<{ name: string; description: string; inputSchema: unknown }>): LLMToolDefinition[] {
-  return tools.map(tool => ({
-    type: 'function' as const,
-    function: {
-      name: tool.name,
-      description: tool.description,
-      parameters: tool.inputSchema as Record<string, unknown>,
-    },
-  }));
-}
+/** ReAct 提示词构建函数类型 */
+export type ReActPromptBuilder = (tools: Array<{ name: string; description: string; inputSchema: unknown }>) => string;
+export type ObservationBuilder = (result: string) => string;
 
 /**
  * Agent 配置
@@ -64,12 +53,20 @@ export interface AgentExecutorConfig {
   max?: boolean;
   /** 对话模型 */
   chatModel?: string;
-  /** 意图识别模型 */
-  checkModel?: string;
+  /** 意图识别模型（不会被路由，始终固定） */
+  intentModel?: string;
   /** 可用模型列表 */
   availableModels?: Map<string, ModelConfig[]>;
   /** 路由配置 */
   routing?: RoutingConfig;
+  /** 意图识别 System Prompt 构建函数 */
+  buildIntentPrompt?: IntentPromptBuilder;
+  /** 用户 Prompt 构建函数 */
+  buildUserPrompt?: UserPromptBuilder;
+  /** ReAct 系统提示词构建函数（应用层注入） */
+  buildReActPrompt?: ReActPromptBuilder;
+  /** Observation 消息构建函数（应用层注入） */
+  buildObservation?: ObservationBuilder;
 }
 
 const DEFAULT_CONFIG: AgentExecutorConfig = {
@@ -81,6 +78,11 @@ const DEFAULT_CONFIG: AgentExecutorConfig = {
   max: false,
 };
 
+/** 默认 Observation 构建函数 */
+function defaultBuildObservation(result: string): string {
+  return 'Observation: ' + result;
+}
+
 /**
  * Agent 执行器
  */
@@ -88,7 +90,9 @@ export class AgentExecutor {
   private running = false;
   private conversationHistory = new Map<string, LLMMessage[]>();
   private router: ModelRouter;
-  private cachedToolDefinitions: LLMToolDefinition[] | null = null;
+  private cachedToolDefinitions: Array<{ name: string; description: string; inputSchema: unknown }> | null = null;
+  private buildReActPrompt: ReActPromptBuilder;
+  private buildObservation: ObservationBuilder;
 
   constructor(
     private bus: MessageBus,
@@ -98,13 +102,22 @@ export class AgentExecutor {
   ) {
     this.router = new ModelRouter({
       chatModel: config.chatModel || '',
-      checkModel: config.checkModel,
+      intentModel: config.intentModel,
       auto: config.auto ?? true,
       max: config.max ?? false,
       models: config.availableModels ?? new Map(),
       routing: config.routing,
+      buildIntentPrompt: config.buildIntentPrompt,
+      buildUserPrompt: config.buildUserPrompt,
     });
     this.router.setProvider(gateway);
+
+    // 应用层必须注入 ReAct 提示词构建函数
+    if (!config.buildReActPrompt) {
+      throw new Error('AgentExecutor 需要注入 buildReActPrompt 函数');
+    }
+    this.buildReActPrompt = config.buildReActPrompt;
+    this.buildObservation = config.buildObservation ?? defaultBuildObservation;
   }
 
   /**
@@ -112,7 +125,7 @@ export class AgentExecutor {
    */
   async run(): Promise<void> {
     this.running = true;
-    log.info('Agent 执行器已启动');
+    log.info('Agent 执行器已启动 (ReAct 模式)');
 
     log.debug('配置详情', {
       maxIterations: this.config.maxIterations,
@@ -208,11 +221,13 @@ export class AgentExecutor {
 
   /**
    * 运行 ReAct 循环
+   *
+   * 所有模型统一使用 ReAct JSON 模式
    */
   private async runReActLoop(messages: LLMMessage[], msg: InboundMessage): Promise<{ content: string }> {
     let iteration = 0;
-    let lastContent = '';
-    const toolDefinitions = this.getToolDefinitions();
+    const toolDefs = this.getToolDefinitions();
+    const reactSystemPrompt = this.buildReActPrompt(toolDefs);
 
     while (iteration < this.config.maxIterations) {
       iteration++;
@@ -224,6 +239,12 @@ export class AgentExecutor {
         ? messages
         : convertToPlainText(messages);
 
+      // 构建 ReAct 消息
+      const reactMessages: LLMMessage[] = [
+        { role: 'system', content: reactSystemPrompt },
+        ...processedMessages.filter(m => m.role !== 'system'),
+      ];
+
       // CLI: 模型选择
       log.info('🤖 调用模型', { model: routeResult.model, reason: routeResult.reason });
 
@@ -234,7 +255,7 @@ export class AgentExecutor {
       });
 
       const llmStartTime = Date.now();
-      const response = await this.gateway.chat(processedMessages, toolDefinitions, routeResult.model, generationConfig);
+      const response = await this.gateway.chat(reactMessages, [], routeResult.model, generationConfig);
       const llmElapsed = Date.now() - llmStartTime;
 
       // CLI: LLM 响应统计
@@ -244,86 +265,71 @@ export class AgentExecutor {
         elapsed: `${llmElapsed}ms`,
       });
 
-      // 文件日志: 详细响应
-      log.debug('LLM 详细响应', {
-        content: response.content,
-        hasToolCalls: response.hasToolCalls,
-        toolCallCount: response.toolCalls?.length ?? 0,
-        usage: response.usage,
-      });
+      // 解析 ReAct 响应
+      const reactResponse = parseReActResponse(response.content);
 
-      messages.push(this.buildAssistantMessage(response));
-
-      if (!response.hasToolCalls || !response.toolCalls || response.toolCalls.length === 0) {
-        // CLI: 最终回复
-        log.info('📝 回复', { content: response.content });
+      if (!reactResponse) {
+        // 无法解析为 ReAct 格式，直接返回原始响应
+        log.info('📝 回复 (非 ReAct 格式)', { content: response.content });
         return { content: response.content };
       }
 
-      lastContent = await this.executeToolCalls(response.toolCalls, msg, messages);
+      log.info('🧠 ReAct 思考', { thought: reactResponse.thought });
+
+      if (reactResponse.action === 'finish') {
+        // 任务完成
+        const finalContent = typeof reactResponse.action_input === 'string'
+          ? reactResponse.action_input
+          : JSON.stringify(reactResponse.action_input);
+        log.info('✅ 任务完成', { result: finalContent });
+        return { content: finalContent };
+      }
+
+      // 执行工具
+      const toolName = ReActActionToTool[reactResponse.action];
+      if (!toolName) {
+        log.warn('⚠️ 未知动作', { action: reactResponse.action });
+        const obsMsg = '错误: 未知动作 "' + reactResponse.action + '"';
+        messages.push({ role: 'assistant', content: response.content });
+        messages.push({ role: 'user', content: this.buildObservation(obsMsg) });
+        continue;
+      }
+
+      const toolResult = await this.executeTool(toolName, reactResponse.action_input, msg);
+      log.info('🔧 工具执行', { tool: toolName, result: toolResult });
+
+      // 添加观察结果到消息
+      messages.push({ role: 'assistant', content: response.content });
+      messages.push({ role: 'user', content: this.buildObservation(toolResult) });
     }
 
     log.warn('⚠️ 达到最大迭代次数', { maxIterations: this.config.maxIterations });
-    return { content: lastContent };
+    return { content: '达到最大迭代次数，任务未完成' };
   }
 
   /**
    * 获取工具定义
    */
-  private getToolDefinitions(): LLMToolDefinition[] {
+  private getToolDefinitions(): Array<{ name: string; description: string; inputSchema: unknown }> {
     if (!this.cachedToolDefinitions) {
-      this.cachedToolDefinitions = toLLMToolDefinitions(this.tools.getDefinitions());
+      this.cachedToolDefinitions = this.tools.getDefinitions();
     }
     return this.cachedToolDefinitions;
   }
 
   /**
-   * 构建助手消息
-   */
-  private buildAssistantMessage(response: { content: string; toolCalls?: ToolCall[] }): LLMMessage {
-    const msg: LLMMessage = { role: 'assistant', content: response.content };
-    if (response.toolCalls && response.toolCalls.length > 0) {
-      msg.toolCalls = response.toolCalls;
-    }
-    return msg;
-  }
-
-  /**
-   * 执行工具调用
-   */
-  private async executeToolCalls(toolCalls: ToolCall[], msg: InboundMessage, messages: LLMMessage[]): Promise<string> {
-    let lastResult = '';
-
-    for (const toolCall of toolCalls) {
-      const startTime = Date.now();
-
-      // CLI: 工具调用
-      log.info('🔧 工具调用', { tool: toolCall.name });
-
-      log.debug('工具参数', { args: toolCall.arguments });
-
-      const result = await this.runTool(toolCall, msg);
-      const elapsed = Date.now() - startTime;
-
-      // CLI: 工具结果
-      log.info('✅ 工具结果', { tool: toolCall.name, elapsed: `${elapsed}ms`, result });
-
-      messages.push({ role: 'tool', content: result, toolCallId: toolCall.id });
-      lastResult = result;
-    }
-
-    return lastResult;
-  }
-
-  /**
    * 执行单个工具
    */
-  private async runTool(toolCall: ToolCall, msg: InboundMessage): Promise<string> {
+  private async executeTool(name: string, input: unknown, msg: InboundMessage): Promise<string> {
     try {
-      return await this.tools.execute(toolCall.name, toolCall.arguments, this.createContext(msg));
+      const startTime = Date.now();
+      const result = await this.tools.execute(name, input, this.createContext(msg));
+      const elapsed = Date.now() - startTime;
+      log.info('✅ 工具结果', { tool: name, elapsed: `${elapsed}ms` });
+      return result;
     } catch (error) {
-      log.error('❌ 工具执行失败', { tool: toolCall.name, error: this.safeErrorMsg(error) });
-      return JSON.stringify({ error: '工具执行失败', tool: toolCall.name });
+      log.error('❌ 工具执行失败', { tool: name, error: this.safeErrorMsg(error) });
+      return JSON.stringify({ error: '工具执行失败', tool: name, message: this.safeErrorMsg(error) });
     }
   }
 
@@ -400,10 +406,7 @@ export class AgentExecutor {
   ): Promise<RouteResult> {
     if (iteration === 1 && this.config.auto) {
       const intent = await this.router.analyzeIntent(messages, media);
-
-      // CLI: 意图识别
       log.info('🎯 意图识别', { model: intent.model, reason: intent.reason });
-
       return this.router.selectModelByIntent(intent);
     }
 

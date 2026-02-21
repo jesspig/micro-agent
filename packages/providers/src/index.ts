@@ -35,10 +35,10 @@ export { ModelRouter, type ModelRouterConfig, type RouteResult, type ComplexityS
 export { calculateComplexity, complexityToLevel, hasImageMedia, LEVEL_PRIORITY, COMPLEXITY_THRESHOLDS } from './complexity';
 
 // 路由工具
-export { needsToolCalling, matchRule, collectVisionModels, findCandidates, buildCandidates } from './router-utils';
+export { matchRule, collectVisionModels } from './router-utils';
 
-// 提示词
-export { buildIntentSystemPrompt, buildIntentUserPrompt, type IntentResult, type ModelInfo } from './prompts';
+// 提示词类型
+export { type IntentResult, type ModelInfo, type IntentPromptBuilder, type UserPromptBuilder } from './prompts';
 
 // ACP (Agent Client Protocol)
 export {

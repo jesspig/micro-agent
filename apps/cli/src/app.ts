@@ -28,6 +28,7 @@ import {
   MessageTool,
 } from '../../../extensions/tool';
 import { FeishuChannel } from '../../../extensions/channel';
+import { buildIntentSystemPrompt, buildIntentUserPrompt, buildReActSystemPrompt, buildObservationMessage } from '../../prompts';
 import type {
   App,
   Config,
@@ -227,9 +228,13 @@ class AppImpl implements App {
         auto: this.config.agents.auto ?? false,
         max: this.config.agents.max ?? false,
         chatModel: this.config.agents.models?.chat,
-        checkModel: this.config.agents.models?.check,
+        intentModel: this.config.agents.models?.intent,
         availableModels: this.availableModels,
         routing: this.config.routing,
+        buildIntentPrompt: buildIntentSystemPrompt,
+        buildUserPrompt: buildIntentUserPrompt,
+        buildReActPrompt: buildReActSystemPrompt,
+        buildObservation: buildObservationMessage,
       }
     );
 
@@ -317,12 +322,12 @@ class AppImpl implements App {
     return this.gateway.getDefaultModel();
   }
 
-  getRouterStatus(): { auto: boolean; max: boolean; chatModel: string; checkModel?: string } {
+  getRouterStatus(): { auto: boolean; max: boolean; chatModel: string; intentModel?: string } {
     return {
       auto: this.config.agents.auto ?? false,
       max: this.config.agents.max ?? false,
       chatModel: this.config.agents.models?.chat || '未配置',
-      checkModel: this.config.agents.models?.check,
+      intentModel: this.config.agents.models?.intent,
     };
   }
 

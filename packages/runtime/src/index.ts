@@ -18,4 +18,16 @@ export { Pipeline, type Middleware } from './pipeline';
 export { MessageBus } from './bus';
 
 // Executor
-export { AgentExecutor, type AgentExecutorConfig } from './executor';
+export { AgentExecutor, type AgentExecutorConfig, type ToolRegistryLike, type ReActPromptBuilder, type ObservationBuilder } from './executor';
+
+// ReAct Agent
+export { ReActAgent, type ReActAgentConfig, type ReActTool, type ReActResult } from './react';
+export {
+  ReActResponseSchema,
+  ReActActionSchema,
+  parseReActResponse,
+  ToolToReActAction,
+  ReActActionToTool,
+  type ReActResponse,
+  type ReActAction,
+} from './react-types';
