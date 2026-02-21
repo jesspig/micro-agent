@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "outDir": "./dist",
+    "paths": {
+      "@microbot/types": ["../types/src/index.ts"],
+      "@microbot/runtime": ["../runtime/src/index.ts"],
+      "@microbot/storage": ["../storage/src/index.ts"],
+      "@microbot/config": ["../config/src/index.ts"],
+      "@microbot/providers": ["../providers/src/index.ts"],
+      "@microbot/extension-system": ["../extension-system/src/index.ts"]
+    }
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}

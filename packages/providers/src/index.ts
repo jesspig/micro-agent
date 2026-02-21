@@ -1,0 +1,104 @@
+/**
+ * Providers 模块入口
+ */
+
+// 基础类型和接口
+export {
+  type MessageRole,
+  type ToolCall,
+  type ContentPart,
+  type TextContentPart,
+  type ImageUrlContentPart,
+  type MessageContent,
+  type LLMMessage,
+  type LLMResponse,
+  type LLMToolDefinition,
+  type LLMProvider,
+  type OpenAIMessage,
+  type OpenAIResponse,
+  type GenerationConfig,
+  type UsageStats,
+  parseOpenAIResponse,
+  toOpenAIMessages,
+} from './base';
+
+// Provider 实现
+export { OpenAICompatibleProvider, type OpenAICompatibleConfig } from './openai-compatible';
+
+// Gateway
+export { LLMGateway, type GatewayConfig } from './gateway';
+
+// Model Router
+export { ModelRouter, type ModelRouterConfig, type RouteResult, type ComplexityScore } from './router';
+
+// 复杂度计算
+export { calculateComplexity, complexityToLevel, hasImageMedia, LEVEL_PRIORITY, COMPLEXITY_THRESHOLDS } from './complexity';
+
+// 路由工具
+export { needsToolCalling, matchRule, collectVisionModels, findCandidates, buildCandidates } from './router-utils';
+
+// 提示词
+export { buildIntentSystemPrompt, buildIntentUserPrompt, type IntentResult, type ModelInfo } from './prompts';
+
+// ACP (Agent Client Protocol)
+export {
+  ACPClient,
+  ACPAdapter,
+  createACPAdapter,
+  type ACPClientConfig,
+  type ACPAdapterConfig,
+  type ACPAgent,
+  type ACPConnection,
+  type SessionInfo,
+  type ContentBlock,
+  type ToolCallContent,
+  type Usage,
+} from './acp';
+
+// A2A (Agent-to-Agent)
+export {
+  parseAgentCard,
+  createAgentCard,
+  A2AClient,
+  createA2AClient,
+  type AgentCard,
+  type AgentCapabilities,
+  type AgentSkill,
+  type AgentAuthentication,
+  type AgentEndpoint,
+  type ParsedAgentCard,
+  type A2ARole,
+  type A2AMessage,
+  type A2APart,
+  type A2ATaskStatus,
+  type A2ATask,
+  type A2AArtifact,
+  type A2AClientConfig,
+} from './a2a';
+
+// MCP (Model Context Protocol)
+export {
+  MCP_VERSION,
+  MCPClient,
+  createMCPClient,
+  type MCPImplementation,
+  type MCPClientCapabilities,
+  type MCPServerCapabilities,
+  type MCPInitializeRequest,
+  type MCPInitializeResult,
+  type MCPToolDefinition,
+  type MCPToolCall,
+  type MCPToolResult,
+  type MCPToolResultContent,
+  type MCPResource,
+  type MCPResourceContents,
+  type MCPResourceTemplate,
+  type MCPPrompt,
+  type MCPPromptResult,
+  type MCPLogLevel,
+  type MCPNotification,
+  type MCPRequest,
+  type MCPResponse,
+  type MCPTransportConfig,
+  type MCPClientConfig,
+} from './mcp';

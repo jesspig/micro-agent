@@ -1,0 +1,32 @@
+{
+  "name": "@microbot/providers",
+  "version": "0.1.0",
+  "description": "MicroBot Provider 层（LLM Gateway, ACP, A2A）",
+  "type": "module",
+  "author": "jesspig",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jesspig/microbot.git",
+    "directory": "packages/providers"
+  },
+  "main": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "files": ["src"],
+  "dependencies": {
+    "@microbot/types": "workspace:*",
+    "@microbot/runtime": "workspace:*",
+    "@microbot/config": "workspace:*",
+    "@logtape/logtape": "^2.0.2",
+    "ai": "^6.0.92"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.9.3"
+  }
+}

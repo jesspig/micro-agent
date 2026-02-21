@@ -1,0 +1,25 @@
+{
+  "name": "@microbot/types",
+  "version": "0.1.0",
+  "description": "MicroBot 核心类型定义（零依赖）",
+  "type": "module",
+  "author": "jesspig",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jesspig/microbot.git",
+    "directory": "packages/types"
+  },
+  "main": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "files": ["src"],
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.9.3"
+  }
+}

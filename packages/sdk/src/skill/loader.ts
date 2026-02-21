@@ -1,8 +1,7 @@
 /**
  * 技能加载器
- * 
- * 从多个目录加载 SKILL.md 文件，遵循 Agent Skills 规范。
  */
+
 import { existsSync, readdirSync, readFileSync } from 'fs';
 import { join, basename, resolve } from 'path';
 import { homedir } from 'os';
@@ -18,10 +17,6 @@ const USER_SKILLS_DIR = '~/.microbot/skills';
 
 /**
  * 技能加载器
- * 
- * 从多个目录加载 SKILL.md 文件，遵循 Agent Skills 规范。
- * 加载优先级：项目 > 用户 > 内置（后加载覆盖前者）
- * 支持渐进式披露：启动时加载摘要，按需加载完整内容。
  */
 export class SkillsLoader {
   private skills = new Map<string, Skill>();
@@ -35,18 +30,15 @@ export class SkillsLoader {
   load(): void {
     this.skills.clear();
 
-    // 1. 加载内置技能（最低优先级）
     if (existsSync(this.builtinPath)) {
       this.loadFromDir(this.builtinPath);
     }
 
-    // 2. 加载用户技能 ~/.microbot/skills（中等优先级）
     const userSkillsPath = expandPath(USER_SKILLS_DIR);
     if (existsSync(userSkillsPath)) {
       this.loadFromDir(userSkillsPath);
     }
 
-    // 3. 加载项目技能（最高优先级）
     const projectSkillsPath = join(this.workspacePath, 'skills');
     if (existsSync(projectSkillsPath)) {
       this.loadFromDir(projectSkillsPath);
@@ -173,7 +165,7 @@ export class SkillsLoader {
   }
 }
 
-/** 展开路径（支持 ~ 前缀） */
+/** 展开路径 */
 function expandPath(path: string): string {
   if (path.startsWith('~/')) {
     return resolve(homedir(), path.slice(2));
