@@ -28,7 +28,7 @@ class MockProvider implements LLMProvider {
   }
 
   getModelCapabilities(modelId: string): ModelConfig {
-    return { id: modelId, vision: false, think: false, tool: true };
+    return { id: modelId };
   }
 
   async listModels(): Promise<string[] | null> {

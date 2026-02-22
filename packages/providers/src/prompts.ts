@@ -8,9 +8,6 @@ export type TaskType = 'vision' | 'coder' | 'chat';
 /** 模型信息（用于提示词） */
 export interface ModelInfo {
   id: string;
-  level: string;
-  vision: boolean;
-  think: boolean;
 }
 
 /** 任务类型识别结果 */

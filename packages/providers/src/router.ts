@@ -185,7 +185,7 @@ export class ModelRouter {
     const infos: ModelInfo[] = [];
     for (const [provider, models] of this.models) {
       for (const config of models) {
-        infos.push({ id: `${provider}/${config.id}`, level: 'medium', vision: false, think: false });
+        infos.push({ id: `${provider}/${config.id}` });
       }
     }
     log.info('[Router] 可用模型列表', { count: infos.length });

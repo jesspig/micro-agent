@@ -228,7 +228,7 @@ export class AgentExecutor {
     while (iteration < this.config.maxIterations) {
       iteration++;
 
-      const routeResult = cachedRouteResult ?? await this.selectModel(messages, msg.media);
+      const routeResult: RouteResult = cachedRouteResult ?? await this.selectModel(messages, msg.media);
       // 第一次迭代后缓存模型选择结果
       if (iteration === 1) {
         cachedRouteResult = routeResult;
@@ -261,7 +261,7 @@ export class AgentExecutor {
       // CLI: LLM 响应统计
       log.info('💬 LLM 响应', {
         model: `${response.usedProvider}/${response.usedModel}`,
-        tokens: response.usage ? `${response.usage.inputTokens}→${response.usage.outputTokens}` : 'N/A',
+        tokens: response.usage ? `${response.usage.promptTokens}→${response.usage.completionTokens}` : 'N/A',
         elapsed: `${llmElapsed}ms`,
       });
 
@@ -420,7 +420,8 @@ export class AgentExecutor {
     messages: LLMMessage[],
     media: string[] | undefined
   ): Promise<RouteResult> {
-    const taskType = await this.router.analyzeTaskType(messages, media);
+    const plainMessages = convertToPlainText(messages) as Array<{ role: string; content: string }>;
+    const taskType = await this.router.analyzeTaskType(plainMessages, media);
     log.info('🎯 任务类型识别', { type: taskType.type, reason: taskType.reason });
     return this.router.selectByTaskType(taskType.type);
   }

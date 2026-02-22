@@ -243,7 +243,7 @@ export class LLMGateway implements LLMProvider {
     const entry = this.providers.get(providerName);
 
     if (!entry) {
-      return { id: modelName ?? modelId, vision: false, think: false, tool: true, level: 'medium' };
+      return { id: modelName ?? modelId };
     }
 
     return entry.provider.getModelCapabilities(modelName ?? modelId);

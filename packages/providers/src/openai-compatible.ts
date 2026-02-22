@@ -20,13 +20,9 @@ export interface OpenAICompatibleConfig {
   defaultGenerationConfig?: GenerationConfig;
 }
 
-/** 默认模型能力 */
-const DEFAULT_CAPABILITIES: ModelConfig = {
+/** 默认模型配置 */
+const DEFAULT_MODEL_CONFIG: ModelConfig = {
   id: '',
-  vision: false,
-  think: false,
-  tool: true,
-  level: 'medium',
 };
 
 /** 默认生成配置 */
@@ -55,7 +51,6 @@ export class OpenAICompatibleProvider implements LLMProvider {
     config?: GenerationConfig
   ): Promise<LLMResponse> {
     const modelName = model ?? this.config.defaultModel;
-    const capabilities = this.getModelCapabilities(modelName);
     const genConfig = { ...this.generationConfig, ...config };
     
     const headers: Record<string, string> = {
@@ -87,12 +82,9 @@ export class OpenAICompatibleProvider implements LLMProvider {
       body.top_k = genConfig.topK;
     }
 
-    log.debug('tools 参数: {count} 个, 模型能力 tool: {tool}', { 
-      count: tools?.length ?? 0, 
-      tool: capabilities.tool 
-    });
-    
-    if (capabilities.tool && tools?.length) {
+    // 始终传递 tools 参数（如果有的话）
+    // 模型自行决定是否使用 function calling，不支持时会忽略并使用文本输出
+    if (tools?.length) {
       body.tools = tools;
       body.tool_choice = 'auto';
     }
@@ -123,7 +115,7 @@ export class OpenAICompatibleProvider implements LLMProvider {
   getModelCapabilities(modelId: string): ModelConfig {
     const found = this.modelConfigs.find(m => m.id === modelId);
     if (found) return found;
-    return { ...DEFAULT_CAPABILITIES, id: modelId };
+    return { ...DEFAULT_MODEL_CONFIG, id: modelId };
   }
 
   async listModels(): Promise<string[] | null> {
