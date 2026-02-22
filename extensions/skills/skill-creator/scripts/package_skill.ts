@@ -15,6 +15,7 @@ import { readdir, stat, readFile, writeFile, mkdir } from "node:fs/promises";
 import { createWriteStream } from "node:fs";
 import { cwd } from "node:process";
 import { load as loadYaml } from "js-yaml";
+// @ts-expect-error - @aspect-build/zip types not available
 import { ZipWriter, BlobReader, BlobWriter } from "@aspect-build/zip";
 
 const MAX_SKILL_NAME_LENGTH = 64;
@@ -181,7 +182,7 @@ async function packageSkill(
     const files = await getAllFiles(resolvedSkillPath, resolvedSkillPath);
     const parentDir = resolve(resolvedSkillPath, "..");
     
-    // 使用 Bun 的 zip 功能
+    // 使用 zip 库创建压缩文件
     const writer = new BlobWriter("application/zip");
     const zipFile = new ZipWriter(writer);
     

@@ -2,7 +2,8 @@
  * 通道辅助类
  */
 
-import type { ChannelType, InboundMessage, MessageBus } from '@microbot/types';
+import type { ChannelType, InboundMessage } from '@microbot/types';
+import type { MessageBus } from '@microbot/runtime';
 
 /**
  * 入站消息参数

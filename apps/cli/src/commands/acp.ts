@@ -74,20 +74,33 @@ export async function runACPCommand(config: ACPCommandConfig): Promise<void> {
   await server.start();
 }
 
+/** Yargs 命令定义类型 */
+interface YargsCommand {
+  command: string;
+  describe: string;
+  builder: (yargs: unknown) => unknown;
+  handler: (args: unknown) => Promise<void>;
+}
+
+/** Yargs 链式接口 */
+interface YargsLike {
+  option: (name: string, config: unknown) => YargsLike;
+}
+
 /**
  * ACP 命令定义
  */
-export const acpCommand = {
+export const acpCommand: YargsCommand = {
   command: 'acp',
   describe: '启动 ACP (Agent Client Protocol) 服务器',
-  builder: (yargs: any) => {
-    return yargs.option('cwd', {
+  builder: (yargs: unknown) => {
+    return (yargs as YargsLike).option('cwd', {
       describe: '工作目录',
       type: 'string',
       default: process.cwd(),
     });
   },
-  handler: async (args: any) => {
+  handler: async (args: unknown) => {
     console.log('ACP 命令需要 LLM Provider 和工具注册表配置');
     console.log('请通过程序化方式调用 runACPCommand');
   },

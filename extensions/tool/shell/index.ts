@@ -204,34 +204,3 @@ function splitCommand(cmd: string): string[] {
   if (current) parts.push(current);
   return parts;
 }
-
-/**
- * ExecTool 类（兼容旧代码）
- *
- * @deprecated 使用 createExecTool 代替
- */
-export class ExecTool implements Tool {
-  readonly name = 'exec';
-  readonly description = '执行命令或脚本';
-  readonly inputSchema: JSONSchema = {
-    type: 'object',
-    properties: {
-      command: { type: 'string', description: '命令' },
-      timeout: { type: 'number', description: '超时时间（毫秒）' },
-    },
-    required: ['command'],
-  };
-
-  private impl: Tool;
-
-  constructor(workingDir: string, defaultTimeout: number = 30000) {
-    this.impl = createExecTool(workingDir, defaultTimeout);
-  }
-
-  async execute(input: unknown, ctx: ToolContext) {
-    return this.impl.execute(input, ctx);
-  }
-}
-
-/** Shell 工具类数组 */
-export const shellTools: Tool[] = [];

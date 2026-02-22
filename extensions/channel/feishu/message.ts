@@ -1,7 +1,7 @@
 /**
  * 飞书消息解析
  */
-import type { lark } from '@larksuiteoapi/node-sdk';
+import { Client } from '@larksuiteoapi/node-sdk';
 import { getLogger } from '@logtape/logtape';
 import { getImageResource, getResourceUrl } from './resource';
 import type {
@@ -17,7 +17,7 @@ const log = getLogger(['feishu', 'message']);
  * 解析消息内容，提取文本和媒体资源
  */
 export async function parseMessageContent(
-  client: lark.Client,
+  client: Client,
   messageId: string,
   msgType: string,
   rawContent: string
@@ -100,12 +100,14 @@ function extractPostText(postContent: unknown): string {
   const texts: string[] = [];
 
   for (const block of blocks) {
-    const paragraphs = block.paragraph?.elements as Array<Record<string, unknown>> | undefined;
-    if (!paragraphs) continue;
+    const paragraph = block.paragraph as Record<string, unknown> | undefined;
+    const elements = paragraph?.elements as Array<Record<string, unknown>> | undefined;
+    if (!elements) continue;
 
-    for (const elem of paragraphs) {
-      if (elem.text_run?.content) {
-        texts.push(elem.text_run.content as string);
+    for (const elem of elements) {
+      const textRun = elem.text_run as Record<string, unknown> | undefined;
+      if (textRun?.content) {
+        texts.push(textRun.content as string);
       }
     }
   }

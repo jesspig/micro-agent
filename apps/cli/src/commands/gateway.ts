@@ -95,14 +95,28 @@ export async function runGatewayCommand(config: GatewayCommandConfig): Promise<v
   await server.close();
 }
 
+/** Yargs 命令定义类型 */
+interface YargsCommand {
+  command: string;
+  describe: string;
+  builder: (yargs: unknown) => unknown;
+  handler: (args: unknown) => Promise<void>;
+}
+
+/** Yargs 链式接口 */
+interface YargsLike {
+  option: (name: string, config: unknown) => YargsLike;
+}
+
 /**
  * Gateway 命令定义
  */
-export const gatewayCommand = {
+export const gatewayCommand: YargsCommand = {
   command: 'gateway',
   describe: '启动 HTTP Gateway 服务器（OpenAI 兼容 API）',
-  builder: (yargs: any) => {
-    return yargs
+  builder: (yargs: unknown) => {
+    const y = yargs as YargsLike;
+    return y
       .option('hostname', {
         describe: '监听地址',
         type: 'string',
@@ -118,7 +132,7 @@ export const gatewayCommand = {
         type: 'string',
       });
   },
-  handler: async (args: any) => {
+  handler: async (args: unknown) => {
     console.log('Gateway 命令需要 LLM Provider 和模型配置');
     console.log('请通过程序化方式调用 runGatewayCommand');
   },

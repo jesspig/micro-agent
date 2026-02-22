@@ -27,10 +27,10 @@ if (require.main === module) {
   if (args.includes('--unix')) {
     console.log('当前时间戳:', getCurrentUnix());
   } else {
-    const tsArg = args.find(a => a.startsWith('--timestamp=')?.split('=')[1] || args[args.indexOf('--timestamp') + 1]);
+    const tsIndex = args.indexOf('--timestamp');
+    const tsArg = tsIndex >= 0 ? args[tsIndex + 1] : args.find(a => a.startsWith('--timestamp='))?.split('=')[1];
     if (tsArg) {
-      const ts = tsArg.includes('=') ? tsArg.split('=')[1] : args[args.indexOf('--timestamp') + 1];
-      console.log(timestampToDate(Number(ts)));
+      console.log(timestampToDate(Number(tsArg)));
     } else {
       console.log('当前时间戳:', getCurrentUnix());
     }

@@ -4,7 +4,7 @@
 
 import type { OutboundMessage, InboundMessage, ChannelType, Channel } from '@microbot/types';
 import type { MessageBus } from '@microbot/runtime';
-import * as lark from '@larksuiteoapi/node-sdk';
+import { Client, WSClient, EventDispatcher, LoggerLevel, messageCard } from '@larksuiteoapi/node-sdk';
 import { getLogger } from '@logtape/logtape';
 import type { FeishuConfig, FeishuMessageData } from './types';
 import { parseMessageContent } from './message';
@@ -20,9 +20,9 @@ export class FeishuChannel implements Channel {
   /** 通道类型 */
   readonly name: ChannelType = 'feishu';
   /** Lark 客户端 */
-  private client: lark.Client | null = null;
+  private client: Client | null = null;
   /** WebSocket 客户端 */
-  private wsClient: lark.WSClient | null = null;
+  private wsClient: WSClient | null = null;
   /** 已处理消息 ID 集合 */
   private processedMessageIds = new Set<string>();
   /** 最大已处理 ID 数量 */
@@ -55,17 +55,17 @@ export class FeishuChannel implements Channel {
       appSecret: this.config.appSecret,
     };
 
-    this.client = new lark.Client(baseConfig);
+    this.client = new Client(baseConfig);
 
-    const eventDispatcher = new lark.EventDispatcher({}).register({
+    const eventDispatcher = new EventDispatcher({}).register({
       'im.message.receive_v1': async (data: unknown) => {
         await this.handleMessage(data as FeishuMessageData);
       },
     });
 
-    this.wsClient = new lark.WSClient({
+    this.wsClient = new WSClient({
       ...baseConfig,
-      loggerLevel: lark.LoggerLevel.error,
+      loggerLevel: LoggerLevel.error,
     });
 
     this.wsClient.start({ eventDispatcher });
@@ -95,7 +95,7 @@ export class FeishuChannel implements Channel {
     }
 
     const receiveIdType = msg.chatId.startsWith('ou_') ? 'open_id' : 'chat_id';
-    const content = lark.messageCard.defaultCard({
+    const content = messageCard.defaultCard({
       title: '',
       content: msg.content,
     });
