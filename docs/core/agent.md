@@ -11,7 +11,7 @@ Agent 实现了 ReAct（Reasoning + Acting）模式，是系统的核心智能�
 ```mermaid
 flowchart LR
     Start([用户消息]) --> Context[构建上下文]
-    Context --> Route[智能路由]
+    Context --> Route[任务类型识别]
     Route --> React[ReAct循环]
     React --> Save[保存会话]
     Save --> End([返回响应])
@@ -29,14 +29,14 @@ flowchart TB
     end
 ```
 
-### 智能路由
+### 任务类型识别
 
 ```mermaid
 flowchart LR
-    subgraph Router[路由选择]
+    subgraph Router[任务类型路由]
         direction LR
-        R1[意图分析] --> R2[复杂度评估]
-        R2 --> R3[模型选择]
+        R1[图片识别] --> R2[代码编写]
+        R2 --> R3[常规对话]
     end
 ```
 
@@ -59,15 +59,14 @@ flowchart TB
 interface AgentConfig {
   workspace: string;
   models?: {
-    chat: string;
-    check?: string;
+    chat: string;      // 常规对话模型（默认）
+    vision?: string;   // 图片识别模型（默认使用 chat）
+    coder?: string;    // 编程模型（默认使用 chat）
+    intent?: string;   // 意图识别模型（默认使用 chat）
   };
   maxIterations: number;
   generation?: GenerationConfig;
-  auto?: boolean;
-  max?: boolean;
   availableModels?: Map<string, ModelConfig[]>;
-  routing?: RoutingConfig;
 }
 ```
 
@@ -80,16 +79,16 @@ Agent 使用 ContextBuilder 构建 LLM 上下文：
 3. 获取会话历史
 4. 合并系统提示
 
-## 智能路由
+## 任务类型路由
 
-根据任务复杂度自动选择模型：
+Agent 通过意图识别判断任务类型，选择对应模型：
 
-- **fast**: 简单问候、感谢
-- **low**: 翻译、格式化
-- **medium**: 常规对话、修改
-- **high**: 调试、分析
-- **ultra**: 架构设计、重构
+| 任务类型 | 触发条件 | 使用模型 |
+|----------|----------|----------|
+| 图片识别 | 用户消息包含图片或请求识别图片 | models.vision（默认 chat）|
+| 代码编写 | 用户请求编写、调试、修复代码 | models.coder（默认 chat）|
+| 常规对话 | 其他所有情况 | models.chat |
 
 ## 源码位置
 
-`packages/core/src/agent/`
+`packages/runtime/src/executor/`

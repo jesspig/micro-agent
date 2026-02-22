@@ -18,7 +18,6 @@ import {
   MessageBus,
   SessionStore,
   AgentExecutor,
-  createSkillTools,
 } from '@microbot/sdk';
 import {
   ReadFileTool,
@@ -202,9 +201,6 @@ class AppImpl implements App {
     if (this.skillsLoader.count > 0) {
       const skillNames = this.skillsLoader.getAll().map(s => s.name).join(', ');
       console.log(`  已加载 ${this.skillsLoader.count} 个技能: ${skillNames}`);
-      
-      // 3.1 注册技能工具
-      this.registerSkillTools();
     } else {
       console.log('  未找到任何技能');
     }
@@ -229,15 +225,14 @@ class AppImpl implements App {
         maxTokens: this.config.agents.maxTokens ?? 8192,
         temperature: this.config.agents.temperature ?? 0.7,
         systemPrompt: this.loadSystemPrompt(),
-        auto: this.config.agents.auto ?? false,
-        max: this.config.agents.max ?? false,
         chatModel: this.config.agents.models?.chat,
+        visionModel: this.config.agents.models?.vision,
+        coderModel: this.config.agents.models?.coder,
         intentModel: this.config.agents.models?.intent,
         availableModels: this.availableModels,
-        routing: this.config.routing,
         buildIntentPrompt: buildIntentSystemPrompt,
         buildUserPrompt: buildIntentUserPrompt,
-        buildReActPrompt: buildReActSystemPrompt,
+        buildReActPrompt: (tools) => buildReActSystemPrompt(tools, this.buildSkillsPrompt()),
         buildObservation: buildObservationMessage,
       }
     );
@@ -251,25 +246,31 @@ class AppImpl implements App {
     // 加载基础提示词（SOUL.md + USER.md + AGENTS.md）
     const basePrompt = loadSystemPromptFromUserConfig(this.workspace);
 
-    // 构建技能部分
     const parts: string[] = [];
 
-    // Always 技能
+    // 1. Always 技能（Level 2 直接注入）
     if (this.skillsLoader && this.skillsLoader.count > 0) {
-      const alwaysSkills = this.skillsLoader.getAlwaysSkills();
-      if (alwaysSkills.length > 0) {
-        const alwaysContent = alwaysSkills.map(skill => {
-          const content = skill.content.replace(/<skill-dir>/g, skill.skillPath);
-          return `### ${skill.name}\n${skill.description}\n\n**目录:** ${skill.skillPath}\n\n${content}`;
-        }).join('\n\n---\n\n');
-        parts.push(`# 自动加载技能\n\n以下技能已自动加载到上下文中：\n\n${alwaysContent}`);
+      const alwaysContent = this.skillsLoader.buildAlwaysSkillsContent();
+      if (alwaysContent) {
+        parts.push(alwaysContent);
       }
     }
 
-    // 可用技能摘要
+    // 2. 可用技能摘要（Level 1 渐进式加载）
     if (this.skillsLoader && this.skillsLoader.count > 0) {
       const skillsSummary = this.skillsLoader.buildSkillsSummary();
-      parts.push(`# 技能\n\n以下技能可以扩展你的能力：\n\n${skillsSummary}`);
+      if (skillsSummary) {
+        parts.push(`# 技能
+
+以下技能可以扩展你的能力。
+
+**使用规则：**
+1. 当用户请求与某个技能的 description 关键词匹配时（如"创建XX技能"、"获取天气"等），必须先使用 \`read_file\` 读取该技能的完整内容
+2. 读取 location 路径下的 SKILL.md 文件
+3. 按照 SKILL.md 中的指导执行操作，而不是直接写代码
+
+${skillsSummary}`);
+      }
     }
 
     if (parts.length > 0) {
@@ -277,6 +278,44 @@ class AppImpl implements App {
     }
 
     return basePrompt;
+  }
+
+  /**
+   * 构建 ReAct 循环中使用的 Skills Prompt
+   */
+  private buildSkillsPrompt(): string {
+    if (!this.skillsLoader || this.skillsLoader.count === 0) {
+      return '';
+    }
+
+    const parts: string[] = [];
+
+    // Always 技能（Level 2 直接注入）
+    const alwaysContent = this.skillsLoader.buildAlwaysSkillsContent();
+    if (alwaysContent) {
+      parts.push(alwaysContent);
+    }
+
+    // 可用技能摘要（Level 1 渐进式加载）
+    const skillsSummary = this.skillsLoader.buildSkillsSummary();
+    if (skillsSummary) {
+      parts.push(`# 技能
+
+以下技能可以扩展你的能力。
+
+**使用规则：**
+1. 当用户请求与某个技能的 description 关键词匹配时（如"创建XX技能"、"获取天气"等），必须先使用 \`read_file\` 读取该技能的完整内容
+2. 读取 location 路径下的 SKILL.md 文件
+3. 按照 SKILL.md 中的指导执行操作，而不是直接写代码
+
+${skillsSummary}`);
+    }
+
+    if (parts.length === 0) {
+      return '';
+    }
+
+    return parts.join('\n\n---\n\n');
   }
 
   private registerBuiltinTools(): void {
@@ -287,25 +326,6 @@ class AppImpl implements App {
     this.toolRegistry.register(WebFetchTool);
     this.toolRegistry.register(MessageTool);
     console.log(`  已注册 ${this.toolRegistry.getDefinitions().length} 个基础工具: ${this.toolRegistry.getDefinitions().map(t => t.name).join(', ')}`);
-  }
-
-  private registerSkillTools(): void {
-    if (!this.skillsLoader || this.skillsLoader.count === 0) return;
-
-    const skillTools = createSkillTools(this.skillsLoader.getAll());
-    let registered = 0;
-    for (const tool of skillTools) {
-      try {
-        this.toolRegistry.register(tool);
-        registered++;
-      } catch {
-        // 工具名称冲突时跳过
-        console.warn(`  技能工具 ${tool.name} 已存在，跳过注册`);
-      }
-    }
-    if (registered > 0) {
-      console.log(`  已注册 ${registered} 个技能工具: ${skillTools.map(t => t.name).join(', ')}`);
-    }
   }
 
   private startOutboundConsumer(): void {
@@ -345,11 +365,11 @@ class AppImpl implements App {
     return this.gateway.getDefaultModel();
   }
 
-  getRouterStatus(): { auto: boolean; max: boolean; chatModel: string; intentModel?: string } {
+  getRouterStatus(): { chatModel: string; visionModel?: string; coderModel?: string; intentModel?: string } {
     return {
-      auto: this.config.agents.auto ?? false,
-      max: this.config.agents.max ?? false,
       chatModel: this.config.agents.models?.chat || '未配置',
+      visionModel: this.config.agents.models?.vision,
+      coderModel: this.config.agents.models?.coder,
       intentModel: this.config.agents.models?.intent,
     };
   }
@@ -365,8 +385,8 @@ class AppImpl implements App {
     for (const [name, config] of Object.entries(providers)) {
       if (!config) continue;
 
-      const modelConfigs = config.models ? parseModelConfigs(config.models) : [];
-      const modelIds = modelConfigs.map(m => m.id);
+      const modelIds = config.models ?? [];
+      const modelConfigs = parseModelConfigs(modelIds);
 
       if (modelConfigs.length > 0) {
         this.availableModels.set(name, modelConfigs);

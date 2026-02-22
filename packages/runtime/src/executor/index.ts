@@ -6,9 +6,9 @@
  */
 
 import type { InboundMessage, OutboundMessage, ToolContext } from '@microbot/types';
-import type { LLMGateway, LLMMessage, GenerationConfig, MessageContent, IntentPromptBuilder, UserPromptBuilder } from '@microbot/providers';
+import type { LLMGateway, LLMMessage, GenerationConfig, MessageContent, IntentPromptBuilder, UserPromptBuilder, TaskTypeResult } from '@microbot/providers';
 import type { MessageBus } from '../bus/queue';
-import type { ModelConfig, RoutingConfig } from '@microbot/config';
+import type { ModelConfig } from '@microbot/config';
 import { ModelRouter, convertToPlainText, buildUserContent, type RouteResult } from '@microbot/providers';
 import { parseReActResponse, ReActActionToTool } from '../react-types';
 import { getLogger } from '@logtape/logtape';
@@ -47,18 +47,16 @@ export interface AgentExecutorConfig {
   temperature: number;
   /** 系统提示词 */
   systemPrompt?: string;
-  /** 自动路由 */
-  auto?: boolean;
-  /** 性能优先模式 */
-  max?: boolean;
   /** 对话模型 */
   chatModel?: string;
+  /** 视觉模型，用于图片识别任务 */
+  visionModel?: string;
+  /** 编程模型，用于代码编写任务 */
+  coderModel?: string;
   /** 意图识别模型（不会被路由，始终固定） */
   intentModel?: string;
   /** 可用模型列表 */
   availableModels?: Map<string, ModelConfig[]>;
-  /** 路由配置 */
-  routing?: RoutingConfig;
   /** 意图识别 System Prompt 构建函数 */
   buildIntentPrompt?: IntentPromptBuilder;
   /** 用户 Prompt 构建函数 */
@@ -74,8 +72,6 @@ const DEFAULT_CONFIG: AgentExecutorConfig = {
   maxIterations: 20,
   maxTokens: 8192,
   temperature: 0.7,
-  auto: true,
-  max: false,
 };
 
 /** 默认 Observation 构建函数 */
@@ -102,11 +98,10 @@ export class AgentExecutor {
   ) {
     this.router = new ModelRouter({
       chatModel: config.chatModel || '',
+      visionModel: config.visionModel,
+      coderModel: config.coderModel,
       intentModel: config.intentModel,
-      auto: config.auto ?? true,
-      max: config.max ?? false,
       models: config.availableModels ?? new Map(),
-      routing: config.routing,
       buildIntentPrompt: config.buildIntentPrompt,
       buildUserPrompt: config.buildUserPrompt,
     });
@@ -131,8 +126,6 @@ export class AgentExecutor {
       maxIterations: this.config.maxIterations,
       maxTokens: this.config.maxTokens,
       temperature: this.config.temperature,
-      auto: this.config.auto,
-      max: this.config.max,
     });
 
     while (this.running) {
@@ -228,14 +221,21 @@ export class AgentExecutor {
     let iteration = 0;
     const toolDefs = this.getToolDefinitions();
     const reactSystemPrompt = this.buildReActPrompt(toolDefs);
+    
+    // 缓存第一次迭代选择的模型
+    let cachedRouteResult: RouteResult | null = null;
 
     while (iteration < this.config.maxIterations) {
       iteration++;
 
-      const routeResult = await this.selectModel(messages, msg.media, iteration);
+      const routeResult = cachedRouteResult ?? await this.selectModel(messages, msg.media);
+      // 第一次迭代后缓存模型选择结果
+      if (iteration === 1) {
+        cachedRouteResult = routeResult;
+      }
       const generationConfig = this.mergeGenerationConfig(routeResult.config);
 
-      const processedMessages = routeResult.config.vision
+      const processedMessages = routeResult.isVision
         ? messages
         : convertToPlainText(messages);
 
@@ -250,7 +250,7 @@ export class AgentExecutor {
 
       log.debug('路由详情', {
         provider: routeResult.config.id,
-        vision: routeResult.config.vision,
+        isVision: routeResult.isVision,
         iteration,
       });
 
@@ -414,20 +414,15 @@ export class AgentExecutor {
   }
 
   /**
-   * 选择模型
+   * 选择模型（仅第一次迭代调用）
    */
   private async selectModel(
     messages: LLMMessage[],
-    media: string[] | undefined,
-    iteration: number
+    media: string[] | undefined
   ): Promise<RouteResult> {
-    if (iteration === 1 && this.config.auto) {
-      const intent = await this.router.analyzeIntent(messages, media);
-      log.info('🎯 意图识别', { model: intent.model, reason: intent.reason });
-      return this.router.selectModelByIntent(intent);
-    }
-
-    return this.router.route(messages, iteration === 1 ? media : undefined);
+    const taskType = await this.router.analyzeTaskType(messages, media);
+    log.info('🎯 任务类型识别', { type: taskType.type, reason: taskType.reason });
+    return this.router.selectByTaskType(taskType.type);
   }
 
   /**

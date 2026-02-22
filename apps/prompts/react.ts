@@ -31,11 +31,20 @@ export interface ToolDefinition {
 
 /**
  * 构建 ReAct 系统提示词
+ * @param tools 工具定义列表
+ * @param skillsPrompt 可选的 skills prompt（包含 skills 摘要和使用规则）
  */
-export function buildReActSystemPrompt(tools: ToolDefinition[]): string {
+export function buildReActSystemPrompt(tools: ToolDefinition[], skillsPrompt?: string): string {
   const template = loadTemplate();
   const toolList = tools.map(t => '- `' + t.name + '`: ' + t.description).join('\n');
-  return template.replace('{{toolList}}', toolList);
+  let result = template.replace('{{toolList}}', toolList);
+
+  // 注入 skills 信息（如果有）
+  if (skillsPrompt?.trim()) {
+    result += '\n\n---\n\n' + skillsPrompt.trim();
+  }
+
+  return result;
 }
 
 /**

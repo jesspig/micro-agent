@@ -112,7 +112,7 @@ flowchart LR
 ```mermaid
 flowchart TD
     subgraph 思考
-        T1[分析意图] --> T2[评估复杂度]
+        T1[分析意图] --> T2[识别任务类型]
         T2 --> T3[选择模型]
     end
     

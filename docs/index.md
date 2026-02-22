@@ -21,7 +21,7 @@ features:
   - title: 本地优先
     details: 默认本地存储，保护用户隐私
   - title: 智能路由
-    details: 根据任务复杂度自动选择合适的模型
+    details: 根据任务类型自动选择合适的模型
 ---
 
 ## 项目简介

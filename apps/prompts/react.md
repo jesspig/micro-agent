@@ -20,10 +20,16 @@
 ```json
 {
   "thought": "你的思考过程",
-  "action": "工具名称或finish",
-  "action_input": "工具参数或最终答案"
+  "action": "工具名称（必须是字符串，如 read_file、write_file、finish 等）",
+  "action_input": "工具参数（字符串）或最终答案"
 }
 ```
+
+**重要约束：**
+- `action` 必须是字符串类型，不能是对象
+- 错误示例：`{"action": {"type": "read_file", "path": "xxx"}}` ❌
+- 正确示例：`{"action": "read_file", "action_input": "xxx"}` ✅
+- `action_input` 是字符串时直接写字符串，是对象时写对象
 
 ## 动作类型
 

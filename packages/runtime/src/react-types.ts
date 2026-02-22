@@ -2,7 +2,7 @@
  * ReAct 类型定义和解析器
  */
 
-import { z } from 'zod';
+import { z, ZodError } from 'zod';
 
 /**
  * 预定义的 ReAct 动作类型
@@ -102,7 +102,15 @@ const ActionAliases: Record<string, string> = {
  * 
  * 支持预定义动作和动态工具名称
  */
+const MAX_RESPONSE_LENGTH = 10000; // 最大响应长度，超过则拒绝处理
+
 export function parseReActResponse(content: string): ReActResponse | null {
+  // 检查响应长度，防止 LLM 输出异常（大量重复文本）
+  if (content.length > MAX_RESPONSE_LENGTH) {
+    logDebug('响应过长，跳过解析', { length: content.length, preview: content.slice(0, 200) });
+    return null;
+  }
+
   // 尝试提取 JSON（可能被 markdown 代码块包裹）
   let jsonStr: string | null = null;
 
@@ -133,21 +141,62 @@ export function parseReActResponse(content: string): ReActResponse | null {
       return null;
     }
     
-    // 将动作别名映射到标准动作，或保留原始动作名（动态工具）
-    const originalAction = String(parsed.action).toLowerCase().trim();
-    const normalizedAction = ActionAliases[originalAction] ?? originalAction;
+    // 处理 action 字段异常格式
+    let normalizedAction: string;
+    const originalAction = parsed.action;
+    
+    // 如果 action 是对象（如 {"type": "read_file", "path": {...}}），提取 type
+    if (typeof originalAction === 'object' && originalAction !== null && 'type' in originalAction) {
+      normalizedAction = String((originalAction as Record<string, unknown>).type).toLowerCase().trim();
+    } else if (typeof originalAction === 'string') {
+      const actionStr = originalAction.toLowerCase().trim();
+      // 如果是空字符串，尝试从 thought 推断
+      if (!actionStr) {
+        logDebug('action 为空，尝试从 thought 推断', parsed);
+        // 简单推断：如果 thought 包含关键词
+        const thought = (parsed.thought || '').toLowerCase();
+        if (thought.includes('read') || thought.includes('读取')) {
+          normalizedAction = 'read_file';
+        } else if (thought.includes('write') || thought.includes('写入') || thought.includes('创建')) {
+          normalizedAction = 'write_file';
+        } else if (thought.includes('shell') || thought.includes('命令') || thought.includes('执行')) {
+          normalizedAction = 'shell_exec';
+        } else if (thought.includes('finish') || thought.includes('完成') || thought.includes('回复')) {
+          normalizedAction = 'finish';
+        } else {
+          logDebug('无法推断 action', parsed);
+          return null;
+        }
+      } else {
+        normalizedAction = actionStr;
+      }
+    } else {
+      logDebug('action 字段类型异常', typeof originalAction);
+      return null;
+    }
+    
+    // 映射到标准动作
+    const finalAction = ActionAliases[normalizedAction] ?? normalizedAction;
+    
+    // 处理 action_input 异常格式
+    let normalizedInput: string | Record<string, unknown> | null = parsed.action_input ?? null;
+    
+    // 如果 action_input 是对象且包含 value 字段（如 {value: "路径"}），提取 value
+    if (typeof normalizedInput === 'object' && normalizedInput !== null && 'value' in normalizedInput) {
+      normalizedInput = (normalizedInput as Record<string, unknown>).value as string;
+    }
     
     const normalized = {
       thought: parsed.thought,
-      action: normalizedAction,
-      action_input: parsed.action_input ?? null,
+      action: finalAction,
+      action_input: normalizedInput,
     };
     
     const result = ReActResponseSchema.safeParse(normalized);
     if (result.success) {
       return result.data;
     }
-    logDebug('ReAct 解析失败', result.error.errors);
+    logDebug('ReAct 解析失败', result.error);
   } catch (e) {
     logDebug('JSON 解析失败', e);
   }

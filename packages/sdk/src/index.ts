@@ -40,10 +40,7 @@ export {
   loadTemplateFile,
   loadAllTemplateFiles,
   ConfigSchema,
-  DEFAULT_ROUTING_RULES,
-  DEFAULT_ROUTING_CONFIG,
   parseModelConfigs,
-  getModelCapabilities,
 } from '@microbot/config';
 
 // 注意：ModelConfig 从 @microbot/config 导出（有必填字段）
@@ -56,10 +53,7 @@ export {
   OpenAICompatibleProvider,
   LLMGateway,
   ModelRouter,
-  calculateComplexity,
-  complexityToLevel,
   hasImageMedia,
-  matchRule,
   parseOpenAIResponse,
   toOpenAIMessages,
 } from '@microbot/providers';
@@ -70,8 +64,8 @@ export type {
   GatewayConfig,
   ModelRouterConfig,
   RouteResult,
-  ComplexityScore,
-  IntentResult,
+  TaskTypeResult,
+  TaskType,
   ModelInfo,
   IntentPromptBuilder,
   UserPromptBuilder,

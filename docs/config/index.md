@@ -7,39 +7,35 @@
 ## 完整配置示例
 
 ```yaml
-# 代理/模型配置
+# Agent 配置
 agents:
+  # 工作区路径
   workspace: ~/.microbot/workspace
+  
+  # 模型配置（格式：<provider>/<model>）
   models:
-    chat: deepseek-chat
-    check: deepseek-chat
-  maxTokens: 8192
+    chat: deepseek/deepseek-chat      # 对话模型（必填）
+    vision: deepseek/deepseek-chat    # 视觉模型（可选）
+    coder: deepseek/deepseek-chat     # 编程模型（可选）
+  
+  # 生成参数
+  maxTokens: 512
   temperature: 0.7
-  topK: 50
-  topP: 0.7
-  frequencyPenalty: 0.5
-  maxToolIterations: 20
-  auto: true
-  max: false
 
 # LLM 提供商
 providers:
+  deepseek:
+    baseUrl: https://api.deepseek.com/v1
+    apiKey: ${DEEPSEEK_API_KEY}
+    models:
+      - deepseek-chat
+      - deepseek-reasoner
+  
   ollama:
     baseUrl: http://localhost:11434/v1
     models:
-      - deepseek-chat
-      - qwen2.5-coder
-  
-  openai:
-    baseUrl: https://api.deepseek.com/v1
-    apiKey: ${OPENAI_API_KEY}
-    models:
-      - id: deepseek-chat
-        level: medium
-        tool: true
-      - id: deepseek-reasoner
-        level: ultra
-        think: true
+      - qwen3
+      - qwen3-vl
 
 # 通道配置
 channels:
@@ -47,19 +43,10 @@ channels:
     enabled: true
     appId: xxx
     appSecret: xxx
-    allowFrom: []  # 允许所有人，或填入用户 ID 列表
+    allowFrom: []  # 允许所有人
 ```
 
 详细的飞书配置步骤请参考 [通道扩展 - 飞书通道](/extensions/channels#飞书通道)。
-
-# 路由配置
-routing:
-  enabled: true
-  rules:
-    - keywords: [架构, architecture]
-      level: ultra
-      priority: 10
-```
 
 ## 环境变量
 
@@ -67,16 +54,27 @@ routing:
 
 ```yaml
 providers:
-  openai:
-    apiKey: ${OPENAI_API_KEY}
+  deepseek:
+    apiKey: ${DEEPSEEK_API_KEY}
 ```
 
-## 模型级别
+## 任务类型
 
-| 级别 | 说明 | 适用场景 |
+| 类型 | 说明 | 模型配置 |
 |------|------|----------|
-| fast | 最快响应 | 简单问答 |
-| low | 低性能 | 简单任务 |
-| medium | 中等性能 | 一般对话 |
-| high | 高性能 | 复杂任务 |
-| ultra | 最高性能 | 架构设计、重构 |
+| chat | 常规对话、问答 | `agents.models.chat` |
+| vision | 图片识别、图像理解 | `agents.models.vision` |
+| coder | 代码编写、程序开发 | `agents.models.coder` |
+
+未配置专用模型时，默认使用 chat 模型。
+
+## 生成参数
+
+| 参数 | 范围 | 默认值 | 说明 |
+|------|------|--------|------|
+| maxTokens | 1-8192 | 512 | 最大生成长度 |
+| temperature | 0-1.5 | 0.7 | 温度，越低越确定 |
+| topK | - | 50 | Top-K 采样 |
+| topP | - | 0.7 | Top-P 核采样 |
+| frequencyPenalty | 0-2 | 0.5 | 频率惩罚 |
+| maxToolIterations | - | 20 | 工具调用最大迭代次数 |

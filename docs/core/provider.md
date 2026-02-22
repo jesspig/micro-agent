@@ -4,43 +4,22 @@
 
 Provider 抽象了 LLM 调用接口，支持 OpenAI 兼容的各种后端。
 
-## 智能路由流程
+## 任务类型路由
 
-```mermaid
-flowchart TD
-    Start([收到消息]) --> Analyze{意图分析}
-    
-    subgraph Intent[意图分析]
-        I1[提取关键词] --> I2[计算长度分数]
-        I2 --> I3[检测代码块]
-        I3 --> I4[评估复杂度]
-    end
-    
-    Analyze --> Match{匹配规则?}
-    
-    subgraph Rules[规则匹配]
-        R1[关键词匹配] --> R2[优先级排序]
-        R2 --> R3[返回级别]
-    end
-    
-    Match -->|匹配| Select[选择模型级别]
-    Match -->|不匹配| Default[默认 medium]
-    
-    Select --> Load[加载对应模型]
-    Default --> Load
-    Load --> Call[调用 LLM]
-    Call --> End([返回响应])
-```
+基于任务类型选择模型：
 
-### 模型级别选择
+| 类型 | 适用场景 | 模型配置 |
+|------|----------|----------|
+| vision | 图片识别、图像理解 | `agents.models.vision` |
+| coder | 代码编写、程序开发 | `agents.models.coder` |
+| chat | 常规对话、问答 | `agents.models.chat` |
 
-| 级别 | 关键词 | 适用场景 |
-|------|--------|----------|
-| fast | 你好、谢谢、再见 | 简单问候 |
-| low | 翻译、格式化 | 简单任务 |
-| medium | 解释、修改、比较 | 常规对话 |
-| high | 实现、调试、分析 | 复杂任务 |
-| ultra | 架构、重构、优化 | 专家级任务 |
+### 路由流程
+
+1. **图片检测**：检测消息中是否包含图片
+2. **意图识别**：通过 LLM 判断任务类型
+3. **模型选择**：根据任务类型选择对应模型
+4. **回退机制**：未配置专用模型时使用 chat 模型
 
 ## 接口定义
 
@@ -98,7 +77,6 @@ interface LLMResponse {
   hasToolCalls: boolean;
   usedProvider?: string;
   usedModel?: string;
-  usedLevel?: string;
 }
 ```
 

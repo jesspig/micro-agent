@@ -74,20 +74,18 @@ async function startService(configPath?: string): Promise<void> {
   const baseConfig = loadConfig(configPath ? { configPath } : {});
   const configStatus = getConfigStatus(baseConfig);
 
-  if (configStatus.needsSetup) {
+  // 显示缺失项警告（但不阻止启动）
+  if (configStatus.missingRequired.length > 0) {
     console.log();
-    console.log('\x1b[33m  ⚠ 未检测到用户配置\x1b[0m');
+    console.log('\x1b[33m  ⚠ 配置不完整\x1b[0m');
     console.log();
-    console.log('  请编辑 ~/.microbot/settings.yaml 配置：');
-    console.log('    1. 在 providers 中添加模型提供商');
-    console.log('    2. 在 channels 中启用消息通道');
+    console.log('  缺少必填项：');
+    for (const item of configStatus.missingRequired) {
+      console.log(`    \x1b[31m✗\x1b[0m ${item}`);
+    }
     console.log();
-    console.log('  示例配置：');
-    console.log('    \x1b[2mproviders:\x1b[0m');
-    console.log('    \x1b[2m  ollama:\x1b[2m');
-    console.log('    \x1b[2m    baseUrl: http://localhost:11434/v1\x1b[0m');
-    console.log('    \x1b[2m    models: [qwen3]\x1b[0m');
-    console.log();
+    console.log('  请编辑 \x1b[36m~/.microbot/settings.yaml\x1b[0m 完成配置后重启');
+    console.log('─'.repeat(50));
   }
 
   const app = await createApp(configPath);
@@ -120,12 +118,12 @@ async function startService(configPath?: string): Promise<void> {
     const routerStatus = app.getRouterStatus();
     console.log('─'.repeat(50));
     console.log(`  \x1b[2m通道:\x1b[0m ${app.getRunningChannels().join(', ') || '无'}`);
-    console.log(`  \x1b[2m模型:\x1b[0m ${routerStatus.chatModel}`);
-    if (routerStatus.auto) {
-      const mode = routerStatus.max ? '性能优先' : '速度优先';
-      console.log(`  \x1b[2m路由:\x1b[0m 自动 (${mode})`);
-    } else {
-      console.log(`  \x1b[2m路由:\x1b[0m 固定`);
+    console.log(`  \x1b[2m对话模型:\x1b[0m ${routerStatus.chatModel}`);
+    if (routerStatus.visionModel) {
+      console.log(`  \x1b[2m视觉模型:\x1b[0m ${routerStatus.visionModel}`);
+    }
+    if (routerStatus.coderModel) {
+      console.log(`  \x1b[2m编程模型:\x1b[0m ${routerStatus.coderModel}`);
     }
     console.log();
     console.log('按 Ctrl+C 停止');
@@ -151,25 +149,28 @@ export async function runCli(argv: string[] = process.argv.slice(2)): Promise<vo
     strict: false,
   });
 
-  const { help, version, config, verbose } = parsed.values;
-  const positionals = parsed.positionals;
+  const helpVal = parsed.values.help as boolean | undefined;
+  const versionVal = parsed.values.version as boolean | undefined;
+  const configVal = parsed.values.config as string | undefined;
+  const verboseVal = parsed.values.verbose as boolean | undefined;
+  const { positionals } = parsed;
 
   // 初始化日志（必须在所有日志调用之前）
-  await initLogger({ verbose });
+  await initLogger({ verbose: verboseVal });
 
   // 全局选项
-  if (help && positionals.length === 0) {
+  if (helpVal && positionals.length === 0) {
     showHelp();
     return;
   }
 
-  if (version) {
+  if (versionVal) {
     showVersion();
     return;
   }
 
   const command = positionals[0];
-  const configPath = typeof config === 'string' ? config : undefined;
+  const configPath = typeof configVal === 'string' ? configVal : undefined;
 
   switch (command) {
     case 'start':
