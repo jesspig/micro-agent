@@ -8,15 +8,18 @@
 sequenceDiagram
     participant User as 用户
     participant Channel as 通道
+    participant Gateway as ChannelGateway
     participant Bus as 消息总线
     participant Agent as Agent
 
     User->>Channel: 发送消息
-    Channel->>Bus: 发布入站消息
+    Channel->>Gateway: 提交消息
+    Gateway->>Bus: 发布入站消息
     Bus->>Agent: 消费消息
     Agent->>Agent: 处理
     Agent->>Bus: 发布出站消息
-    Bus->>Channel: 发送回复
+    Bus->>Gateway: 广播响应
+    Gateway->>Channel: 分发回复
     Channel-->>User: 收到回复
 ```
 
@@ -265,8 +268,8 @@ agents:
 class MyChannel implements Channel {
   readonly name = 'my-channel';
   
-  constructor(private eventBus: EventBus) {
-    this.eventBus.on('message:outbound', this.send.bind(this));
+  constructor(private messageBus: MessageBus) {
+    this.messageBus.on('outbound', this.send.bind(this));
   }
   
   async start(): Promise<void> {

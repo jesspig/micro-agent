@@ -12,6 +12,7 @@ MicroBot 采用 9 层 Monorepo 架构，核心功能分布在多个模块中。
 | [Memory](memory) | `packages/runtime/` | 记忆系统 |
 | [Tool](tool) | `packages/types/` + `packages/sdk/` | 工具系统 |
 | [Channel](channel) | `packages/server/` | 消息通道 |
+| [ChannelGateway](channel) | `packages/runtime/src/gateway/` | 消息处理枢纽，负责消息聚合和响应广播 |
 | [Storage](storage) | `packages/storage/` | 存储层 |
 | [Skill](skill) | `packages/extension-system/` | 技能系统 |
 

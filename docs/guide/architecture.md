@@ -101,24 +101,32 @@ graph TB
     Channels --> Agent
 ```
 
+### 运行时架构
+
+```
+App
+  └── ChannelGatewayImpl (消息处理枢纽)
+        ├── executor: AgentExecutor
+        └── getChannels: () => Channel[]
+```
+
 ### 消息流向
 
 ```mermaid
 sequenceDiagram
-    participant User as 用户
-    participant Channel as 通道
-    participant EventBus as 事件总线
-    participant Agent as Agent
-    participant Provider as LLM
+    participant C as Channel
+    participant M as MessageBus
+    participant G as ChannelGateway
+    participant E as AgentExecutor
+    participant L as LLM
     
-    User->>Channel: 发送消息
-    Channel->>EventBus: publishInbound
-    EventBus->>Agent: consume
-    Agent->>Provider: chat
-    Provider-->>Agent: response
-    Agent->>EventBus: publishOutbound
-    EventBus->>Channel: send
-    Channel-->>User: 返回响应
+    C->>M: publishInbound()
+    M->>G: consumeInbound()
+    G->>E: processMessage()
+    E->>L: generate()
+    L-->>E: response
+    E-->>G: response
+    G->>C: broadcast() to all Channels
 ```
 
 ### 扩展机制
@@ -155,6 +163,14 @@ packages/
 ├── extension-system/   # L3: 扩展发现、加载、热重载
 └── server/             # L4: 服务层（Channel、Queue、Events）
 ```
+
+### 核心模块说明
+
+| 模块 | 位置 | 职责 |
+|------|------|------|
+| ChannelGateway | `packages/runtime/src/gateway/` | 消息聚合处理、响应广播、自动重连 |
+| AgentExecutor | `packages/runtime/src/executor/` | Agent 执行引擎、工具调用编排 |
+| MessageBus | `packages/runtime/src/message/` | 消息队列、入站/出站消息分发 |
 
 ## 扩展机制
 
