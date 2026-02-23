@@ -1,0 +1,34 @@
+{
+  "name": "@microbot/config",
+  "version": "0.1.0",
+  "description": "MicroBot 配置层（三级配置加载、合并）",
+  "type": "module",
+  "author": "jesspig",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jesspig/microbot.git",
+    "directory": "packages/config"
+  },
+  "main": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "files": ["src"],
+  "dependencies": {
+    "@microbot/types": "workspace:*",
+    "@logtape/logtape": "^2.0.2",
+    "@logtape/pretty": "^2.0.2",
+    "js-yaml": "^4.1.1",
+    "zod": "^4.3.6",
+    "gray-matter": "^4.0.3"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/js-yaml": "^4.0.9",
+    "typescript": "^5.9.3"
+  }
+}

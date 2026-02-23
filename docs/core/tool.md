@@ -49,5 +49,5 @@ registry.register(new MyTool());
 
 ## 源码位置
 
-- 基类: `packages/core/src/tool/base.ts`
-- 注册表: `packages/core/src/tool/registry.ts`
+- 基类: `packages/types/src/tool.ts`
+- 注册表: `packages/sdk/src/tool/registry.ts`

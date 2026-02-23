@@ -1,23 +1,29 @@
 # 核心模块
 
-Core 模块位于 `packages/core/src/`，提供框架的核心功能。
+MicroBot 采用 8 层 Monorepo 架构，核心功能分布在多个模块中。
 
 ## 模块列表
 
-- [Container](container) - 依赖注入容器
-- [Provider](provider) - LLM 提供商接口
-- [Agent](agent) - Agent 循环实现
-- [Tool](tool) - 工具系统
-- [Channel](channel) - 消息通道
-- [Storage](storage) - 存储层
-- [Skill](skill) - 技能系统
+| 模块 | 路径 | 说明 |
+|------|------|------|
+| [Container](container) | `packages/runtime/` | 依赖注入容器 |
+| [Provider](provider) | `packages/providers/` | LLM 提供商接口 |
+| [Agent](agent) | `packages/runtime/` | Agent 循环实现 |
+| [Memory](memory) | `packages/runtime/` | 记忆系统 |
+| [Tool](tool) | `packages/types/` + `packages/sdk/` | 工具系统 |
+| [Channel](channel) | `extensions/channel/` | 消息通道 |
+| [ChannelGateway](channel) | `packages/runtime/src/gateway/` | 消息处理枢纽，负责消息聚合和响应广播 |
+| [Storage](storage) | `packages/storage/` | 存储层 |
+| [Skill](skill) | `packages/sdk/` | 技能系统 |
 
 ## 导出
 
-Core 模块通过以下路径导出：
+通过 SDK 聚合模块统一导出：
 
 ```typescript
 import { Container, EventBus, HookSystem } from '@microbot/sdk';
-import { AgentLoop } from '@microbot/sdk/agent';
-import { SessionStore } from '@microbot/sdk/storage';
+import { AgentExecutor, ReActAgent } from '@microbot/sdk';
+import { MemoryStore, ConversationSummarizer } from '@microbot/sdk';
+import { SessionStore } from '@microbot/sdk';
+import { ToolRegistry, defineTool } from '@microbot/sdk';
 ```

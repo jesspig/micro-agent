@@ -101,24 +101,32 @@ graph TB
     Channels --> Agent
 ```
 
+### 运行时架构
+
+```
+App
+  └── ChannelGatewayImpl (消息处理枢纽)
+        ├── executor: AgentExecutor
+        └── getChannels: () => Channel[]
+```
+
 ### 消息流向
 
 ```mermaid
 sequenceDiagram
-    participant User as 用户
-    participant Channel as 通道
-    participant EventBus as 事件总线
-    participant Agent as Agent
-    participant Provider as LLM
+    participant C as Channel
+    participant M as MessageBus
+    participant G as ChannelGateway
+    participant E as AgentExecutor
+    participant L as LLM
     
-    User->>Channel: 发送消息
-    Channel->>EventBus: publishInbound
-    EventBus->>Agent: consume
-    Agent->>Provider: chat
-    Provider-->>Agent: response
-    Agent->>EventBus: publishOutbound
-    EventBus->>Channel: send
-    Channel-->>User: 返回响应
+    C->>M: publishInbound()
+    M->>G: consumeInbound()
+    G->>E: processMessage()
+    E->>L: generate()
+    L-->>E: response
+    E-->>G: response
+    G->>C: broadcast() to all Channels
 ```
 
 ### 扩展机制
@@ -145,30 +153,24 @@ graph LR
 ### 目录结构
 
 ```
-packages/core/src/
-├── container.ts        # 依赖注入容器
-├── event-bus.ts        # 事件总线
-├── hook-system.ts      # 钩子系统
-├── pipeline.ts         # 中间件管道
-├── agent/              # Agent 模块
-│   ├── loop.ts        # ReAct 循环
-│   ├── context.ts     # 上下文构建
-│   └── subagent.ts    # 子代理管理
-├── providers/          # LLM 提供商
-│   ├── base.ts        # Provider 接口
-│   ├── gateway.ts     # 模型网关
-│   └── router.ts      # 智能路由
-├── tool/               # 工具系统
-│   ├── registry.ts    # 工具注册表
-│   └── base.ts        # 工具基类
-├── channel/            # 消息通道
-│   ├── base.ts        # 通道接口
-│   └── manager.ts     # 通道管理器
-├── storage/            # 存储层
-│   └── session/       # 会话存储
-└── skill/              # 技能系统
-    └── loader.ts      # 技能加载器
+packages/
+├── types/              # L1: 核心类型定义（MCP 兼容）
+├── runtime/            # L2: 运行时引擎（Container、EventBus、HookSystem）
+├── config/             # L2: 三级配置系统
+├── storage/            # L2: 会话存储
+├── sdk/                # L3: 聚合 SDK，统一开发接口
+├── providers/          # L3: LLM Provider 抽象
+├── extension-system/   # L3: 扩展发现、加载、热重载
+└── server/             # L4: 服务层（Channel、Queue、Events）
 ```
+
+### 核心模块说明
+
+| 模块 | 位置 | 职责 |
+|------|------|------|
+| ChannelGateway | `packages/runtime/src/gateway/` | 消息聚合处理、响应广播、自动重连 |
+| AgentExecutor | `packages/runtime/src/executor/` | Agent 执行引擎、工具调用编排 |
+| MessageBus | `packages/runtime/src/message/` | 消息队列、入站/出站消息分发 |
 
 ## 扩展机制
 

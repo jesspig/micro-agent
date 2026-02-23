@@ -1,0 +1,32 @@
+{
+  "name": "@microbot/server",
+  "version": "0.1.0",
+  "description": "MicroBot Server 层（OpenAI API, MCP Server, ACP Server）",
+  "type": "module",
+  "author": "jesspig",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jesspig/microbot.git",
+    "directory": "packages/server"
+  },
+  "main": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "files": ["src"],
+  "dependencies": {
+    "@microbot/types": "workspace:*",
+    "@microbot/runtime": "workspace:*",
+    "@microbot/sdk": "workspace:*",
+    "@microbot/providers": "workspace:*",
+    "@logtape/logtape": "^2.0.2"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.9.3"
+  }
+}

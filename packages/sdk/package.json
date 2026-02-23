@@ -1,0 +1,36 @@
+{
+  "name": "@microbot/sdk",
+  "version": "0.1.0",
+  "description": "MicroBot 开发者 SDK",
+  "type": "module",
+  "author": "jesspig",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jesspig/microbot.git",
+    "directory": "packages/sdk"
+  },
+  "main": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "files": ["src"],
+  "dependencies": {
+    "@microbot/types": "workspace:*",
+    "@microbot/runtime": "workspace:*",
+    "@microbot/storage": "workspace:*",
+    "@microbot/config": "workspace:*",
+    "@microbot/providers": "workspace:*",
+    "@microbot/extension-system": "workspace:*",
+    "@logtape/logtape": "^2.0.2",
+    "zod": "^4.3.6",
+    "mitt": "^3.0.1"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.9.3"
+  }
+}

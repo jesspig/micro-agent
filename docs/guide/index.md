@@ -99,20 +99,21 @@ bun run start
 ```
 microbot/
 ├── packages/
-│   └── core/           # 核心 SDK
-│       └── src/
-│           ├── container.ts     # 依赖注入容器
-│           ├── agent/           # Agent 循环
-│           ├── providers/       # LLM 提供商
-│           ├── tool/            # 工具系统
-│           ├── channel/         # 消息通道
-│           ├── storage/         # 存储层
-│           └── skill/           # 技能系统
-├── extensions/          # 扩展实现
-│   ├── tool/           # 工具扩展
-│   └── channel/        # 通道扩展
-├── skills/             # 技能目录
-│   ├── sysinfo/        # 系统信息
-│   └── time/           # 时间处理
-└── workspace/          # 工作空间配置
+│   ├── types/              # 核心类型定义（MCP 兼容）
+│   ├── runtime/            # 运行时引擎（Container、EventBus、HookSystem、Gateway）
+│   ├── config/             # 四级配置系统
+│   ├── storage/            # 存储层（SessionStore）
+│   ├── providers/          # LLM 提供商（Gateway、OpenAI 兼容）
+│   ├── extension-system/   # 扩展发现、加载、热重载
+│   ├── sdk/                # 聚合 SDK
+│   └── server/             # 服务层
+├── apps/
+│   └── cli/                # CLI 应用
+├── extensions/
+│   ├── tool/               # 工具扩展（filesystem、shell、web、message）
+│   ├── channel/            # 通道扩展（cli、feishu）
+│   └── skills/             # 技能扩展（time、sysinfo）
+├── tests/                  # 测试文件
+├── docs/                   # VitePress 文档
+└── templates/              # 模板配置
 ```

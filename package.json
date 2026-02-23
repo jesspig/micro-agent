@@ -1,7 +1,7 @@
 {
   "name": "microbot",
-  "version": "0.1.1",
-  "description": "超轻量级个人 AI 助手框架",
+  "version": "0.2.0",
+  "description": "超轻量级个人 AI 助手框架 - LLM/Agent 双向网关 + 可扩展 Agent 运行时",
   "type": "module",
   "author": "jesspig",
   "license": "MIT",
@@ -9,22 +9,50 @@
     "type": "git",
     "url": "https://github.com/jesspig/microbot.git"
   },
-  "workspaces": ["packages/*"],
+  "workspaces": ["packages/*", "apps/*"],
   "trustedDependencies": ["@larksuiteoapi/node-sdk"],
   "bin": {
-    "microbot": "./src/cli.ts"
+    "microbot": "./apps/cli/src/cli.ts"
   },
-  "main": "./src/index.ts",
+  "main": "./packages/sdk/src/index.ts",
   "exports": {
     ".": {
-      "types": "./src/index.ts",
-      "default": "./src/index.ts"
+      "types": "./packages/sdk/src/index.ts",
+      "default": "./packages/sdk/src/index.ts"
+    },
+    "./types": {
+      "types": "./packages/types/src/index.ts",
+      "default": "./packages/types/src/index.ts"
+    },
+    "./runtime": {
+      "types": "./packages/runtime/src/index.ts",
+      "default": "./packages/runtime/src/index.ts"
+    },
+    "./providers": {
+      "types": "./packages/providers/src/index.ts",
+      "default": "./packages/providers/src/index.ts"
+    },
+    "./server": {
+      "types": "./packages/server/src/index.ts",
+      "default": "./packages/server/src/index.ts"
+    },
+    "./storage": {
+      "types": "./packages/storage/src/index.ts",
+      "default": "./packages/storage/src/index.ts"
+    },
+    "./config": {
+      "types": "./packages/config/src/index.ts",
+      "default": "./packages/config/src/index.ts"
+    },
+    "./extension-system": {
+      "types": "./packages/extension-system/src/index.ts",
+      "default": "./packages/extension-system/src/index.ts"
     }
   },
   "scripts": {
     "prepare": "bun link",
-    "dev": "bun run src/cli.ts start",
-    "start": "bun run src/cli.ts start",
+    "dev": "bun run apps/cli/src/cli.ts start",
+    "start": "bun run apps/cli/src/cli.ts start",
     "test": "bun test",
     "test:container": "bun test tests/unit/container.test.ts",
     "test:config": "bun test tests/unit/config.test.ts",
@@ -34,13 +62,15 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@microbot/core": "workspace:*",
+    "@lancedb/lancedb": "^0.26.2",
     "@larksuiteoapi/node-sdk": "^1.59.0",
     "@logtape/logtape": "^2.0.2",
     "@logtape/pretty": "^2.0.2",
-    "ai": "^6.0.92",
+    "@microbot/sdk": "workspace:*",
+    "ai": "^6.0.97",
     "gray-matter": "^4.0.3",
     "js-yaml": "^4.1.1",
+    "marked": "^17.0.3",
     "mitt": "^3.0.1",
     "zod": "^4.3.6"
   },

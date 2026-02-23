@@ -1,6 +1,6 @@
 # MicroBot
 
-[![Version](https://img.shields.io/badge/Version-0.1.1-blue.svg)](https://github.com/jesspig/microbot)
+[![Version](https://img.shields.io/badge/Version-0.2.0-blue.svg)](https://github.com/jesspig/microbot)
 [![Bun](https://img.shields.io/badge/Bun-1.3.9-black?logo=bun)](https://bun.sh/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9.3-blue?logo=typescript)](https://www.typescriptlang.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
@@ -14,10 +14,15 @@
 | 特性 | 说明 |
 |------|------|
 | 轻量高效 | Bun 原生性能，核心代码简洁 |
-| 模块化架构 | Core SDK + Extensions 分层设计 |
-| 智能路由 | 根据任务复杂度自动选择模型 |
-| 多通道支持 | 飞书（更多通道开发中） |
+| 8层 Monorepo | Types → Runtime/Config/Storage → SDK/Providers/Extension-System → Server → CLI |
+| 智能路由 | 根据任务类型自动选择合适模型 |
+| 🧠 长期记忆 | LanceDB 向量存储、语义检索、自动摘要、跨会话上下文保持 |
+| Channel Gateway | 消息处理枢纽，多通道聚合、响应广播、自动重连 |
+| 多通道支持 | CLI、飞书（更多通道开发中） |
 | 本地优先 LLM | Ollama / LM Studio / OpenAI Compatible |
+| MCP 兼容 | Model Context Protocol 工具接口 |
+| 热重载 | 扩展开发时支持文件变更自动重载 |
+| 多协议支持 | ACP（IDE集成）、A2A（Agent通信）、MCP（工具接入） |
 
 ## 安装
 
@@ -70,58 +75,62 @@ microbot <command> [options]
 Commands:
   start       启动服务
   status      显示状态
+  ext         扩展管理
 
 Options:
   -c, --config <path>   配置文件路径
+  -v, --verbose         详细日志模式
   -h, --help            显示帮助
-  -v, --version         显示版本
+  --version             显示版本
 ```
 
 ## 架构
 
 ```
-Channel ──► ChannelManager ──► MessageBus
-                                     │
-              ┌──────────────────────┼──────────────────────┐
-              ▼                      ▼                      ▼
-         InboundQueue            AgentLoop             OutboundConsumer
-                                     │
-              ┌──────────────────────┴──────────────────────┐
-              ▼                      ▼                      
-        ContextBuilder          ToolRegistry           
-              │                      │                      
-              └──────────────────────┘                      
-                                     │
-                                     ▼
-                               LLM Gateway
-                               │         │
-                     ┌─────────┘         └─────────┐
-                     ▼                             ▼
-                  Ollama                   OpenAI Compatible
+┌─────────────────────────────────────────────────────────────┐
+│                         CLI (apps/cli)                       │
+├─────────────────────────────────────────────────────────────┤
+│                        Server (packages/server)              │
+├─────────────────────────────────────────────────────────────┤
+│    SDK    │  Providers  │  Extension-System                 │
+├───────────┴─────────────┴──────────────────┴────────────────┤
+│    Runtime    │    Config    │    Storage    │   Memory     │
+│    Gateway    │              │               │              │
+├───────────────┴──────────────┴───────────────┴──────────────┤
+│                         Types                                │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    Extensions (extensions/)                  │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
+│  │   Tools     │  │  Channels   │  │       Skills        │  │
+│  │ filesystem  │  │   feishu    │  │   time, sysinfo     │  │
+│  │ shell, web  │  │             │  │                     │  │
+│  │ message     │  │             │  │                     │  │
+│  └─────────────┘  └─────────────┘  └─────────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-## 核心模块
+## 核心包
 
-| 模块 | 路径 | 说明 |
+| 包 | 路径 | 说明 |
 |------|------|------|
-| 容器 | `packages/core/src/container.ts` | 依赖注入容器 |
-| 事件总线 | `packages/core/src/event-bus.ts` | 类型安全的事件系统 |
-| 钩子系统 | `packages/core/src/hook-system.ts` | 前置/后置钩子 |
-| 中间件 | `packages/core/src/pipeline.ts` | 可组合的处理链 |
-| 配置 | `packages/core/src/config/` | YAML 配置加载与验证 |
-| LLM | `packages/core/src/providers/` | Provider 抽象、Gateway、路由 |
-| Agent | `packages/core/src/agent/` | ReAct 循环、上下文构建 |
-| 工具 | `packages/core/src/tool/` | 工具注册表 |
-| 通道 | `packages/core/src/channel/` | 通道管理器 |
-| 技能 | `packages/core/src/skill/` | 技能加载器 |
-| 存储 | `packages/core/src/storage/` | 会话存储 |
+| @microbot/types | `packages/types/` | 核心类型定义（MCP 兼容） |
+| @microbot/runtime | `packages/runtime/` | 运行时引擎（Container、EventBus、HookSystem、Gateway） |
+| @microbot/config | `packages/config/` | 三级配置系统（user < project < directory） |
+| @microbot/storage | `packages/storage/` | 会话存储（JSONL） |
+| @microbot/providers | `packages/providers/` | LLM Provider 抽象、Gateway、路由 |
+| @microbot/extension-system | `packages/extension-system/` | 扩展发现、加载、热重载 |
+| @microbot/sdk | `packages/sdk/` | 聚合 SDK，统一开发接口 |
+| @microbot/server | `packages/server/` | 服务层（Channel、Queue、Events） |
 
 ## 扩展模块
 
 | 模块 | 路径 | 说明 |
 |------|------|------|
-| 工具 | `extensions/tool/` | 文件、Shell、Web 工具 |
-| 技能 | `skills/` | time、sysinfo |
+| 工具 | `extensions/tool/` | 文件、Shell、Web、消息工具 |
+| 技能 | `extensions/skills/` | time、sysinfo |
 | 通道 | `extensions/channel/` | 飞书 |
 
 ## 内置工具
@@ -169,16 +178,53 @@ channels:
 
 **模型格式**: `provider/model`（如 `ollama/qwen3`、`deepseek/deepseek-chat`）
 
+### Ollama（本地运行）
+
 ```yaml
 providers:
   ollama:
     baseUrl: http://localhost:11434/v1
-    models: [qwen3]
+    models: [qwen3, qwen3-vl]
 
+agents:
+  models:
+    chat: ollama/qwen3
+    vision: ollama/qwen3-vl
+```
+
+### DeepSeek（深度推理）
+
+```yaml
+providers:
   deepseek:
     baseUrl: https://api.deepseek.com/v1
     apiKey: ${DEEPSEEK_API_KEY}
-    models: [deepseek-chat]
+    models: [deepseek-chat, deepseek-reasoner]
+
+agents:
+  models:
+    chat: deepseek/deepseek-chat
+    coder: deepseek/deepseek-chat
+```
+
+### GLM 智谱 / MiniMax / Kimi
+
+```yaml
+providers:
+  glm:
+    baseUrl: https://open.bigmodel.cn/api/paas/v4
+    apiKey: ${GLM_API_KEY}
+    models: [glm-4-flash]
+  
+  minimax:
+    baseUrl: https://api.minimax.chat/v1
+    apiKey: ${MINIMAX_API_KEY}
+    models: [abab6.5s-chat]
+  
+  kimi:
+    baseUrl: https://api.moonshot.cn/v1
+    apiKey: ${MOONSHOT_API_KEY}
+    models: [moonshot-v1-128k]
 ```
 
 **Gateway 特性**:
@@ -192,7 +238,11 @@ providers:
 ```
 ~/.microbot/
 ├── settings.yaml          # 用户配置
-└── sessions/              # 会话存储（JSONL）
+├── sessions/              # 会话存储（JSONL）
+└── memory/                # 记忆系统数据
+    ├── lancedb/           # LanceDB 向量存储
+    ├── sessions/          # 会话记忆（Markdown）
+    └── summaries/         # 摘要归档
 ```
 
 ## 开发
@@ -208,31 +258,23 @@ bun test             # 运行测试
 ```
 microbot/
 ├── packages/
-│   └── core/               # Core SDK
-│       └── src/
-│           ├── container.ts
-│           ├── event-bus.ts
-│           ├── hook-system.ts
-│           ├── pipeline.ts
-│           ├── types/
-│           ├── config/
-│           ├── providers/
-│           ├── agent/
-│           ├── tool/
-│           ├── channel/
-│           ├── skill/
-│           └── storage/
+│   ├── types/              # 核心类型定义
+│   ├── runtime/            # 运行时引擎
+│   ├── config/             # 配置系统
+│   ├── storage/            # 存储层
+│   ├── providers/          # LLM 提供商
+│   ├── extension-system/   # 扩展系统
+│   ├── sdk/                # 聚合 SDK
+│   └── server/             # 服务层
+├── apps/
+│   └── cli/                # CLI 应用
 ├── extensions/
 │   ├── tool/               # 工具扩展
-│   └── channel/            # 通道扩展
-├── skills/                 # 技能目录
-│   ├── sysinfo/            # 系统信息技能
-│   └── time/               # 时间技能
-├── src/
-│   ├── index.ts            # 应用入口
-│   └── cli.ts              # CLI 命令
+│   ├── channel/            # 通道扩展
+│   └── skills/             # 技能扩展
 ├── tests/                  # 测试
 ├── docs/                   # 文档
+├── templates/              # 模板文件
 └── workspace/              # 工作空间配置
 ```
 

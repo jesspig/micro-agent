@@ -32,7 +32,9 @@ export default defineConfig({
         {
           text: '更新日志',
           items: [
-            { text: 'v0.1.1 (最新)', link: '/guide/changelog/' },
+            { text: '版本列表', link: '/guide/changelog/' },
+            { text: 'v0.2.0 (最新)', link: '/guide/changelog/v0.2.0' },
+            { text: 'v0.1.1', link: '/guide/changelog/v0.1.1' },
             { text: 'v0.1.0', link: '/guide/changelog/v0.1.0' },
           ],
         },

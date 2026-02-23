@@ -58,5 +58,5 @@ const skill = skillsLoader.get('skill-name');
 
 ## 源码位置
 
-- 加载器: `packages/core/src/skill/loader.ts`
-- 类型定义: `packages/core/src/skill/types.ts`
+- 加载器: `packages/extension-system/src/skill/loader.ts`
+- 类型定义: `packages/types/src/skill.ts`

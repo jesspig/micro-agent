@@ -28,21 +28,27 @@
 
 ## 创建自定义工具
 
+推荐使用 `defineTool` 工厂函数：
+
 ```typescript
 // extensions/tool/my-tool/index.ts
-import { z } from 'zod';
-import { Tool, type ToolContext } from '@microbot/sdk';
+import { defineTool } from '@microbot/sdk';
+import type { JSONSchema, ToolContext } from '@microbot/types';
 
-export class MyTool extends Tool {
-  readonly name = 'my_tool';
-  readonly description = '自定义工具';
-  readonly inputSchema = z.object({
-    param: z.string(),
-  });
-
-  async execute(input: unknown, ctx: ToolContext): Promise<unknown> {
-    // 实现
-    return { result: 'ok' };
-  }
-}
+export const MyTool = defineTool({
+  name: 'my_tool',
+  description: '自定义工具描述',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      param: { type: 'string', description: '参数说明' },
+    },
+    required: ['param'],
+  } satisfies JSONSchema,
+  execute: async (input: { param: string }, ctx: ToolContext) => {
+    // 使用 ctx.workspace 获取工作目录
+    // 使用 ctx.sendToBus 发送消息
+    return `处理结果: ${input.param}`;
+  },
+});
 ```

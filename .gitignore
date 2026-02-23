@@ -30,6 +30,8 @@ coverage/
 
 # 测试输出
 test_output.txt
+test-output.txt
+test-error.txt
 
 # 测试临时文件
 test-skills-temp/
@@ -51,6 +53,7 @@ test-config-test/
 /.gemini
 /.trae
 /.iflow
+/.specify
 /specs
 
 GEMINI.md

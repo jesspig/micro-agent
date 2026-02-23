@@ -1,6 +1,6 @@
 /**
  * 工具扩展入口
- * 
+ *
  * 导出所有工具组件。
  */
 
@@ -8,7 +8,7 @@
 export { ReadFileTool, WriteFileTool, ListDirTool, filesystemTools } from './filesystem';
 
 // Shell 工具
-export { ExecTool, shellTools } from './shell';
+export { createExecTool } from './shell';
 
 // Web 工具
 export { WebFetchTool, webTools } from './web';

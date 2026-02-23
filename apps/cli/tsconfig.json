@@ -1,0 +1,29 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "outDir": "./dist",
+    "baseUrl": "../..",
+    "paths": {
+      "@microbot/types": ["packages/types/src/index.ts"],
+      "@microbot/runtime": ["packages/runtime/src/index.ts"],
+      "@microbot/config": ["packages/config/src/index.ts"],
+      "@microbot/storage": ["packages/storage/src/index.ts"],
+      "@microbot/sdk": ["packages/sdk/src/index.ts"],
+      "@microbot/providers": ["packages/providers/src/index.ts"],
+      "@microbot/providers/acp": ["packages/providers/src/acp/index.ts"],
+      "@microbot/providers/acp/*": ["packages/providers/src/acp/*"],
+      "@microbot/server": ["packages/server/src/index.ts"],
+      "@microbot/extension-system": ["packages/extension-system/src/index.ts"]
+    }
+  },
+  "include": ["src/**/*", "../../extensions/**/*"],
+  "exclude": ["node_modules", "dist"]
+}
