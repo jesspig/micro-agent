@@ -1,25 +1,25 @@
 /**
  * Agent 执行器
  *
- * 实现 ReAct 循环处理消息并协调工具调用。
- * 所有模型统一使用 ReAct JSON 模式，不依赖原生 function calling。
+ * 实现 Function Calling 模式处理消息并协调工具调用。
+ * 使用原生 Function Calling 而非 ReAct JSON 解析。
  */
 
 import type { InboundMessage, OutboundMessage, ToolContext } from '@microbot/types';
-import type { LLMGateway, LLMMessage, GenerationConfig, MessageContent, IntentPromptBuilder, UserPromptBuilder, TaskTypeResult } from '@microbot/providers';
+import type { LLMGateway, LLMMessage, GenerationConfig, MessageContent, LLMToolDefinition, IntentPromptBuilder, UserPromptBuilder } from '@microbot/providers';
 import type { MessageBus } from '../bus/queue';
-import type { ModelConfig } from '@microbot/config';
+import type { ModelConfig, LoopDetectionConfig } from '@microbot/config';
+import type { AgentLoopResult, MemoryEntry } from '../types';
+import type { MemoryStore, ConversationSummarizer } from '../memory';
 import { ModelRouter, convertToPlainText, buildUserContent, type RouteResult } from '@microbot/providers';
-import { parseReActResponse, ReActActionToTool } from '../react-types';
+import { LoopDetector } from '../loop-detection';
+import { MessageHistoryManager } from '../message-manager';
 import { getLogger } from '@logtape/logtape';
 
 const log = getLogger(['executor']);
 
 /** 最大会话数量（防止内存泄漏） */
 const MAX_SESSIONS = 1000;
-
-/** 每个会话最大历史消息数 */
-const MAX_HISTORY_PER_SESSION = 50;
 
 /**
  * 工具注册表接口（避免循环依赖）
@@ -29,7 +29,7 @@ export interface ToolRegistryLike {
   execute(name: string, input: unknown, ctx: ToolContext): Promise<string>;
 }
 
-/** ReAct 提示词构建函数类型 */
+/** ReAct 提示词构建函数类型（保留向后兼容） */
 export type ReActPromptBuilder = (tools: Array<{ name: string; description: string; inputSchema: unknown }>) => string;
 export type ObservationBuilder = (result: string) => string;
 
@@ -49,6 +49,8 @@ export interface AgentExecutorConfig {
   systemPrompt?: string;
   /** 对话模型 */
   chatModel?: string;
+  /** 工具调用模型（可选，默认使用 chatModel） */
+  toolModel?: string;
   /** 视觉模型，用于图片识别任务 */
   visionModel?: string;
   /** 编程模型，用于代码编写任务 */
@@ -61,10 +63,20 @@ export interface AgentExecutorConfig {
   buildIntentPrompt?: IntentPromptBuilder;
   /** 用户 Prompt 构建函数 */
   buildUserPrompt?: UserPromptBuilder;
-  /** ReAct 系统提示词构建函数（应用层注入） */
+  /** ReAct 系统提示词构建函数（已弃用，保留向后兼容） */
   buildReActPrompt?: ReActPromptBuilder;
-  /** Observation 消息构建函数（应用层注入） */
+  /** Observation 消息构建函数（已弃用，保留向后兼容） */
   buildObservation?: ObservationBuilder;
+  /** 循环检测配置 */
+  loopDetection?: Partial<LoopDetectionConfig>;
+  /** 最大历史消息数 */
+  maxHistoryMessages?: number;
+  /** 记忆系统是否启用 */
+  memoryEnabled?: boolean;
+  /** 自动摘要阈值 */
+  summarizeThreshold?: number;
+  /** 空闲超时时间 */
+  idleTimeout?: number;
 }
 
 const DEFAULT_CONFIG: AgentExecutorConfig = {
@@ -74,11 +86,6 @@ const DEFAULT_CONFIG: AgentExecutorConfig = {
   temperature: 0.7,
 };
 
-/** 默认 Observation 构建函数 */
-function defaultBuildObservation(result: string): string {
-  return 'Observation: ' + result;
-}
-
 /**
  * Agent 执行器
  */
@@ -87,14 +94,19 @@ export class AgentExecutor {
   private conversationHistory = new Map<string, LLMMessage[]>();
   private router: ModelRouter;
   private cachedToolDefinitions: Array<{ name: string; description: string; inputSchema: unknown }> | null = null;
-  private buildReActPrompt: ReActPromptBuilder;
-  private buildObservation: ObservationBuilder;
+  private cachedLLMTools: LLMToolDefinition[] | null = null;
+  private loopDetector: LoopDetector;
+  private messageManager: MessageHistoryManager;
+  private memoryStore?: MemoryStore;
+  private summarizer?: ConversationSummarizer;
 
   constructor(
     private bus: MessageBus,
     private gateway: LLMGateway,
     private tools: ToolRegistryLike,
-    private config: AgentExecutorConfig = DEFAULT_CONFIG
+    private config: AgentExecutorConfig = DEFAULT_CONFIG,
+    memoryStore?: MemoryStore,
+    summarizer?: ConversationSummarizer
   ) {
     this.router = new ModelRouter({
       chatModel: config.chatModel || '',
@@ -107,12 +119,29 @@ export class AgentExecutor {
     });
     this.router.setProvider(gateway);
 
-    // 应用层必须注入 ReAct 提示词构建函数
-    if (!config.buildReActPrompt) {
-      throw new Error('AgentExecutor 需要注入 buildReActPrompt 函数');
+    // 初始化循环检测器
+    this.loopDetector = new LoopDetector({
+      enabled: config.loopDetection?.enabled ?? true,
+      warningThreshold: config.loopDetection?.warningThreshold ?? 3,
+      criticalThreshold: config.loopDetection?.criticalThreshold ?? 5,
+      globalCircuitBreaker: config.maxIterations + 10,
+    });
+
+    // 初始化消息管理器
+    this.messageManager = new MessageHistoryManager({
+      maxMessages: config.maxHistoryMessages ?? 50,
+      truncationStrategy: 'sliding',
+      preserveSystemMessages: true,
+      preserveRecentCount: 10,
+    });
+
+    // 注入记忆系统（可选）
+    this.memoryStore = memoryStore;
+    this.summarizer = summarizer;
+
+    if (memoryStore) {
+      log.info('记忆系统已启用');
     }
-    this.buildReActPrompt = config.buildReActPrompt;
-    this.buildObservation = config.buildObservation ?? defaultBuildObservation;
   }
 
   /**
@@ -120,7 +149,7 @@ export class AgentExecutor {
    */
   async run(): Promise<void> {
     this.running = true;
-    log.info('Agent 执行器已启动 (ReAct 模式)');
+    log.info('Agent 执行器已启动 (Function Calling 模式)');
 
     log.debug('配置详情', {
       maxIterations: this.config.maxIterations,
@@ -132,7 +161,6 @@ export class AgentExecutor {
       try {
         const msg = await this.bus.consumeInbound();
 
-        // CLI: 用户输入
         log.info('📥 用户输入', { content: msg.content });
 
         log.debug('消息详情', {
@@ -174,8 +202,14 @@ export class AgentExecutor {
     const messages = this.buildMessages(sessionHistory, msg);
 
     try {
-      const result = await this.runReActLoop(messages, msg);
+      const result = await this.runAgentLoop(messages, msg);
       this.updateHistory(sessionKey, messages.slice(1));
+
+      // 存储记忆
+      await this.storeMemory(msg, result, sessionKey);
+
+      // 检查是否需要摘要
+      await this.checkAndSummarize(sessionKey, messages);
 
       return {
         channel: msg.channel,
@@ -187,6 +221,70 @@ export class AgentExecutor {
     } catch (error) {
       log.error('❌ 处理消息异常', { error: this.safeErrorMsg(error) });
       return this.createErrorResponse(msg);
+    }
+  }
+
+  /**
+   * 存储记忆
+   */
+  private async storeMemory(msg: InboundMessage, result: AgentLoopResult, sessionKey: string): Promise<void> {
+    if (!this.memoryStore) return;
+
+    try {
+      const entry: MemoryEntry = {
+        id: crypto.randomUUID(),
+        sessionId: sessionKey,
+        type: 'conversation',
+        content: `用户: ${msg.content}\n助手: ${result.content}`,
+        metadata: {
+          channel: msg.channel,
+          tags: ['conversation'],
+        },
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      await this.memoryStore.store(entry);
+      log.debug('记忆已存储', { id: entry.id });
+    } catch (error) {
+      log.warn('记忆存储失败', { error: this.safeErrorMsg(error) });
+    }
+  }
+
+  /**
+   * 检查并触发摘要
+   */
+  private async checkAndSummarize(sessionKey: string, messages: LLMMessage[]): Promise<void> {
+    if (!this.memoryStore || !this.summarizer) return;
+
+    // 检查是否启用记忆
+    if (this.config.memoryEnabled === false) return;
+
+    const threshold = this.config.summarizeThreshold ?? 20;
+    
+    if (messages.length >= threshold && this.summarizer.shouldSummarize(messages)) {
+      try {
+        log.info('📝 触发自动摘要', { messageCount: messages.length, threshold });
+        
+        const summary = await this.summarizer.summarize(messages);
+        
+        const entry: MemoryEntry = {
+          id: summary.id,
+          sessionId: sessionKey,
+          type: 'summary',
+          content: JSON.stringify(summary),
+          metadata: {
+            tags: ['summary', 'auto'],
+          },
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
+
+        await this.memoryStore.store(entry);
+        log.info('✅ 摘要已存储', { id: summary.id, topic: summary.topic });
+      } catch (error) {
+        log.warn('摘要生成失败', { error: this.safeErrorMsg(error) });
+      }
     }
   }
 
@@ -213,14 +311,14 @@ export class AgentExecutor {
   }
 
   /**
-   * 运行 ReAct 循环
-   *
-   * 所有模型统一使用 ReAct JSON 模式
+   * 运行 Agent 循环 (Function Calling 模式)
    */
-  private async runReActLoop(messages: LLMMessage[], msg: InboundMessage): Promise<{ content: string }> {
+  private async runAgentLoop(messages: LLMMessage[], msg: InboundMessage): Promise<AgentLoopResult> {
     let iteration = 0;
-    const toolDefs = this.getToolDefinitions();
-    const reactSystemPrompt = this.buildReActPrompt(toolDefs);
+    const llmTools = this.getLLMToolDefinitions();
+    
+    // 重置循环检测器
+    this.loopDetector.reset();
     
     // 缓存第一次迭代选择的模型
     let cachedRouteResult: RouteResult | null = null;
@@ -228,25 +326,27 @@ export class AgentExecutor {
     while (iteration < this.config.maxIterations) {
       iteration++;
 
-      const routeResult: RouteResult = cachedRouteResult ?? await this.selectModel(messages, msg.media);
+      // 消息历史裁剪
+      const truncatedMessages = this.messageManager.truncate(messages);
+
+      const routeResult: RouteResult = cachedRouteResult ?? await this.selectModel(truncatedMessages, msg.media);
       // 第一次迭代后缓存模型选择结果
       if (iteration === 1) {
         cachedRouteResult = routeResult;
       }
+      
+      // 工具调用使用专用模型（如果配置）
+      const toolModel = this.config.toolModel ?? routeResult.model;
       const generationConfig = this.mergeGenerationConfig(routeResult.config);
 
       const processedMessages = routeResult.isVision
-        ? messages
-        : convertToPlainText(messages);
+        ? truncatedMessages
+        : convertToPlainText(truncatedMessages);
 
-      // 构建 ReAct 消息
-      const reactMessages: LLMMessage[] = [
-        { role: 'system', content: reactSystemPrompt },
-        ...processedMessages.filter(m => m.role !== 'system'),
-      ];
+      // 构建系统提示词
+      const messagesWithSystem = this.ensureSystemPrompt(processedMessages);
 
-      // CLI: 模型选择
-      log.info('🤖 调用模型', { model: routeResult.model, reason: routeResult.reason });
+      log.info('🤖 调用模型', { model: toolModel, reason: routeResult.reason });
 
       log.debug('路由详情', {
         provider: routeResult.config.id,
@@ -255,69 +355,95 @@ export class AgentExecutor {
       });
 
       const llmStartTime = Date.now();
-      const response = await this.gateway.chat(reactMessages, [], routeResult.model, generationConfig);
+      const response = await this.gateway.chat(messagesWithSystem, llmTools, toolModel, generationConfig);
       const llmElapsed = Date.now() - llmStartTime;
 
-      // CLI: LLM 响应统计
       log.info('💬 LLM 响应', {
         model: `${response.usedProvider}/${response.usedModel}`,
         tokens: response.usage ? `${response.usage.promptTokens}→${response.usage.completionTokens}` : 'N/A',
         elapsed: `${llmElapsed}ms`,
+        hasToolCalls: response.hasToolCalls,
       });
 
-      // 解析 ReAct 响应
-      const reactResponse = parseReActResponse(response.content);
-
-      if (!reactResponse) {
-        // 无法解析为 ReAct 格式，直接返回原始响应
-        log.info('📝 回复 (非 ReAct 格式)', { content: response.content });
-        return { content: response.content };
+      // 无工具调用，返回结果
+      if (!response.hasToolCalls || !response.toolCalls?.length) {
+        log.info('✅ 任务完成', { content: response.content.slice(0, 100) });
+        return {
+          content: response.content,
+          iterations: iteration,
+          loopDetected: false,
+        };
       }
 
-      log.info('🧠 ReAct 思考', { thought: reactResponse.thought });
+      // 添加 assistant 消息（包含工具调用）
+      messages.push({
+        role: 'assistant',
+        content: response.content,
+        toolCalls: response.toolCalls,
+      });
 
-      if (reactResponse.action === 'finish') {
-        // 任务完成
-        const finalContent = typeof reactResponse.action_input === 'string'
-          ? reactResponse.action_input
-          : JSON.stringify(reactResponse.action_input);
-        log.info('✅ 任务完成', { result: finalContent });
-        return { content: finalContent };
-      }
+      // 执行工具调用
+      for (const tc of response.toolCalls) {
+        // 记录工具调用
+        const callKey = this.loopDetector.recordCall(tc.name, tc.arguments);
+        
+        // 检测循环
+        const loopCheck = this.loopDetector.detectLoop();
+        if (loopCheck) {
+          log.warn('⚠️ 循环检测', { reason: loopCheck.reason, severity: loopCheck.severity });
+          
+          // 临界级别终止循环
+          if (loopCheck.severity === 'critical') {
+            return {
+              content: `检测到循环行为，终止执行: ${loopCheck.reason}`,
+              iterations: iteration,
+              loopDetected: true,
+              loopReason: loopCheck.reason,
+            };
+          }
+          
+          // 警告级别继续执行，记录日志
+          log.info('⚠️ 循环警告，继续执行', { reason: loopCheck.reason });
+        }
 
-      // 执行工具
-      // 1. 尝试从映射表获取工具名
-      let toolName = ReActActionToTool[reactResponse.action];
-      
-      // 2. 如果映射为 null，尝试直接使用 action 名（动态工具发现）
-      if (!toolName) {
-        toolName = reactResponse.action;
-      }
-      
-      // 3. 检查工具是否存在
-      const toolExists = this.getToolDefinitions().some(t => t.name === toolName);
-      if (!toolExists) {
-        log.warn('⚠️ 未知动作', { action: reactResponse.action, resolvedTool: toolName });
-        const obsMsg = JSON.stringify({
-          error: true,
-          message: `未找到工具: ${toolName}`,
-          action: reactResponse.action
+        // 执行工具
+        const toolResult = await this.executeTool(tc.name, tc.arguments, msg);
+        log.info('🔧 工具执行', { tool: tc.name, callKey, result: toolResult.slice(0, 100) });
+
+        // 添加工具结果消息
+        messages.push({
+          role: 'tool',
+          content: toolResult,
+          toolCallId: tc.id,
         });
-        messages.push({ role: 'assistant', content: response.content });
-        messages.push({ role: 'user', content: this.buildObservation(obsMsg) });
-        continue;
       }
 
-      const toolResult = await this.executeTool(toolName, reactResponse.action_input, msg);
-      log.info('🔧 工具执行', { tool: toolName, result: toolResult });
-
-      // 添加观察结果到消息
-      messages.push({ role: 'assistant', content: response.content });
-      messages.push({ role: 'user', content: this.buildObservation(toolResult) });
+      // 压缩工具结果
+      const compressedMessages = this.messageManager.compressToolResults(messages);
+      messages.length = 0;
+      messages.push(...compressedMessages);
     }
 
     log.warn('⚠️ 达到最大迭代次数', { maxIterations: this.config.maxIterations });
-    return { content: '达到最大迭代次数，任务未完成' };
+    return {
+      content: '达到最大迭代次数，任务未完成',
+      iterations: iteration,
+      loopDetected: false,
+    };
+  }
+
+  /**
+   * 确保消息列表包含系统提示词
+   */
+  private ensureSystemPrompt(messages: LLMMessage[]): LLMMessage[] {
+    const hasSystem = messages.some(m => m.role === 'system');
+    if (hasSystem || !this.config.systemPrompt) {
+      return messages;
+    }
+    return [
+      { role: 'system', content: this.config.systemPrompt },
+      ...messages,
+    ];
   }
 
   /**
@@ -328,6 +454,24 @@ export class AgentExecutor {
       this.cachedToolDefinitions = this.tools.getDefinitions();
     }
     return this.cachedToolDefinitions;
+  }
+
+  /**
+   * 获取 LLM 工具定义（Function Calling 格式）
+   */
+  private getLLMToolDefinitions(): LLMToolDefinition[] {
+    if (!this.cachedLLMTools) {
+      const defs = this.getToolDefinitions();
+      this.cachedLLMTools = defs.map(def => ({
+        type: 'function' as const,
+        function: {
+          name: def.name,
+          description: def.description,
+          parameters: def.inputSchema as Record<string, unknown>,
+        },
+      }));
+    }
+    return this.cachedLLMTools;
   }
 
   /**
@@ -354,10 +498,7 @@ export class AgentExecutor {
    * 更新会话历史
    */
   private updateHistory(sessionKey: string, history: LLMMessage[]): void {
-    const trimmed = history.length > MAX_HISTORY_PER_SESSION
-      ? history.slice(-MAX_HISTORY_PER_SESSION)
-      : history;
-
+    const trimmed = this.messageManager.truncate(history);
     this.conversationHistory.set(sessionKey, trimmed);
     this.trimSessions();
   }

@@ -28,6 +28,9 @@ export { OpenAICompatibleProvider, type OpenAICompatibleConfig } from './openai-
 // Gateway
 export { LLMGateway, type GatewayConfig } from './gateway';
 
+// Model Config
+export { ModelConfigService, type ModelValidationError, type ModelValidationResult } from './model-config';
+
 // Model Router
 export { ModelRouter, type ModelRouterConfig, type RouteResult } from './router';
 

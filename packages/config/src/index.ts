@@ -11,6 +11,9 @@ export {
   ProviderConfigSchema,
   ChannelConfigSchema,
   WorkspaceConfigSchema,
+  MemoryConfigSchema,
+  ExecutorConfigSchema,
+  LoopDetectionConfigSchema,
   parseModelConfigs,
   parseWorkspaces,
 } from './schema';
@@ -23,6 +26,9 @@ export type {
   ProviderConfig,
   ProviderEntry,
   WorkspaceConfig,
+  MemoryConfig,
+  ExecutorConfig,
+  LoopDetectionConfig,
 } from './schema';
 
 // Loader
