@@ -1,6 +1,6 @@
 # 核心模块
 
-MicroBot 采用 8 层 Monorepo 架构，核心功能分布在多个模块中。
+MicroBot 采用 9 层 Monorepo 架构，核心功能分布在多个模块中。
 
 ## 模块列表
 
@@ -9,6 +9,7 @@ MicroBot 采用 8 层 Monorepo 架构，核心功能分布在多个模块中。
 | [Container](container) | `packages/runtime/` | 依赖注入容器 |
 | [Provider](provider) | `packages/providers/` | LLM 提供商接口 |
 | [Agent](agent) | `packages/core/` | Agent 循环实现 |
+| [Memory](memory) | `packages/runtime/` | 记忆系统 |
 | [Tool](tool) | `packages/types/` + `packages/sdk/` | 工具系统 |
 | [Channel](channel) | `packages/server/` | 消息通道 |
 | [Storage](storage) | `packages/storage/` | 存储层 |
@@ -21,5 +22,6 @@ MicroBot 采用 8 层 Monorepo 架构，核心功能分布在多个模块中。
 ```typescript
 import { Container, EventBus, HookSystem } from '@microbot/sdk';
 import { AgentLoop } from '@microbot/sdk/agent';
+import { MemoryStore, ConversationSummarizer } from '@microbot/sdk/memory';
 import { SessionStore } from '@microbot/sdk/storage';
 ```

@@ -477,21 +477,36 @@ ${skillsSummary}`);
         const providerName = slashIndex > 0 ? embedModel.slice(0, slashIndex) : Object.keys(this.config.providers)[0];
         const providerConfig = this.config.providers[providerName || ''];
         
-        if (providerConfig?.baseUrl && providerConfig?.apiKey) {
+        // 详细诊断日志
+        console.log(`  嵌入模型配置: ${embedModel}`);
+        console.log(`  提取的 provider: ${providerName || '(未指定)'}`);
+        console.log(`  provider 配置存在: ${!!providerConfig}`);
+        if (providerConfig) {
+          console.log(`  provider.baseUrl: ${providerConfig.baseUrl ? '✓ 已配置' : '✗ 未配置'}`);
+          console.log(`  provider.apiKey: ${providerConfig.apiKey ? '✓ 已配置' : '✗ 未配置'}`);
+        }
+        
+        if (providerConfig?.baseUrl) {
+          // 本地服务（如 ollama）不需要 apiKey
           embeddingService = new OpenAIEmbedding(
             embedModel,
             providerConfig.baseUrl,
-            providerConfig.apiKey
+            providerConfig.apiKey || '' // 本地服务 apiKey 可为空
           );
           console.log(`  记忆系统: 使用嵌入模型 ${embedModel}`);
+          if (!providerConfig.apiKey) {
+            console.log('  提示: 本地服务未配置 apiKey，使用无认证模式');
+          }
         } else {
           embeddingService = new NoEmbedding();
-          console.log('  记忆系统: 嵌入模型配置缺失 API 信息，使用全文检索');
+          console.log('  记忆系统: 嵌入模型配置缺失 baseUrl，使用全文检索');
+          console.log('  提示: 请确保 providers 中对应的 provider 配置了 baseUrl');
         }
       } else {
         // 无嵌入模型，使用 NoEmbedding
         embeddingService = new NoEmbedding();
-        console.log('  记忆系统: 无嵌入模型，使用全文检索');
+        console.log('  记忆系统: 无嵌入模型配置，使用全文检索');
+        console.log('  提示: 在 agents.models.embed 中配置嵌入模型以启用向量检索');
       }
 
       // 初始化 MemoryStore

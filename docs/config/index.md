@@ -15,6 +15,7 @@ agents:
   # 模型配置（格式：<provider>/<model>）
   models:
     chat: deepseek/deepseek-chat      # 对话模型（必填）
+    embed: text-embedding-3-small     # 嵌入模型（可选，用于记忆系统）
     vision: deepseek/deepseek-chat    # 视觉模型（可选）
     coder: deepseek/deepseek-chat     # 编程模型（可选）
   
@@ -65,8 +66,37 @@ providers:
 | chat | 常规对话、问答 | `agents.models.chat` |
 | vision | 图片识别、图像理解 | `agents.models.vision` |
 | coder | 代码编写、程序开发 | `agents.models.coder` |
+| embed | 向量嵌入、语义检索 | `agents.models.embed` |
 
-未配置专用模型时，默认使用 chat 模型。
+未配置专用模型时，默认使用 chat 模型。embed 模型未配置时，记忆系统将使用全文检索。
+
+## 记忆系统
+
+记忆系统允许 Agent 记住历史对话，支持跨会话检索和自动摘要。
+
+```yaml
+agents:
+  memory:
+    enabled: true
+    storagePath: ~/.microbot/memory
+    autoSummarize: true
+    summarizeThreshold: 20
+    idleTimeout: 300000
+    shortTermRetentionDays: 7
+    searchLimit: 10
+```
+
+| 参数 | 范围 | 默认值 | 说明 |
+|------|------|--------|------|
+| enabled | - | true | 是否启用记忆系统 |
+| storagePath | - | ~/.microbot/memory | 记忆存储路径 |
+| autoSummarize | - | true | 是否启用自动摘要 |
+| summarizeThreshold | - | 20 | 触发摘要的消息阈值 |
+| idleTimeout | - | 300000 | 空闲超时触发摘要（毫秒） |
+| shortTermRetentionDays | - | 7 | 短期记忆保留天数 |
+| searchLimit | 1-50 | 10 | 检索结果数量限制 |
+
+记忆系统依赖嵌入模型进行语义检索，需配置 `agents.models.embed`。若未配置嵌入模型，系统将回退到全文检索模式。
 
 ## 生成参数
 

@@ -199,7 +199,20 @@ export class AgentExecutor {
     const sessionKey = `${msg.channel}:${msg.chatId}`;
     const sessionHistory = this.conversationHistory.get(sessionKey) ?? [];
 
-    const messages = this.buildMessages(sessionHistory, msg);
+    // 检索相关记忆
+    log.info('🔍 开始检索记忆', { query: msg.content.slice(0, 100), sessionKey });
+    const relevantMemories = await this.retrieveMemories(msg.content);
+    if (relevantMemories.length > 0) {
+      log.info('🧠 检索到相关记忆', { 
+        count: relevantMemories.length,
+        types: relevantMemories.map(m => m.type),
+        previews: relevantMemories.map(m => m.content.slice(0, 50) + '...')
+      });
+    } else {
+      log.info('🧠 未检索到相关记忆');
+    }
+
+    const messages = this.buildMessages(sessionHistory, msg, relevantMemories);
 
     try {
       const result = await this.runAgentLoop(messages, msg);
@@ -207,6 +220,12 @@ export class AgentExecutor {
 
       // 存储记忆
       await this.storeMemory(msg, result, sessionKey);
+
+      // 记录活动时间并启动空闲检查
+      if (this.summarizer) {
+        this.summarizer.recordActivity();
+        this.summarizer.startIdleCheck(sessionKey, () => this.conversationHistory.get(sessionKey) ?? []);
+      }
 
       // 检查是否需要摘要
       await this.checkAndSummarize(sessionKey, messages);
@@ -225,10 +244,40 @@ export class AgentExecutor {
   }
 
   /**
+   * 检索相关记忆
+   */
+  private async retrieveMemories(query: string): Promise<MemoryEntry[]> {
+    if (!this.memoryStore) {
+      log.debug('记忆系统未启用，跳过检索');
+      return [];
+    }
+
+    try {
+      const startTime = Date.now();
+      const results = await this.memoryStore.search(query, { limit: 5 });
+      const elapsed = Date.now() - startTime;
+      
+      log.info('📖 记忆检索完成', { 
+        query: query.slice(0, 50),
+        resultCount: results.length,
+        elapsed: `${elapsed}ms`
+      });
+      
+      return results;
+    } catch (error) {
+      log.warn('记忆检索失败', { error: this.safeErrorMsg(error) });
+      return [];
+    }
+  }
+
+  /**
    * 存储记忆
    */
   private async storeMemory(msg: InboundMessage, result: AgentLoopResult, sessionKey: string): Promise<void> {
-    if (!this.memoryStore) return;
+    if (!this.memoryStore) {
+      log.debug('记忆系统未启用，跳过存储');
+      return;
+    }
 
     try {
       const entry: MemoryEntry = {
@@ -245,7 +294,14 @@ export class AgentExecutor {
       };
 
       await this.memoryStore.store(entry);
-      log.debug('记忆已存储', { id: entry.id });
+      
+      log.info('💾 记忆已存储', { 
+        id: entry.id, 
+        sessionKey,
+        type: entry.type,
+        userMsg: msg.content.slice(0, 50) + '...',
+        assistantMsg: result.content?.slice(0, 50) + '...'
+      });
     } catch (error) {
       log.warn('记忆存储失败', { error: this.safeErrorMsg(error) });
     }
@@ -291,11 +347,13 @@ export class AgentExecutor {
   /**
    * 构建消息列表
    */
-  private buildMessages(history: LLMMessage[], msg: InboundMessage): LLMMessage[] {
+  private buildMessages(history: LLMMessage[], msg: InboundMessage, memories?: MemoryEntry[]): LLMMessage[] {
     const messages: LLMMessage[] = [];
 
-    if (this.config.systemPrompt) {
-      messages.push({ role: 'system', content: this.config.systemPrompt });
+    // 构建系统提示（包含记忆上下文）
+    const systemPrompt = this.buildSystemPrompt(memories);
+    if (systemPrompt) {
+      messages.push({ role: 'system', content: systemPrompt });
     }
 
     messages.push(...history);
@@ -308,6 +366,51 @@ export class AgentExecutor {
     }
 
     return messages;
+  }
+
+  /**
+   * 构建系统提示（包含记忆上下文）
+   */
+  private buildSystemPrompt(memories?: MemoryEntry[]): string {
+    let prompt = this.config.systemPrompt ?? '';
+
+    // 注入记忆上下文
+    if (memories && memories.length > 0) {
+      const memoryContext = this.formatMemoryContext(memories);
+      prompt = prompt 
+        ? `${prompt}\n\n${memoryContext}` 
+        : memoryContext;
+      
+      log.info('💉 记忆已注入系统提示', { 
+        memoryCount: memories.length,
+        contextLength: memoryContext.length 
+      });
+    }
+
+    return prompt;
+  }
+
+  /**
+   * 格式化记忆上下文
+   */
+  private formatMemoryContext(memories: MemoryEntry[]): string {
+    const lines = ['<relevant-memories>', '以下是相关的历史记忆，仅供参考：'];
+    
+    for (const m of memories) {
+      const timeLabel = m.type === 'summary' ? '[摘要]' : '[对话]';
+      const preview = m.content.length > 200 ? m.content.slice(0, 200) + '...' : m.content;
+      lines.push(`- ${timeLabel} ${preview}`);
+    }
+    
+    lines.push('</relevant-memories>');
+    
+    log.debug('📝 格式化记忆上下文', { 
+      memoryCount: memories.length,
+      types: memories.map(m => m.type),
+      totalLength: lines.join('\n').length
+    });
+    
+    return lines.join('\n');
   }
 
   /**

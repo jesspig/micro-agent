@@ -16,6 +16,7 @@
 | 轻量高效 | Bun 原生性能，核心代码简洁 |
 | 8层 Monorepo | Types → Runtime/Config/Storage → SDK/Providers/Extension-System → Server → CLI |
 | 智能路由 | 根据任务复杂度自动选择模型 |
+| 🧠 长期记忆 | LanceDB 向量存储、语义检索、自动摘要、跨会话上下文保持 |
 | 多通道支持 | 飞书（更多通道开发中） |
 | 本地优先 LLM | Ollama / LM Studio / OpenAI Compatible |
 | MCP 兼容 | Model Context Protocol 工具接口 |
@@ -90,8 +91,8 @@ Options:
 ├─────────────────────────────────────────────────────────────┤
 │    SDK    │  Providers  │  Extension-System                 │
 ├───────────┴─────────────┴──────────────────┴────────────────┤
-│    Runtime    │    Config    │    Storage                   │
-├───────────────┴──────────────┴──────────────────────────────┤
+│    Runtime    │    Config    │    Storage    │   Memory     │
+├───────────────┴──────────────┴───────────────┴──────────────┤
 │                         Types                                │
 └─────────────────────────────────────────────────────────────┘
                               │
@@ -196,7 +197,11 @@ providers:
 ```
 ~/.microbot/
 ├── settings.yaml          # 用户配置
-└── sessions/              # 会话存储（JSONL）
+├── sessions/              # 会话存储（JSONL）
+└── memory/                # 记忆系统数据
+    ├── lancedb/           # LanceDB 向量存储
+    ├── sessions/          # 会话记忆（Markdown）
+    └── summaries/         # 摘要归档
 ```
 
 ## 开发

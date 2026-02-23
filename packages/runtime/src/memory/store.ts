@@ -81,7 +81,17 @@ export class MemoryStore {
     }
 
     this.initialized = true;
-    log.info('记忆存储已初始化', { path: storagePath });
+    
+    // 显示已有记忆数量
+    const existingCount = await this.table?.countRows() ?? 0;
+    log.info('记忆存储已初始化', { 
+      path: storagePath,
+      existingEntries: existingCount
+    });
+    
+    if (existingCount > 0) {
+      log.info('📚 [MemoryStore] 加载已有记忆', { count: existingCount });
+    }
   }
 
   /**
@@ -107,7 +117,13 @@ export class MemoryStore {
     };
 
     await this.table?.add([record]);
-    log.debug('记忆已存储', { id: entry.id, type: entry.type });
+    log.info('💾 [MemoryStore] 记忆已存储', { 
+      id: entry.id, 
+      type: entry.type,
+      sessionId: entry.sessionId,
+      contentPreview: entry.content.slice(0, 100) + '...',
+      hasVector: !!vector
+    });
   }
 
   /**
@@ -121,8 +137,18 @@ export class MemoryStore {
       this.config.maxSearchLimit!
     );
 
+    const hasEmbedding = this.config.embeddingService?.isAvailable();
+    const mode = options?.mode ?? (hasEmbedding ? 'vector' : 'fulltext');
+
+    log.info('🔍 [MemoryStore] 开始搜索', { 
+      query: query.slice(0, 50),
+      limit,
+      mode,
+      hasEmbedding
+    });
+
     // 有嵌入服务且非全文模式 -> 向量检索
-    if (this.config.embeddingService?.isAvailable() && options?.mode !== 'fulltext') {
+    if (hasEmbedding && options?.mode !== 'fulltext') {
       return this.vectorSearch(query, limit);
     }
 
@@ -138,8 +164,16 @@ export class MemoryStore {
       return this.fulltextSearch(query, limit);
     }
 
+    const startTime = Date.now();
     const vector = await this.config.embeddingService.embed(query);
     const results = await this.table?.vectorSearch(vector).limit(limit).toArray();
+    const elapsed = Date.now() - startTime;
+
+    log.info('🔎 [MemoryStore] 向量检索完成', { 
+      query: query.slice(0, 50),
+      resultCount: results?.length ?? 0,
+      elapsed: `${elapsed}ms`
+    });
 
     return (results ?? []).map(r => this.recordToEntry(r));
   }
@@ -148,8 +182,15 @@ export class MemoryStore {
    * 全文检索
    */
   private async fulltextSearch(query: string, limit: number, filter?: MemoryFilter): Promise<MemoryEntry[]> {
-    // LanceDB FTS 搜索
-    let queryBuilder = this.table?.query().limit(limit);
+    if (!this.table) {
+      log.warn('🔎 [MemoryStore] 全文检索失败: 表未初始化');
+      return [];
+    }
+
+    const startTime = Date.now();
+
+    // 获取所有记录后在内存中过滤（LanceDB 免费版不支持 FTS）
+    let queryBuilder = this.table.query();
 
     // 应用过滤条件
     if (filter) {
@@ -161,13 +202,77 @@ export class MemoryStore {
         conditions.push(`type = "${filter.type}"`);
       }
       if (conditions.length > 0) {
-        queryBuilder = queryBuilder?.where(conditions.join(' AND '));
+        queryBuilder = queryBuilder.where(conditions.join(' AND '));
       }
     }
 
-    // 执行搜索
-    const results = await queryBuilder?.toArray();
-    return (results ?? []).map(r => this.recordToEntry(r));
+    // 获取所有匹配记录
+    const allResults = await queryBuilder.toArray();
+    
+    // 提取关键词（支持中英文混合）
+    const keywords = this.extractKeywords(query);
+    
+    const scored = allResults
+      .map(r => {
+        const content = (r.content as string).toLowerCase();
+        // 计算匹配分数
+        let score = 0;
+        for (const kw of keywords) {
+          const count = (content.match(new RegExp(kw, 'g')) || []).length;
+          score += count;
+        }
+        return { record: r, score };
+      })
+      .filter(item => item.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, limit);
+
+    const elapsed = Date.now() - startTime;
+    
+    log.info('🔎 [MemoryStore] 全文检索完成', { 
+      query: query.slice(0, 50),
+      keywords,
+      totalRecords: allResults.length,
+      matchedRecords: scored.length,
+      topScores: scored.slice(0, 3).map(s => s.score),
+      elapsed: `${elapsed}ms`
+    });
+
+    return scored.map(item => this.recordToEntry(item.record));
+  }
+
+  /**
+   * 从查询中提取关键词（支持中英文混合）
+   */
+  private extractKeywords(query: string): string[] {
+    const keywords: string[] = [];
+    const lowerQuery = query.toLowerCase();
+    
+    // 1. 提取英文单词（连续字母）
+    const englishWords = lowerQuery.match(/[a-z]+/g) || [];
+    keywords.push(...englishWords.filter(w => w.length > 1));
+    
+    // 2. 提取中文词汇（每2-4个字符为一组，形成 n-gram）
+    const chineseChars = lowerQuery.match(/[\u4e00-\u9fa5]/g) || [];
+    if (chineseChars.length > 0) {
+      // 2-gram
+      for (let i = 0; i < chineseChars.length - 1; i++) {
+        keywords.push(chineseChars[i] + chineseChars[i + 1]);
+      }
+      // 3-gram（如果中文足够多）
+      if (chineseChars.length > 3) {
+        for (let i = 0; i < chineseChars.length - 2; i++) {
+          keywords.push(chineseChars[i] + chineseChars[i + 1] + chineseChars[i + 2]);
+        }
+      }
+    }
+    
+    // 3. 提取数字
+    const numbers = lowerQuery.match(/\d+/g) || [];
+    keywords.push(...numbers.filter(n => n.length > 1));
+    
+    // 去重
+    return [...new Set(keywords)];
   }
 
   /**
@@ -183,6 +288,12 @@ export class MemoryStore {
       .where(`sessionId = "${sessionId}"`)
       .limit(limit)
       .toArray();
+
+    log.debug('📖 [MemoryStore] 获取最近记忆', { 
+      sessionId, 
+      limit, 
+      resultCount: results.length 
+    });
 
     return results.map(r => this.recordToEntry(r));
   }

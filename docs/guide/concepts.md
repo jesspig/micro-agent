@@ -205,6 +205,56 @@ JSONL 格式存储会话历史：
 {"timestamp":"2024-01-01T00:00:01Z","role":"assistant","content":"你好"}
 ```
 
+### 记忆系统
+
+记忆系统让 Agent 能够跨会话保持上下文，实现长期记忆能力。
+
+#### 核心功能
+
+- **记忆存储**：将对话内容转化为向量存储，支持语义检索
+- **智能检索**：基于用户输入检索相关记忆，注入系统提示
+- **自动摘要**：对话过长时自动生成摘要，压缩上下文
+
+#### 检索方式
+
+1. **向量检索**：使用嵌入模型进行语义相似度搜索
+2. **全文检索**：基于关键词匹配，支持中文 n-gram 分词
+
+#### 工作流程
+
+```mermaid
+sequenceDiagram
+    participant User as 用户
+    participant Executor as 执行器
+    participant Memory as 记忆存储
+    participant LLM as 模型
+
+    User->>Executor: 发送消息
+    Executor->>Memory: 检索相关记忆
+    Memory-->>Executor: 返回记忆列表
+    Executor->>Executor: 注入系统提示
+    Executor->>LLM: 调用模型
+    LLM-->>Executor: 返回响应
+    Executor->>Memory: 存储对话记忆
+    Executor-->>User: 返回回复
+```
+
+#### 配置示例
+
+```yaml
+agents:
+  models:
+    embed: text-embedding-3-small  # 嵌入模型（可选）
+  
+  memory:
+    enabled: true
+    storagePath: ~/.microbot/memory
+    searchLimit: 10
+    shortTermRetentionDays: 7
+    autoSummarize: true
+    summarizeThreshold: 20
+```
+
 ## 消息通道
 
 通道是消息进出的抽象。
