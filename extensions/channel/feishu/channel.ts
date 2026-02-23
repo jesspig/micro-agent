@@ -29,6 +29,8 @@ export class FeishuChannel implements Channel {
   private readonly MAX_PROCESSED_IDS = 500;
   /** 运行状态 */
   private _running = false;
+  /** 最后活跃的聊天 ID（用于广播） */
+  private lastChatId: string | null = null;
 
   /**
    * 创建飞书通道实例
@@ -94,7 +96,14 @@ export class FeishuChannel implements Channel {
       throw new Error('飞书通道未启动');
     }
 
-    const receiveIdType = msg.chatId.startsWith('ou_') ? 'open_id' : 'chat_id';
+    // 广播时使用记住的 chatId
+    const chatId = msg.chatId === 'default' ? this.lastChatId : msg.chatId;
+    if (!chatId) {
+      log.warn('无可用 chatId，跳过发送');
+      return;
+    }
+
+    const receiveIdType = chatId.startsWith('ou_') ? 'open_id' : 'chat_id';
     const content = messageCard.defaultCard({
       title: '',
       content: msg.content,
@@ -104,7 +113,7 @@ export class FeishuChannel implements Channel {
       const response = await this.client.im.message.create({
         params: { receive_id_type: receiveIdType as 'chat_id' | 'open_id' },
         data: {
-          receive_id: msg.chatId,
+          receive_id: chatId,
           content,
           msg_type: 'interactive',
         },
@@ -189,6 +198,9 @@ export class FeishuChannel implements Channel {
         content: content.slice(0, 100),
         mediaCount: media.length,
       });
+
+      // 记住活跃的 chatId（用于广播）
+      this.lastChatId = replyTo;
 
       // 发布入站消息到总线
       const inboundMsg: InboundMessage = {

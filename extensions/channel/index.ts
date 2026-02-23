@@ -6,3 +6,6 @@
 
 // 飞书通道
 export { FeishuChannel } from './feishu';
+
+// CLI 通道
+export { CliChannel, type CliConfig } from './cli';

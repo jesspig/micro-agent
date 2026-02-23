@@ -23,6 +23,7 @@ import {
   OpenAIEmbedding,
   NoEmbedding,
 } from '@microbot/sdk';
+import { ChannelGatewayImpl } from '@microbot/runtime';
 import {
   ReadFileTool,
   WriteFileTool,
@@ -31,7 +32,7 @@ import {
   WebFetchTool,
   MessageTool,
 } from '../../../extensions/tool';
-import { FeishuChannel } from '../../../extensions/channel';
+import { FeishuChannel, CliChannel } from '../../../extensions/channel';
 import { buildIntentSystemPrompt, buildIntentUserPrompt, buildReActSystemPrompt, buildObservationMessage } from '../../prompts';
 import type {
   App,
@@ -155,7 +156,7 @@ function loadSystemPromptFromUserConfig(workspace: string): string {
 class AppImpl implements App {
   private running = false;
   private channelManager: ChannelManager;
-  private gateway: LLMGateway;
+  private llmGateway: LLMGateway;
   private availableModels = new Map<string, ModelConfig[]>();
   private config: Config;
   private workspace: string;
@@ -163,9 +164,11 @@ class AppImpl implements App {
   private sessionStore: SessionStore;
   private toolRegistry: ToolRegistry;
   private executor: AgentExecutor | null = null;
+  private channelGateway: ChannelGatewayImpl | null = null;
   private skillsLoader: SkillsLoader | null = null;
   private memoryStore: MemoryStore | null = null;
   private summarizer: ConversationSummarizer | null = null;
+  private cliChannel: CliChannel | null = null;
 
   constructor(config: Config, workspace: string) {
     this.config = config;
@@ -183,7 +186,7 @@ class AppImpl implements App {
     const defaultProvider = slashIndex > 0
       ? chatModel.slice(0, slashIndex)
       : Object.keys(config.providers)[0] || '';
-    this.gateway = new LLMGateway({ defaultProvider, fallbackEnabled: true });
+    this.llmGateway = new LLMGateway({ defaultProvider, fallbackEnabled: true });
   }
 
   async start(): Promise<void> {
@@ -221,13 +224,10 @@ class AppImpl implements App {
     // 6. 启动通道
     await this.channelManager.startAll();
 
-    // 7. 启动出站消息消费者
-    this.startOutboundConsumer();
-
-    // 8. 创建并启动 Agent 执行器
+    // 7. 创建 Agent 执行器
     this.executor = new AgentExecutor(
       this.messageBus,
-      this.gateway,
+      this.llmGateway,
       this.toolRegistry,
       {
         workspace: this.workspace,
@@ -252,9 +252,13 @@ class AppImpl implements App {
       this.summarizer ?? undefined
     );
 
-    this.executor.run().catch(error => {
-      console.error('执行器异常:', error instanceof Error ? error.message : String(error));
+    // 8. 创建并启动 ChannelGateway（消息处理中心）
+    this.channelGateway = new ChannelGatewayImpl({
+      executor: this.executor,
+      getChannels: () => this.channelManager.getChannels(),
     });
+
+    this.startGateway();
   }
 
   private loadSystemPrompt(): string {
@@ -343,18 +347,25 @@ ${skillsSummary}`);
     console.log(`  已注册 ${this.toolRegistry.getDefinitions().length} 个基础工具: ${this.toolRegistry.getDefinitions().map(t => t.name).join(', ')}`);
   }
 
-  private startOutboundConsumer(): void {
+  /**
+   * 启动 ChannelGateway 消息处理循环
+   *
+   * 流程：Channel → MessageBus(inbound) → Gateway → LLM → Gateway → 所有 Channel
+   */
+  private startGateway(): void {
     (async () => {
       while (this.running) {
         try {
-          const msg = await this.messageBus.consumeOutbound();
-          await this.channelManager.send(msg);
+          // 从 MessageBus 消费入站消息
+          const msg = await this.messageBus.consumeInbound();
+          // ChannelGateway 处理：调用 LLM + 广播响应
+          await this.channelGateway?.process(msg);
         } catch (error) {
-          console.error('发送消息失败:', error instanceof Error ? error.message : String(error));
+          console.error('Gateway 处理失败:', error instanceof Error ? error.message : String(error));
         }
       }
     })().catch(error => {
-      console.error('出站消费者异常:', error instanceof Error ? error.message : String(error));
+      console.error('Gateway 异常:', error instanceof Error ? error.message : String(error));
     });
   }
 
@@ -377,7 +388,7 @@ ${skillsSummary}`);
     if (!this.config.agents.models?.chat && Object.keys(this.config.providers).length === 0) {
       return '未配置';
     }
-    return this.gateway.getDefaultModel();
+    return this.llmGateway.getDefaultModel();
   }
 
   getRouterStatus(): { chatModel: string; visionModel?: string; coderModel?: string; intentModel?: string } {
@@ -391,10 +402,17 @@ ${skillsSummary}`);
 
   /**
    * 交互式对话
+   *
+   * CLI 输入 → ChannelGateway → LLM → 广播到所有 Channel
    */
   async chat(input: string): Promise<string> {
-    if (!this.executor) {
-      throw new Error('Agent 执行器未初始化');
+    if (!this.channelGateway) {
+      throw new Error('ChannelGateway 未初始化');
+    }
+
+    // 设置输入状态，禁用广播输出
+    if (this.cliChannel) {
+      this.cliChannel.setInputting(true);
     }
 
     const msg: InboundMessage = {
@@ -407,8 +425,16 @@ ${skillsSummary}`);
       timestamp: new Date(),
     };
 
-    const response = await this.executor.processMessage(msg);
-    return response?.content || '无响应';
+    // 通过 gateway 处理（会调用 LLM 并广播）
+    await this.channelGateway.process(msg);
+
+    // 恢复输入状态，显示缓存的广播消息
+    if (this.cliChannel) {
+      this.cliChannel.setInputting(false);
+      this.cliChannel.flushBroadcasts();
+    }
+
+    return '处理完成';
   }
 
   private initProviders(): void {
@@ -437,13 +463,14 @@ ${skillsSummary}`);
       });
 
       const priority = name === defaultProviderName ? 1 : 100;
-      this.gateway.registerProvider(name, provider, modelIds.length > 0 ? modelIds : ['*'], priority, modelConfigs);
+      this.llmGateway.registerProvider(name, provider, modelIds.length > 0 ? modelIds : ['*'], priority, modelConfigs);
     }
   }
 
   private initChannels(): void {
     const channels = this.config.channels;
 
+    // 飞书通道
     if (channels.feishu?.enabled && channels.feishu.appId && channels.feishu.appSecret) {
       const channel = new FeishuChannel(this.messageBus, {
         appId: channels.feishu.appId,
@@ -452,6 +479,10 @@ ${skillsSummary}`);
       });
       this.channelManager.register(channel);
     }
+
+    // CLI 通道（始终注册）
+    this.cliChannel = new CliChannel(this.messageBus);
+    this.channelManager.register(this.cliChannel);
   }
 
   /**
@@ -527,7 +558,7 @@ ${skillsSummary}`);
       // 初始化 Summarizer
       if (memoryConfig?.autoSummarize !== false && this.memoryStore) {
         this.summarizer = new ConversationSummarizer(
-          this.gateway,
+          this.llmGateway,
           this.memoryStore,
           {
             minMessages: memoryConfig?.summarizeThreshold ?? 20,

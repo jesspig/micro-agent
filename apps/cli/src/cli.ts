@@ -124,11 +124,8 @@ async function chatService(configPath?: string): Promise<void> {
       }
 
       try {
-        // 发送消息到 Agent
-        const response = await app.chat(input.trim());
-        console.log();
-        console.log(`\x1b[36m\x1b[1m助手:\x1b[0m ${response}`);
-        console.log();
+        // 发送消息到 Agent（响应已由 CliChannel 输出）
+        await app.chat(input.trim());
       } catch (error) {
         console.log();
         console.log(`\x1b[31m错误: ${error instanceof Error ? error.message : String(error)}\x1b[0m`);
