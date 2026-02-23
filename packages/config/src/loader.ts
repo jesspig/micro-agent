@@ -3,10 +3,9 @@
  */
 
 import { existsSync } from 'fs';
-import { resolve, dirname } from 'path';
-import { fileURLToPath } from 'url';
+import { resolve } from 'path';
 import { ConfigSchema, type Config } from './schema';
-import { createDefaultUserConfig, expandPath } from './workspace';
+import { expandPath } from './workspace';
 import {
   deepMerge,
   findConfigFile,
@@ -17,10 +16,9 @@ import {
 
 /** 配置层级（优先级从低到高） */
 export enum ConfigLevel {
-  SYSTEM = 0,
-  USER = 1,
-  PROJECT = 2,
-  DIRECTORY = 3,
+  USER = 0,
+  PROJECT = 1,
+  DIRECTORY = 2,
 }
 
 /** 配置层级路径信息 */
@@ -32,9 +30,6 @@ interface ConfigPath {
 
 /** 用户配置目录 */
 const USER_CONFIG_DIR = '~/.microbot';
-
-/** 系统级默认目录 */
-const SYSTEM_DEFAULTS_DIR = getSystemDefaultsDir();
 
 /** 配置加载选项 */
 export interface LoadConfigOptions {
@@ -49,20 +44,18 @@ export interface LoadConfigOptions {
 export function loadConfig(options: LoadConfigOptions = {}): Config {
   const { configPath, workspace, currentDir } = options;
 
-  createDefaultUserConfig(SYSTEM_DEFAULTS_DIR);
-
   // 指定配置文件路径
   if (configPath) {
     if (existsSync(configPath)) {
       const config = loadConfigFile(configPath);
-      return ConfigSchema.parse(deepMerge(loadSystemConfig(), config));
+      return ConfigSchema.parse(deepMerge(getBuiltinDefaults(), config));
     }
-    return ConfigSchema.parse(loadSystemConfig());
+    return ConfigSchema.parse(getBuiltinDefaults());
   }
 
   // 三级配置合并
   const configPaths = collectConfigPaths(workspace, currentDir);
-  let mergedConfig = loadSystemConfig();
+  let mergedConfig = getBuiltinDefaults();
 
   for (const cp of configPaths) {
     if (cp.settingsPath && existsSync(cp.settingsPath)) {
@@ -72,22 +65,6 @@ export function loadConfig(options: LoadConfigOptions = {}): Config {
   }
 
   return ConfigSchema.parse(mergedConfig);
-}
-
-/**
- * 获取系统级默认目录（指向 templates/configs）
- */
-function getSystemDefaultsDir(): string {
-  const currentDir = dirname(fileURLToPath(import.meta.url));
-  // 指向项目根目录的 templates/configs
-  return resolve(currentDir, '../../../templates/configs');
-}
-
-/**
- * 获取系统级默认目录路径
- */
-export function getSystemDefaultsPath(): string {
-  return SYSTEM_DEFAULTS_DIR;
 }
 
 /**
@@ -146,25 +123,6 @@ function collectDirectoryConfigs(workspace: string, currentDir: string): ConfigP
   }
 
   return paths;
-}
-
-/**
- * 加载系统级默认配置
- */
-function loadSystemConfig(): Record<string, unknown> {
-  const systemConfigPath = resolve(SYSTEM_DEFAULTS_DIR, 'settings.yaml');
-
-  if (!existsSync(systemConfigPath)) {
-    return getBuiltinDefaults();
-  }
-
-  const config = loadConfigFile(systemConfigPath);
-  
-  if (Object.keys(config.providers || {}).length === 0) {
-    return deepMerge(getBuiltinDefaults(), config);
-  }
-  
-  return config;
 }
 
 /** 配置状态 */

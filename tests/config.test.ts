@@ -1,9 +1,16 @@
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import { writeFileSync, mkdirSync, rmSync, existsSync } from 'fs';
-import { join } from 'path';
-import { loadConfig, expandPath, findTemplateFile, getSystemDefaultsPath } from '@microbot/sdk';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+import { loadConfig, expandPath, findTemplateFile } from '@microbot/sdk';
 
 const TEST_DIR = join(import.meta.dir, '__config_test__');
+
+/** 获取模板目录路径 */
+function getTemplatesDir(): string {
+  const currentDir = dirname(fileURLToPath(import.meta.url));
+  return join(currentDir, '../templates/configs');
+}
 
 describe('Config Loader', () => {
   beforeEach(() => {
@@ -135,8 +142,8 @@ providers:
       const soulPath = join(dirA, 'SOUL.md');
       writeFileSync(soulPath, '# Soul from A');
 
-      const systemDefaultsDir = getSystemDefaultsPath();
-      const found = findTemplateFile('SOUL.md', systemDefaultsDir, workspace, dirC);
+      const templatesDir = getTemplatesDir();
+      const found = findTemplateFile('SOUL.md', templatesDir, workspace, dirC);
       expect(found).toBe(soulPath);
     });
   });

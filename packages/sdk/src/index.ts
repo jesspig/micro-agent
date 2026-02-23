@@ -41,7 +41,6 @@ export type { SessionStoreConfig } from '@microbot/storage';
 // ============ Config - 配置层 ============
 export {
   loadConfig,
-  getSystemDefaultsPath,
   getConfigStatus,
   deepMerge,
   resolveEnvVars,
