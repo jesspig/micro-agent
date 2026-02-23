@@ -1,8 +1,20 @@
 # 配置指南
 
+## 配置层级
+
+MicroBot 采用三级配置系统，优先级从低到高：
+
+| 层级 | 路径 | 说明 |
+|------|------|------|
+| User | `~/.microbot/settings.yaml` | 用户全局配置 |
+| Project | `<workspace>/.microbot/settings.yaml` | 项目配置 |
+| Directory | `<currentDir>/.microbot/settings.yaml` | 目录配置（最高优先级） |
+
+配置会按优先级合并，高优先级配置覆盖低优先级。
+
 ## 配置文件
 
-配置文件位于 `~/.microbot/settings.yaml`
+主配置文件位于 `~/.microbot/settings.yaml`
 
 ## 完整配置示例
 

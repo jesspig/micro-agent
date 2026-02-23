@@ -2,7 +2,7 @@
 
 ## 概述
 
-技能扩展位于 `skills/`，每个技能是一个包含 SKILL.md 的目录。
+技能扩展位于 `extensions/skills/`，每个技能是一个包含 SKILL.md 的目录。
 
 ## SKILL.md 格式
 

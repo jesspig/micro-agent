@@ -34,7 +34,6 @@ export type {
 // Loader
 export {
   loadConfig,
-  getSystemDefaultsPath,
   getConfigStatus,
   ConfigLevel,
 } from './loader';

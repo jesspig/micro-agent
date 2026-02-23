@@ -41,7 +41,6 @@ export type { SessionStoreConfig } from '@microbot/storage';
 // ============ Config - 配置层 ============
 export {
   loadConfig,
-  getSystemDefaultsPath,
   getConfigStatus,
   deepMerge,
   resolveEnvVars,
@@ -104,7 +103,6 @@ export type { InboundMessageParams } from './channel';
 // ============ Skill - 技能模块 ============
 export { SkillsLoader, getUserSkillsPath, SKILL_NAME_REGEX } from './skill';
 export type { Skill, SkillSummary, SkillFrontmatter } from './skill';
-export { SkillTool, createSkillTool, createSkillTools } from './skill';
 
 // ============ Define - 定义函数 ============
 export { defineTool, defineChannel, defineSkill } from './define';

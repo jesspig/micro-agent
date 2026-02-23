@@ -2,7 +2,9 @@
 
 ## 概述
 
-Agent 实现了 ReAct（Reasoning + Acting）模式，是系统的核心智能组件。
+Agent 实现了双执行模式：
+- **Function Calling 模式**：主流 LLM 的原生工具调用方式
+- **ReAct 模式**：基于 JSON 结构化输出的推理-行动循环
 
 ## 工作流程
 

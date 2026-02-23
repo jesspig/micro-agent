@@ -15,12 +15,14 @@
 |------|------|
 | 轻量高效 | Bun 原生性能，核心代码简洁 |
 | 8层 Monorepo | Types → Runtime/Config/Storage → SDK/Providers/Extension-System → Server → CLI |
-| 智能路由 | 根据任务复杂度自动选择模型 |
+| 智能路由 | 根据任务类型自动选择合适模型 |
 | 🧠 长期记忆 | LanceDB 向量存储、语义检索、自动摘要、跨会话上下文保持 |
 | Channel Gateway | 消息处理枢纽，多通道聚合、响应广播、自动重连 |
-| 多通道支持 | 飞书（更多通道开发中） |
+| 多通道支持 | CLI、飞书（更多通道开发中） |
 | 本地优先 LLM | Ollama / LM Studio / OpenAI Compatible |
 | MCP 兼容 | Model Context Protocol 工具接口 |
+| 热重载 | 扩展开发时支持文件变更自动重载 |
+| 多协议支持 | ACP（IDE集成）、A2A（Agent通信）、MCP（工具接入） |
 
 ## 安装
 
@@ -176,16 +178,53 @@ channels:
 
 **模型格式**: `provider/model`（如 `ollama/qwen3`、`deepseek/deepseek-chat`）
 
+### Ollama（本地运行）
+
 ```yaml
 providers:
   ollama:
     baseUrl: http://localhost:11434/v1
-    models: [qwen3]
+    models: [qwen3, qwen3-vl]
 
+agents:
+  models:
+    chat: ollama/qwen3
+    vision: ollama/qwen3-vl
+```
+
+### DeepSeek（深度推理）
+
+```yaml
+providers:
   deepseek:
     baseUrl: https://api.deepseek.com/v1
     apiKey: ${DEEPSEEK_API_KEY}
-    models: [deepseek-chat]
+    models: [deepseek-chat, deepseek-reasoner]
+
+agents:
+  models:
+    chat: deepseek/deepseek-chat
+    coder: deepseek/deepseek-chat
+```
+
+### GLM 智谱 / MiniMax / Kimi
+
+```yaml
+providers:
+  glm:
+    baseUrl: https://open.bigmodel.cn/api/paas/v4
+    apiKey: ${GLM_API_KEY}
+    models: [glm-4-flash]
+  
+  minimax:
+    baseUrl: https://api.minimax.chat/v1
+    apiKey: ${MINIMAX_API_KEY}
+    models: [abab6.5s-chat]
+  
+  kimi:
+    baseUrl: https://api.moonshot.cn/v1
+    apiKey: ${MOONSHOT_API_KEY}
+    models: [moonshot-v1-128k]
 ```
 
 **Gateway 特性**:
