@@ -21,7 +21,7 @@ export interface SkillRequires {
   env?: string[];
 }
 
-/** 技能元数据（OpenClaw/nanobot 兼容格式） */
+/** 技能元数据（符合 Agent Skills 行业标准） */
 export interface SkillMetadata {
   /** emoji 图标 */
   emoji?: string;
