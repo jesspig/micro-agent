@@ -64,6 +64,20 @@ export interface LLMMessage {
   toolCalls?: ToolCall[];
 }
 
+/** 使用统计 */
+export interface UsageStats {
+  /** 输入 token 数 */
+  promptTokens: number;
+  /** 输出 token 数 */
+  completionTokens: number;
+  /** 总 token 数 */
+  totalTokens: number;
+  /** 缓存写入 token 数 */
+  cacheWriteTokens?: number;
+  /** 缓存读取 token 数 */
+  cacheReadTokens?: number;
+}
+
 /** LLM 响应格式 */
 export interface LLMResponse {
   /** 文本内容 */
@@ -72,6 +86,10 @@ export interface LLMResponse {
   toolCalls?: ToolCall[];
   /** 是否包含工具调用 */
   hasToolCalls: boolean;
+  /** 推理内容（用于深度思考模型） */
+  reasoning?: string;
+  /** 使用统计 */
+  usage?: UsageStats;
   /** 实际使用的 Provider 名称 */
   usedProvider?: string;
   /** 实际使用的模型 ID */

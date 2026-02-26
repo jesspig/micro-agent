@@ -17,9 +17,6 @@ export * from './tool';
 // 消息类型
 export * from './message';
 
-// 会话类型
-export * from './session';
-
 // Provider 类型
 export * from './provider';
 

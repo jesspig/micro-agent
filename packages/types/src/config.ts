@@ -74,7 +74,17 @@ export interface Config {
     topK?: number;
     topP?: number;
     frequencyPenalty?: number;
-    maxToolIterations?: number;
+    /** 执行器配置 */
+    executor?: {
+      /** 最大迭代次数 */
+      maxIterations?: number;
+      /** 循环检测配置 */
+      loopDetection?: {
+        enabled?: boolean;
+        warningThreshold?: number;
+        criticalThreshold?: number;
+      };
+    };
   };
   /** Provider 配置 */
   providers: Record<string, ProviderEntry>;

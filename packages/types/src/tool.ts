@@ -17,7 +17,7 @@ export interface JSONSchema {
 }
 
 /** 内容部分类型 */
-export type ContentPartType = 'text' | 'image' | 'resource';
+export type ContentPartType = 'text' | 'image' | 'resource' | 'image_url';
 
 /** 文本内容部分 */
 export interface TextContentPart {
@@ -25,11 +25,20 @@ export interface TextContentPart {
   text: string;
 }
 
-/** 图片内容部分 */
+/** 图片内容部分（base64 格式） */
 export interface ImageContentPart {
   type: 'image';
   data: string;
   mimeType: string;
+}
+
+/** 图片 URL 内容部分（OpenAI 格式） */
+export interface ImageUrlContentPart {
+  type: 'image_url';
+  image_url: {
+    url: string;
+    detail?: 'low' | 'high' | 'auto';
+  };
 }
 
 /** 资源内容部分 */
@@ -40,7 +49,7 @@ export interface ResourceContentPart {
 }
 
 /** 内容部分联合类型 */
-export type ContentPart = TextContentPart | ImageContentPart | ResourceContentPart;
+export type ContentPart = TextContentPart | ImageContentPart | ImageUrlContentPart | ResourceContentPart;
 
 /** 工具结果（MCP 兼容） */
 export interface ToolResult {
