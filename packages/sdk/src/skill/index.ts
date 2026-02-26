@@ -12,4 +12,4 @@ export type {
   SkillsLimits 
 } from './types';
 export { SKILL_NAME_REGEX, DEFAULT_SKILLS_LIMITS } from './types';
-export { SkillsLoader, getUserSkillsPath } from './loader';
+export { SkillsLoader } from './loader';

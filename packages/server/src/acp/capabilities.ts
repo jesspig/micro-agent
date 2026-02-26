@@ -66,24 +66,3 @@ export const DEFAULT_ACP_CAPABILITIES: ACPCapabilities = {
     { type: 'token', description: 'Bearer Token 认证' },
   ],
 };
-
-/**
- * 合并能力
- */
-export function mergeCapabilities(
-  base: ACPCapabilities,
-  override: Partial<ACPCapabilities>
-): ACPCapabilities {
-  return {
-    ...base,
-    ...override,
-    features: {
-      ...base.features,
-      ...override.features,
-      sessions: {
-        ...base.features.sessions,
-        ...override.features?.sessions,
-      },
-    },
-  };
-}

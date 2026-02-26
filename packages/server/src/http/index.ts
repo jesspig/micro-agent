@@ -3,4 +3,4 @@
  */
 
 export { createHTTPServer, jsonResponse, errorResponse, type HTTPServerConfig, type HTTPServerInstance } from './server';
-export { AuthManager, hashToken, type AuthConfig, type AuthResult } from './auth';
+export { AuthManager, type AuthConfig, type AuthResult } from './auth';

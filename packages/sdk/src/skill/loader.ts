@@ -330,8 +330,3 @@ function expandPath(path: string): string {
   }
   return resolve(path);
 }
-
-/** 获取用户技能目录路径 */
-export function getUserSkillsPath(): string {
-  return expandPath(USER_SKILLS_DIR);
-}
