@@ -95,7 +95,7 @@ jobs:
           echo "📦 发布 @micro-agent/cli"
           npm publish --workspace=@micro-agent/cli --access public
           
-          echo "📦 发布 micro-agent"
+          echo "📦 发布 @micro-agent/core"
           npm publish --access public
           
           echo "✅ 发布完成！"
