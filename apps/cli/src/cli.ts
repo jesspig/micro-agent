@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 
 /**
- * MicroBot CLI 入口
+ * MicroAgent CLI 入口
  *
  * 命令:
  * - start: 启动服务
@@ -12,20 +12,20 @@
 
 import { parseArgs } from 'util';
 import { createInterface } from 'readline';
-import { initLogger } from '@microbot/config';
+import { initLogger } from '@micro-agent/config';
 import { createApp } from './app';
-import { loadConfig, getConfigStatus } from '@microbot/config';
-import type { App } from '@microbot/types';
+import { loadConfig, getConfigStatus } from '@micro-agent/config';
+import type { App } from '@micro-agent/types';
 
-const VERSION = '0.2.0';
+const VERSION = '0.2.1';
 
 /** 显示帮助信息 */
 function showHelp(): void {
   console.log(`
-MicroBot - 轻量级 AI 助手框架
+MicroAgent - 轻量级 AI 助手框架
 
 用法:
-  microbot [命令] [选项]
+  micro-agent [命令] [选项]
 
 命令:
   start       启动服务（连接外部通道）
@@ -40,18 +40,18 @@ MicroBot - 轻量级 AI 助手框架
       --version         显示版本
 
 示例:
-  microbot chat              # 终端对话
-  microbot start             # 启动服务连接飞书/钉钉
-  microbot start -v
-  microbot start -c ./config.yaml
-  microbot status
-  microbot ext list
+  micro-agent chat              # 终端对话
+  micro-agent start             # 启动服务连接飞书/钉钉
+  micro-agent start -v
+  micro-agent start -c ./config.yaml
+  micro-agent status
+  micro-agent ext list
 `);
 }
 
 /** 显示版本 */
 function showVersion(): void {
-  console.log(`MicroBot v${VERSION}`);
+  console.log(`MicroAgent v${VERSION}`);
 }
 
 /** 显示状态 */
@@ -60,7 +60,7 @@ function showStatus(app: App): void {
   const provider = app.getProviderStatus();
 
   console.log();
-  console.log('\x1b[1m\x1b[36mMicroBot 状态\x1b[0m');
+  console.log('\x1b[1m\x1b[36mMicroAgent 状态\x1b[0m');
   console.log('─'.repeat(50));
   console.log(`  \x1b[2m通道:\x1b[0m ${channels.length > 0 ? channels.join(', ') : '无'}`);
   console.log(`  \x1b[2mProvider:\x1b[0m ${provider}`);
@@ -71,7 +71,7 @@ function showStatus(app: App): void {
 async function chatService(configPath?: string): Promise<void> {
   console.log('\x1b[2J\x1b[H');
   console.log();
-  console.log('\x1b[1m\x1b[36mMicroBot Chat\x1b[0m');
+  console.log('\x1b[1m\x1b[36mMicroAgent Chat\x1b[0m');
   console.log('─'.repeat(50));
 
   const baseConfig = loadConfig(configPath ? { configPath } : {});
@@ -86,7 +86,7 @@ async function chatService(configPath?: string): Promise<void> {
       console.log(`    \x1b[31m✗\x1b[0m ${item}`);
     }
     console.log();
-    console.log('  请编辑 \x1b[36m~/.microbot/settings.yaml\x1b[0m 完成配置');
+    console.log('  请编辑 \x1b[36m~/.micro-agent/settings.yaml\x1b[0m 完成配置');
     console.log('─'.repeat(50));
     console.log();
     process.exit(1);
@@ -143,7 +143,7 @@ async function chatService(configPath?: string): Promise<void> {
 async function startService(configPath?: string): Promise<void> {
   console.log('\x1b[2J\x1b[H'); // 清屏
   console.log();
-  console.log('\x1b[1m\x1b[36mMicroBot\x1b[0m');
+  console.log('\x1b[1m\x1b[36mMicroAgent\x1b[0m');
   console.log('─'.repeat(50));
 
   // 检查配置状态
@@ -160,7 +160,7 @@ async function startService(configPath?: string): Promise<void> {
       console.log(`    \x1b[31m✗\x1b[0m ${item}`);
     }
     console.log();
-    console.log('  请编辑 \x1b[36m~/.microbot/settings.yaml\x1b[0m 完成配置后重启');
+    console.log('  请编辑 \x1b[36m~/.micro-agent/settings.yaml\x1b[0m 完成配置后重启');
     console.log('─'.repeat(50));
   }
 
@@ -220,10 +220,10 @@ async function startService(configPath?: string): Promise<void> {
       console.log('  Agent 已启动但无法接收消息。请选择以下方式之一：');
       console.log();
       console.log('  \x1b[36m1. 配置外部通道\x1b[0m');
-      console.log('     编辑 ~/.microbot/settings.yaml，启用飞书/钉钉等通道');
+      console.log('     编辑 ~/.micro-agent/settings.yaml，启用飞书/钉钉等通道');
       console.log();
       console.log('  \x1b[36m2. 使用交互模式\x1b[0m');
-      console.log('     运行: microbot chat');
+      console.log('     运行: micro-agent chat');
       console.log();
       console.log('─'.repeat(50));
     } else {
@@ -302,7 +302,7 @@ export async function runCli(argv: string[] = process.argv.slice(2)): Promise<vo
 
     default:
       console.log(`未知命令: ${command}`);
-      console.log('运行 microbot --help 查看帮助');
+      console.log('运行 micro-agent --help 查看帮助');
   }
 }
 

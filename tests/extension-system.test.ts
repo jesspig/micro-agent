@@ -3,8 +3,8 @@
  */
 
 import { describe, it, expect, beforeEach } from 'bun:test'
-import { ExtensionDiscovery } from '@microbot/extension-system'
-import { ExtensionRegistry } from '@microbot/extension-system'
+import { ExtensionDiscovery } from '@micro-agent/extension-system'
+import { ExtensionRegistry } from '@micro-agent/extension-system'
 import { mkdirSync, writeFileSync, rmSync, existsSync } from 'fs'
 import { join } from 'path'
 
@@ -77,7 +77,7 @@ description: A test extension
         displayName: 'Package Extension',
         version: '2.0.0',
         description: 'Extension from package.json',
-        microbot: { type: 'skill' },
+        microAgent: { type: 'skill' },
       }))
 
       discovery.addSearchPath(pkgTestDir)

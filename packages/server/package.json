@@ -1,14 +1,18 @@
 {
-  "name": "@microbot/server",
-  "version": "0.1.0",
-  "description": "MicroBot Server 层（OpenAI API, MCP Server, ACP Server）",
+  "name": "@micro-agent/server",
+  "version": "0.2.1",
+  "description": "MicroAgent Server 层（OpenAI API, MCP Server, ACP Server）",
   "type": "module",
   "author": "jesspig",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/jesspig/microbot.git",
+    "url": "https://github.com/jesspig/micro-agent.git",
     "directory": "packages/server"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
   },
   "main": "./src/index.ts",
   "exports": {
@@ -17,12 +21,14 @@
       "default": "./src/index.ts"
     }
   },
-  "files": ["src"],
+  "files": [
+    "src"
+  ],
   "dependencies": {
-    "@microbot/types": "workspace:*",
-    "@microbot/runtime": "workspace:*",
-    "@microbot/sdk": "workspace:*",
-    "@microbot/providers": "workspace:*",
+    "@micro-agent/types": "workspace:*",
+    "@micro-agent/runtime": "workspace:*",
+    "@micro-agent/sdk": "workspace:*",
+    "@micro-agent/providers": "workspace:*",
     "@logtape/logtape": "^2.0.2"
   },
   "devDependencies": {

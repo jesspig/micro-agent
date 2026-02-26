@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'bun:test';
-import { ChannelManager, ChannelHelper } from '@microbot/sdk';
-import type { Channel, OutboundMessage, ChannelType } from '@microbot/types';
-import type { MessageBus } from '@microbot/sdk';
+import { ChannelManager, ChannelHelper } from '@micro-agent/sdk';
+import type { Channel, OutboundMessage, ChannelType } from '@micro-agent/types';
+import type { MessageBus } from '@micro-agent/sdk';
 
 class MockBus implements MessageBus {
   async publishInbound(): Promise<void> {}

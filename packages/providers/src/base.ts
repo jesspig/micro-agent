@@ -2,7 +2,7 @@
  * LLM Provider 基础类型和接口
  */
 
-import type { ModelConfig } from '@microbot/config';
+import type { ModelConfig } from '@micro-agent/config';
 import type {
   ContentPart,
   TextContentPart,
@@ -17,9 +17,9 @@ import type {
   LLMToolDefinition,
   GenerationConfig,
   UsageStats,
-} from '@microbot/types';
+} from '@micro-agent/types';
 
-// 从 @microbot/types 重新导出（保持 API 兼容）
+// 从 @micro-agent/types 重新导出（保持 API 兼容）
 export type {
   ContentPart,
   TextContentPart,

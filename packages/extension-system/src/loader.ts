@@ -6,7 +6,7 @@
 
 import { resolve, join } from 'path';
 import { getLogger } from '@logtape/logtape';
-import type { ExtensionDescriptor, ExtensionDiscoveryResult } from '@microbot/types';
+import type { ExtensionDescriptor, ExtensionDiscoveryResult } from '@micro-agent/types';
 import { ExtensionDiscovery } from './discovery';
 import { ExtensionRegistry, type RegistryConfig } from './registry';
 

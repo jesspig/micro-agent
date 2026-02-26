@@ -12,10 +12,10 @@
     "outDir": "./dist",
     "baseUrl": "..",
     "paths": {
-      "@microbot/types": ["types/src/index.ts"],
-      "@microbot/config": ["config/src/index.ts"],
-      "@microbot/providers": ["providers/src/index.ts"],
-      "@microbot/providers/*": ["providers/src/*"]
+      "@micro-agent/types": ["types/src/index.ts"],
+      "@micro-agent/config": ["config/src/index.ts"],
+      "@micro-agent/providers": ["providers/src/index.ts"],
+      "@micro-agent/providers/*": ["providers/src/*"]
     }
   },
   "include": ["src/**/*"],

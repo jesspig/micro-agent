@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'bun:test';
-import type { LLMMessage, LLMResponse, ToolCall, LLMToolDefinition, LLMProvider } from '@microbot/types';
-import { parseOpenAIResponse } from '@microbot/sdk';
+import type { LLMMessage, LLMResponse, ToolCall, LLMToolDefinition, LLMProvider } from '@micro-agent/types';
+import { parseOpenAIResponse } from '@micro-agent/sdk';
 
 describe('Provider Base Types', () => {
   describe('parseOpenAIResponse', () => {

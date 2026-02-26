@@ -2,7 +2,7 @@
  * 工具注册表
  */
 
-import type { Tool, ToolContext, ToolResult } from '@microbot/types';
+import type { Tool, ToolContext, ToolResult } from '@micro-agent/types';
 
 /**
  * 工具注册表

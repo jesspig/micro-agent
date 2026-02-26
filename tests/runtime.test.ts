@@ -3,8 +3,8 @@
  */
 
 import { describe, it, expect, beforeEach } from 'bun:test'
-import { ContainerImpl, container } from '@microbot/runtime'
-import { HookSystem, hookSystem } from '@microbot/runtime'
+import { ContainerImpl, container } from '@micro-agent/runtime'
+import { HookSystem, hookSystem } from '@micro-agent/runtime'
 
 describe('Runtime Package', () => {
   describe('Container', () => {

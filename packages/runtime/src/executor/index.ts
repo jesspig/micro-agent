@@ -5,13 +5,13 @@
  * 使用原生 Function Calling 而非 ReAct JSON 解析。
  */
 
-import type { InboundMessage, OutboundMessage, ToolContext } from '@microbot/types';
-import type { LLMGateway, LLMMessage, GenerationConfig, MessageContent, LLMToolDefinition, IntentPromptBuilder, UserPromptBuilder } from '@microbot/providers';
+import type { InboundMessage, OutboundMessage, ToolContext } from '@micro-agent/types';
+import type { LLMGateway, LLMMessage, GenerationConfig, MessageContent, LLMToolDefinition, IntentPromptBuilder, UserPromptBuilder } from '@micro-agent/providers';
 import type { MessageBus } from '../bus/queue';
-import type { ModelConfig, LoopDetectionConfig } from '@microbot/config';
+import type { ModelConfig, LoopDetectionConfig } from '@micro-agent/config';
 import type { AgentLoopResult, MemoryEntry } from '../types';
 import type { MemoryStore, ConversationSummarizer } from '../memory';
-import { ModelRouter, convertToPlainText, buildUserContent, type RouteResult } from '@microbot/providers';
+import { ModelRouter, convertToPlainText, buildUserContent, type RouteResult } from '@micro-agent/providers';
 import { LoopDetector } from '../loop-detection';
 import { MessageHistoryManager } from '../message-manager';
 import { getLogger } from '@logtape/logtape';

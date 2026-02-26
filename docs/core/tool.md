@@ -8,7 +8,7 @@
 
 ```typescript
 import { z } from 'zod';
-import { Tool, ToolContext } from '@microbot/sdk';
+import { Tool, ToolContext } from '@micro-agent/sdk';
 
 class MyTool extends Tool {
   readonly name = 'my_tool';
@@ -41,7 +41,7 @@ interface ToolContext {
 ## 工具注册
 
 ```typescript
-import { ToolRegistry } from '@microbot/sdk';
+import { ToolRegistry } from '@micro-agent/sdk';
 
 const registry = new ToolRegistry();
 registry.register(new MyTool());

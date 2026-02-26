@@ -1,6 +1,6 @@
 # 核心模块
 
-MicroBot 采用 8 层 Monorepo 架构，核心功能分布在多个模块中。
+MicroAgent 采用 8 层 Monorepo 架构，核心功能分布在多个模块中。
 
 ## 模块列表
 
@@ -21,9 +21,9 @@ MicroBot 采用 8 层 Monorepo 架构，核心功能分布在多个模块中。
 通过 SDK 聚合模块统一导出：
 
 ```typescript
-import { Container, EventBus, HookSystem } from '@microbot/sdk';
-import { AgentExecutor, ReActAgent } from '@microbot/sdk';
-import { MemoryStore, ConversationSummarizer } from '@microbot/sdk';
-import { SessionStore } from '@microbot/sdk';
-import { ToolRegistry, defineTool } from '@microbot/sdk';
+import { Container, EventBus, HookSystem } from '@micro-agent/sdk';
+import { AgentExecutor, ReActAgent } from '@micro-agent/sdk';
+import { MemoryStore, ConversationSummarizer } from '@micro-agent/sdk';
+import { SessionStore } from '@micro-agent/sdk';
+import { ToolRegistry, defineTool } from '@micro-agent/sdk';
 ```

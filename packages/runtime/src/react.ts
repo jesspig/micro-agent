@@ -5,7 +5,7 @@
  * 不依赖原生的 function calling 能力。
  */
 
-import type { LLMGateway, LLMMessage, GenerationConfig } from '@microbot/providers';
+import type { LLMGateway, LLMMessage, GenerationConfig } from '@micro-agent/providers';
 import { parseReActResponse, type ReActResponse, type ReActAction } from './react-types';
 import { getLogger } from '@logtape/logtape';
 

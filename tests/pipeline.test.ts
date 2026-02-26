@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'bun:test';
-import { Pipeline } from '@microbot/sdk';
+import { Pipeline } from '@micro-agent/sdk';
 
 describe('Pipeline', () => {
   let pipeline: Pipeline<{ value: number; order?: number[] }>;

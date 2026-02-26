@@ -6,7 +6,7 @@
  */
 
 import { getLogger } from '@logtape/logtape';
-import type { ACPAgent, ACPConnection, ContentBlock, ToolCallContent, Usage, PermissionOption } from '@microbot/providers/acp/types';
+import type { ACPAgent, ACPConnection, ContentBlock, ToolCallContent, Usage, PermissionOption } from '@micro-agent/providers/acp/types';
 
 const log = getLogger(['server', 'acp']);
 
@@ -58,7 +58,7 @@ export class ACPServer implements ACPConnection {
 
   constructor(config: ACPServerConfig) {
     this.agent = config.agent;
-    this.serverVersion = config.serverVersion ?? 'microbot-0.2.0';
+    this.serverVersion = config.serverVersion ?? 'micro-agent-0.2.1';
   }
 
   /**

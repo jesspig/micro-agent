@@ -1,10 +1,10 @@
 # ═══════════════════════════════════════════════════════════════════════════════
-# MicroBot 配置文件
+# MicroAgent 配置文件
 # ═══════════════════════════════════════════════════════════════════════════════
 # 编辑此文件配置你的模型提供商
 #
 # 环境变量：支持 ${VAR_NAME} 语法，如 ${OPENAI_API_KEY}
-# 文档：https://microbot.dev/config
+# 文档：https://micro-agent.dev/config
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
@@ -12,8 +12,8 @@
 # ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 agents:
   # 工作区路径：存储会话、记忆、缓存等数据
-  # 默认：~/.microbot/workspace
-  # workspace: ~/.microbot/workspace
+  # 默认：~/.micro-agent/workspace
+  # workspace: ~/.micro-agent/workspace
 
   # ─────────────────────────────────────────────────────────────────────────
   # 模型配置【必填】
@@ -44,7 +44,7 @@ agents:
   # ─────────────────────────────────────────────────────────────────────────
   memory:
     enabled: true                    # 是否启用记忆系统
-    # storagePath: ~/.microbot/memory   # 存储路径
+    # storagePath: ~/.micro-agent/memory   # 存储路径
     # autoSummarize: true               # 自动摘要
     # summarizeThreshold: 20            # 触发摘要的消息阈值
     # idleTimeout: 300000               # 空闲超时触发摘要（毫秒）
@@ -152,7 +152,7 @@ providers:
 # └───────────┴─────────────────────────────────┴─────────────────────────────┘
 channels:
   # 飞书机器人
-  # 文档：https://microbot.dev/extensions/channels#飞书
+  # 文档：https://micro-agent.dev/extensions/channels#飞书
   # feishu:
   #   enabled: true
   #   appId: cli_xxxx

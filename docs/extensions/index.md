@@ -2,7 +2,7 @@
 
 ## 扩展架构
 
-Microbot 采用插件式扩展架构，接口在 Types，实现在 Extensions。
+MicroAgent 采用插件式扩展架构，接口在 Types，实现在 Extensions。
 
 ```
 packages/types/           # 接口定义
@@ -50,4 +50,4 @@ dependencies:
 - `extension.yaml`
 - `extension.yml`
 - `extension.json`
-- `package.json`（需包含 `microbot` 字段）
+- `package.json`（需包含 `micro-agent` 字段）

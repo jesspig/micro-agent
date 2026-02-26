@@ -8,7 +8,7 @@ import { readdirSync, statSync, readFileSync, existsSync } from 'fs';
 import { join, resolve, dirname } from 'path';
 import { load } from 'js-yaml';
 import { getLogger } from '@logtape/logtape';
-import type { ExtensionDescriptor, ExtensionDiscoveryResult, ExtensionType } from '@microbot/types';
+import type { ExtensionDescriptor, ExtensionDiscoveryResult, ExtensionType } from '@micro-agent/types';
 
 const log = getLogger(['extension', 'discovery']);
 
@@ -142,7 +142,7 @@ export class ExtensionDiscovery {
         id: pkg.name,
         name: pkg.displayName ?? pkg.name,
         version: pkg.version,
-        type: pkg.microbot?.type ?? 'tool',
+        type: pkg.microAgent?.type ?? 'tool',
         description: pkg.description,
         author: pkg.author,
         main: pkg.main ?? 'index.js',

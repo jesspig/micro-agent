@@ -45,10 +45,10 @@
 - 会话记录：Markdown 格式持久化
 
 ```typescript
-import { MemoryStore } from '@microbot/runtime/memory';
+import { MemoryStore } from '@micro-agent/runtime/memory';
 
 const store = new MemoryStore({
-  storagePath: '~/.microbot/memory',
+  storagePath: '~/.micro-agent/memory',
   embeddingService: embeddingService,
   defaultSearchLimit: 10,
   shortTermRetentionDays: 7,
@@ -94,7 +94,7 @@ const result = await store.cleanupExpired();
 嵌入服务，将文本转换为向量。
 
 ```typescript
-import { createEmbeddingService } from '@microbot/runtime/memory';
+import { createEmbeddingService } from '@micro-agent/runtime/memory';
 
 // 创建嵌入服务（需配置 embed 模型）
 const embedding = createEmbeddingService(
@@ -131,7 +131,7 @@ noEmbedding.isAvailable(); // false
 2. 空闲触发：无活动超过 `idleTimeout`
 
 ```typescript
-import { ConversationSummarizer } from '@microbot/runtime/memory';
+import { ConversationSummarizer } from '@micro-agent/runtime/memory';
 
 const summarizer = new ConversationSummarizer(
   gateway,      // LLMGateway
@@ -187,7 +187,7 @@ agents:
   
   memory:
     enabled: true                    # 启用记忆系统
-    storagePath: '~/.microbot/memory'
+    storagePath: '~/.micro-agent/memory'
     autoSummarize: true              # 自动摘要
     summarizeThreshold: 20           # 触发阈值
     idleTimeout: 300000              # 空闲超时 (ms)
@@ -200,7 +200,7 @@ agents:
 | 配置项 | 类型 | 默认值 | 说明 |
 |--------|------|--------|------|
 | `enabled` | boolean | true | 是否启用记忆系统 |
-| `storagePath` | string | ~/.microbot/memory | 存储路径 |
+| `storagePath` | string | ~/.micro-agent/memory | 存储路径 |
 | `autoSummarize` | boolean | true | 是否自动摘要 |
 | `summarizeThreshold` | number | 20 | 触发摘要的消息数 |
 | `idleTimeout` | number | 300000 | 空闲超时时间 (ms) |
@@ -251,8 +251,8 @@ agents:
 ### 基础用法
 
 ```typescript
-import { Container } from '@microbot/sdk';
-import { MemoryStore, createEmbeddingService, ConversationSummarizer } from '@microbot/runtime/memory';
+import { Container } from '@micro-agent/sdk';
+import { MemoryStore, createEmbeddingService, ConversationSummarizer } from '@micro-agent/runtime/memory';
 
 const container = Container.getInstance();
 
@@ -265,7 +265,7 @@ const embedding = createEmbeddingService(
 
 // 创建记忆存储
 const memoryStore = new MemoryStore({
-  storagePath: config.agents.memory?.storagePath ?? '~/.microbot/memory',
+  storagePath: config.agents.memory?.storagePath ?? '~/.micro-agent/memory',
   embeddingService: embedding,
   defaultSearchLimit: config.agents.memory?.searchLimit ?? 10,
 });

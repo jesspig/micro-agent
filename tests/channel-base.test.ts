@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'bun:test';
-import { ChannelHelper, type Channel } from '@microbot/sdk';
-import type { OutboundMessage, ChannelType } from '@microbot/types';
-import type { MessageBus } from '@microbot/sdk';
+import { ChannelHelper, type Channel } from '@micro-agent/sdk';
+import type { OutboundMessage, ChannelType } from '@micro-agent/types';
+import type { MessageBus } from '@micro-agent/sdk';
 
 class MockBus implements MessageBus {
   publishedInbound: unknown[] = [];

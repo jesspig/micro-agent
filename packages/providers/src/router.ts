@@ -7,7 +7,7 @@
  * - chat：常规对话
  */
 
-import type { ModelConfig } from '@microbot/config';
+import type { ModelConfig } from '@micro-agent/config';
 import type { LLMProvider, LLMMessage } from './base';
 import { hasImageMedia } from './complexity';
 import type { TaskTypeResult, ModelInfo, IntentPromptBuilder, UserPromptBuilder } from './prompts';

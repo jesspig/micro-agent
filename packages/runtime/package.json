@@ -1,14 +1,18 @@
 {
-  "name": "@microbot/runtime",
-  "version": "0.1.0",
-  "description": "MicroBot 运行时引擎",
+  "name": "@micro-agent/runtime",
+  "version": "0.2.1",
+  "description": "MicroAgent 运行时引擎",
   "type": "module",
   "author": "jesspig",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/jesspig/microbot.git",
+    "url": "https://github.com/jesspig/micro-agent.git",
     "directory": "packages/runtime"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
   },
   "main": "./src/index.ts",
   "exports": {
@@ -17,11 +21,13 @@
       "default": "./src/index.ts"
     }
   },
-  "files": ["src"],
+  "files": [
+    "src"
+  ],
   "dependencies": {
-    "@microbot/types": "workspace:*",
-    "@microbot/config": "workspace:*",
-    "@microbot/providers": "workspace:*",
+    "@micro-agent/types": "workspace:*",
+    "@micro-agent/config": "workspace:*",
+    "@micro-agent/providers": "workspace:*",
     "@logtape/logtape": "^2.0.2",
     "mitt": "^3.0.1"
   },

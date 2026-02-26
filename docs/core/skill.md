@@ -11,7 +11,7 @@
 name: my-skill
 description: 技能描述
 license: MIT
-compatibility: microbot@>=1.0.0
+compatibility: micro-agent@>=1.0.0
 always: false
 allowed-tools:
   - read_file
@@ -40,7 +40,7 @@ metadata:
 ## 加载优先级
 
 1. **项目技能**: `./workspace/skills/`
-2. **用户技能**: `~/.microbot/skills/`
+2. **用户技能**: `~/.micro-agent/skills/`
 3. **内置技能**: `extensions/skill/`
 
 ## 渐进式披露

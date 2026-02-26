@@ -1,14 +1,18 @@
 {
-  "name": "@microbot/types",
-  "version": "0.1.0",
-  "description": "MicroBot 核心类型定义（零依赖）",
+  "name": "@micro-agent/types",
+  "version": "0.2.1",
+  "description": "MicroAgent 核心类型定义（零依赖）",
   "type": "module",
   "author": "jesspig",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/jesspig/microbot.git",
+    "url": "https://github.com/jesspig/micro-agent.git",
     "directory": "packages/types"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
   },
   "main": "./src/index.ts",
   "exports": {
@@ -17,7 +21,9 @@
       "default": "./src/index.ts"
     }
   },
-  "files": ["src"],
+  "files": [
+    "src"
+  ],
   "devDependencies": {
     "@types/bun": "latest",
     "typescript": "^5.9.3"

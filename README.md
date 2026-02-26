@@ -1,13 +1,13 @@
-# MicroBot
+# MicroAgent
 
-[![Version](https://img.shields.io/badge/Version-0.2.0-blue.svg)](https://github.com/jesspig/microbot)
+[![Version](https://img.shields.io/badge/Version-0.2.1-blue.svg)](https://github.com/jesspig/micro-agent)
 [![Bun](https://img.shields.io/badge/Bun-1.3.9-black?logo=bun)](https://bun.sh/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9.3-blue?logo=typescript)](https://www.typescriptlang.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 基于 **Bun + TypeScript** 的超轻量级个人 AI 助手框架。
 
-**[📖 在线文档](https://jesspig.github.io/microbot/)** | **[📦 更新日志](https://jesspig.github.io/microbot/guide/changelog/)**
+**[📖 在线文档](https://jesspig.github.io/micro-agent/)** | **[📦 更新日志](https://jesspig.github.io/micro-agent/guide/changelog/)**
 
 ## 特性
 
@@ -24,13 +24,27 @@
 | 热重载 | 扩展开发时支持文件变更自动重载 |
 | 多协议支持 | ACP（IDE集成）、A2A（Agent通信）、MCP（工具接入） |
 
+## 运行环境要求
+
+> **注意**：本项目专为 [Bun](https://bun.sh/) 运行时设计，**不支持 Node.js**。
+
+| 要求 | 版本 |
+|------|------|
+| Bun | >= 1.0.0 |
+| TypeScript | >= 5.0 |
+
+**不兼容 Node.js 的原因**：
+- 使用 `Bun.serve()`、`Bun.spawn()` 等 Bun 特有 API
+- 使用 `bun:test` 测试框架
+- TypeScript 配置针对 Bun 优化（`moduleResolution: bundler`）
+
 ## 安装
 
 ### 方式一：克隆运行（推荐）
 
 ```bash
-git clone https://github.com/jesspig/microbot.git
-cd microbot
+git clone https://github.com/jesspig/micro-agent.git
+cd micro-agent
 bun install
 bun start
 ```
@@ -38,7 +52,7 @@ bun start
 ### 方式二：直接运行
 
 ```bash
-bunx jesspig/microbot start
+bunx jesspig/micro-agent start
 ```
 
 ## 快速开始
@@ -65,12 +79,12 @@ export OPENAI_API_KEY=your-api-key
 bun start
 ```
 
-首次启动自动创建 `~/.microbot/settings.yaml` 配置文件。
+首次启动自动创建 `~/.micro-agent/settings.yaml` 配置文件。
 
 ## CLI 命令
 
 ```bash
-microbot <command> [options]
+micro-agent <command> [options]
 
 Commands:
   start       启动服务
@@ -116,14 +130,14 @@ Options:
 
 | 包 | 路径 | 说明 |
 |------|------|------|
-| @microbot/types | `packages/types/` | 核心类型定义（MCP 兼容） |
-| @microbot/runtime | `packages/runtime/` | 运行时引擎（Container、EventBus、HookSystem、Gateway） |
-| @microbot/config | `packages/config/` | 三级配置系统（user < project < directory） |
-| @microbot/storage | `packages/storage/` | 会话存储（JSONL） |
-| @microbot/providers | `packages/providers/` | LLM Provider 抽象、Gateway、路由 |
-| @microbot/extension-system | `packages/extension-system/` | 扩展发现、加载、热重载 |
-| @microbot/sdk | `packages/sdk/` | 聚合 SDK，统一开发接口 |
-| @microbot/server | `packages/server/` | 服务层（Channel、Queue、Events） |
+| @micro-agent/types | `packages/types/` | 核心类型定义（MCP 兼容） |
+| @micro-agent/runtime | `packages/runtime/` | 运行时引擎（Container、EventBus、HookSystem、Gateway） |
+| @micro-agent/config | `packages/config/` | 三级配置系统（user < project < directory） |
+| @micro-agent/storage | `packages/storage/` | 会话存储（JSONL） |
+| @micro-agent/providers | `packages/providers/` | LLM Provider 抽象、Gateway、路由 |
+| @micro-agent/extension-system | `packages/extension-system/` | 扩展发现、加载、热重载 |
+| @micro-agent/sdk | `packages/sdk/` | 聚合 SDK，统一开发接口 |
+| @micro-agent/server | `packages/server/` | 服务层（Channel、Queue、Events） |
 
 ## 扩展模块
 
@@ -236,7 +250,7 @@ providers:
 ## 数据目录
 
 ```
-~/.microbot/
+~/.micro-agent/
 ├── settings.yaml          # 用户配置
 ├── sessions/              # 会话存储（JSONL）
 └── memory/                # 记忆系统数据
@@ -256,7 +270,7 @@ bun test             # 运行测试
 ## 项目结构
 
 ```
-microbot/
+micro-agent/
 ├── packages/
 │   ├── types/              # 核心类型定义
 │   ├── runtime/            # 运行时引擎

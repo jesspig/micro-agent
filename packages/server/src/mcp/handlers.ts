@@ -4,7 +4,7 @@
  * 提供 MCP 协议方法的处理器注册和调用。
  */
 
-import type { MCPToolDefinition, MCPToolResult, MCPResource, MCPResourceContents, MCPPrompt, MCPPromptResult } from '@microbot/providers/mcp'
+import type { MCPToolDefinition, MCPToolResult, MCPResource, MCPResourceContents, MCPPrompt, MCPPromptResult } from '@micro-agent/providers/mcp'
 import type { ToolHandler, ResourceHandler, PromptHandler } from './types'
 
 /** 处理器注册表 */

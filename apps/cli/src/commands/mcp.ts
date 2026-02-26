@@ -4,8 +4,8 @@
  * 启动 MCP Server，暴露工具给 MCP 客户端。
  */
 
-import { createMCPServer, type MCPServerConfig } from '@microbot/server'
-import type { MCPToolDefinition, MCPToolResult } from '@microbot/providers'
+import { createMCPServer, type MCPServerConfig } from '@micro-agent/server'
+import type { MCPToolDefinition, MCPToolResult } from '@micro-agent/providers'
 
 /** MCP 命令配置 */
 export interface MCPCommandConfig {
@@ -23,7 +23,7 @@ export interface MCPCommandConfig {
 export async function runMCPCommand(config: MCPCommandConfig): Promise<void> {
   const serverConfig: MCPServerConfig = {
     serverInfo: {
-      name: config.name ?? 'microbot',
+      name: config.name ?? 'micro-agent',
       version: config.version ?? '0.1.0',
     },
     instructions: config.instructions,

@@ -2,7 +2,7 @@
  * MCP Server 类型定义
  */
 
-import type { MCPServerCapabilities, MCPImplementation, MCPToolDefinition, MCPToolResult, MCPResource, MCPResourceContents, MCPPrompt, MCPPromptResult, MCPLogLevel } from '@microbot/providers/mcp'
+import type { MCPServerCapabilities, MCPImplementation, MCPToolDefinition, MCPToolResult, MCPResource, MCPResourceContents, MCPPrompt, MCPPromptResult, MCPLogLevel } from '@micro-agent/providers/mcp'
 
 /** MCP 服务器配置 */
 export interface MCPServerConfig {

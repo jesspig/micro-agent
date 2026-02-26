@@ -35,7 +35,7 @@ export interface DefineSkillOptions {
  * 
  * @example
  * ```typescript
- * import { defineSkill } from 'microbot';
+ * import { defineSkill } from 'micro-agent';
  * 
  * export const mySkill = defineSkill({
  *   name: 'my-skill',

@@ -2,19 +2,19 @@
 
 ## 配置层级
 
-MicroBot 采用三级配置系统，优先级从低到高：
+MicroAgent 采用三级配置系统，优先级从低到高：
 
 | 层级 | 路径 | 说明 |
 |------|------|------|
-| User | `~/.microbot/settings.yaml` | 用户全局配置 |
-| Project | `<workspace>/.microbot/settings.yaml` | 项目配置 |
-| Directory | `<currentDir>/.microbot/settings.yaml` | 目录配置（最高优先级） |
+| User | `~/.micro-agent/settings.yaml` | 用户全局配置 |
+| Project | `<workspace>/.micro-agent/settings.yaml` | 项目配置 |
+| Directory | `<currentDir>/.micro-agent/settings.yaml` | 目录配置（最高优先级） |
 
 配置会按优先级合并，高优先级配置覆盖低优先级。
 
 ## 配置文件
 
-主配置文件位于 `~/.microbot/settings.yaml`
+主配置文件位于 `~/.micro-agent/settings.yaml`
 
 ## 完整配置示例
 
@@ -22,7 +22,7 @@ MicroBot 采用三级配置系统，优先级从低到高：
 # Agent 配置
 agents:
   # 工作区路径
-  workspace: ~/.microbot/workspace
+  workspace: ~/.micro-agent/workspace
   
   # 模型配置（格式：<provider>/<model>）
   models:
@@ -90,7 +90,7 @@ providers:
 agents:
   memory:
     enabled: true
-    storagePath: ~/.microbot/memory
+    storagePath: ~/.micro-agent/memory
     autoSummarize: true
     summarizeThreshold: 20
     idleTimeout: 300000
@@ -101,7 +101,7 @@ agents:
 | 参数 | 范围 | 默认值 | 说明 |
 |------|------|--------|------|
 | enabled | - | true | 是否启用记忆系统 |
-| storagePath | - | ~/.microbot/memory | 记忆存储路径 |
+| storagePath | - | ~/.micro-agent/memory | 记忆存储路径 |
 | autoSummarize | - | true | 是否启用自动摘要 |
 | summarizeThreshold | - | 20 | 触发摘要的消息阈值 |
 | idleTimeout | - | 300000 | 空闲超时触发摘要（毫秒） |
@@ -119,4 +119,15 @@ agents:
 | topK | - | 50 | Top-K 采样 |
 | topP | - | 0.7 | Top-P 核采样 |
 | frequencyPenalty | 0-2 | 0.5 | 频率惩罚 |
-| maxToolIterations | - | 20 | 工具调用最大迭代次数 |
+
+## 执行器配置
+
+```yaml
+agents:
+  executor:
+    maxIterations: 20  # 工具调用最大迭代次数
+```
+
+| 参数 | 范围 | 默认值 | 说明 |
+|------|------|--------|------|
+| maxIterations | - | 20 | 工具调用最大迭代次数 |

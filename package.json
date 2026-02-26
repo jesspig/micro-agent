@@ -1,18 +1,27 @@
 {
-  "name": "microbot",
-  "version": "0.2.0",
+  "name": "micro-agent",
+  "version": "0.2.1",
   "description": "超轻量级个人 AI 助手框架 - LLM/Agent 双向网关 + 可扩展 Agent 运行时",
   "type": "module",
   "author": "jesspig",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/jesspig/microbot.git"
+    "url": "https://github.com/jesspig/micro-agent.git"
   },
-  "workspaces": ["packages/*", "apps/*"],
-  "trustedDependencies": ["@larksuiteoapi/node-sdk"],
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "trustedDependencies": [
+    "@larksuiteoapi/node-sdk"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
   "bin": {
-    "microbot": "./apps/cli/src/cli.ts"
+    "micro-agent": "./apps/cli/src/cli.ts"
   },
   "main": "./packages/sdk/src/index.ts",
   "exports": {
@@ -66,7 +75,7 @@
     "@larksuiteoapi/node-sdk": "^1.59.0",
     "@logtape/logtape": "^2.0.2",
     "@logtape/pretty": "^2.0.2",
-    "@microbot/sdk": "workspace:*",
+    "@micro-agent/sdk": "workspace:*",
     "ai": "^6.0.97",
     "gray-matter": "^4.0.3",
     "js-yaml": "^4.1.1",

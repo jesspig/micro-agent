@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from 'bun:test'
-import type { MemoryEntry } from '@microbot/runtime'
+import type { MemoryEntry } from '@micro-agent/runtime'
 
 describe('Memory Injection (FR-2)', () => {
   /**

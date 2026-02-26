@@ -18,7 +18,7 @@ import { SKILL_NAME_REGEX, DEFAULT_SKILLS_LIMITS } from './types';
 const log = getLogger(['skill', 'loader']);
 
 /** 用户技能目录 */
-const USER_SKILLS_DIR = '~/.microbot/skills';
+const USER_SKILLS_DIR = '~/.micro-agent/skills';
 
 /**
  * 技能加载器
@@ -122,14 +122,11 @@ export class SkillsLoader {
   private parseMetadata(value: string | Record<string, unknown> | undefined): SkillMetadata {
     if (!value) return {};
     if (typeof value === 'object') {
-      // 支持 openclaw/nanobot 格式：{ openclaw: {...} } 或 { nanobot: {...} }
-      const meta = value as Record<string, unknown>;
-      return (meta.openclaw || meta.nanobot || meta) as SkillMetadata;
+      return value as SkillMetadata;
     }
     if (typeof value === 'string') {
       try {
-        const parsed = JSON.parse(value);
-        return parsed.openclaw || parsed.nanobot || parsed;
+        return JSON.parse(value);
       } catch {
         return {};
       }
@@ -250,7 +247,7 @@ export class SkillsLoader {
     return result;
   }
 
-  /** 格式化为 XML（与 nanobot/openclaw 兼容） */
+  /** 格式化为 XML（符合 Agent Skills 规范） */
   private formatSkillsXml(summaries: SkillSummary[]): string {
     const lines = ['<skills>'];
     

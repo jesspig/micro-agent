@@ -4,8 +4,8 @@
  * 将 CLI 作为标准 Channel 实现，支持会话共享和消息广播。
  */
 
-import type { Channel, ChannelType, InboundMessage } from '@microbot/types';
-import type { MessageBus } from '@microbot/sdk';
+import type { Channel, ChannelType, InboundMessage } from '@micro-agent/types';
+import type { MessageBus } from '@micro-agent/sdk';
 import { createInterface, Interface } from 'readline';
 import { getLogger } from '@logtape/logtape';
 

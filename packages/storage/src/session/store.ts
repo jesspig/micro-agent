@@ -1,7 +1,7 @@
 /**
  * 会话存储 - JSONL 格式
  * 
- * 会话以 JSONL 格式存储在 ~/.microbot/sessions/ 目录
+ * 会话以 JSONL 格式存储在 ~/.micro-agent/sessions/ 目录
  * 每个会话一个文件，格式：
  *   第一行：元数据 {"_type":"metadata",...}
  *   后续行：消息 {"role":"user","content":"...",...}
@@ -11,13 +11,13 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync, rea
 import { resolve, join } from 'path';
 import { homedir } from 'os';
 import { getLogger } from '@logtape/logtape';
-import type { SessionKey, ContentPart } from '@microbot/types';
+import type { SessionKey, ContentPart } from '@micro-agent/types';
 import type { SessionMessage, SessionMetadata, Session, SessionStoreConfig } from './types';
 
 const log = getLogger(['session']);
 
 const DEFAULT_CONFIG: SessionStoreConfig = {
-  sessionsDir: '~/.microbot/sessions',
+  sessionsDir: '~/.micro-agent/sessions',
   maxMessages: 500,
   sessionTimeout: 30 * 60 * 1000, // 30 分钟
 };

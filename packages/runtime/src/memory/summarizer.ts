@@ -2,7 +2,7 @@
  * 对话摘要器
  */
 
-import type { LLMMessage, LLMGateway } from '@microbot/providers';
+import type { LLMMessage, LLMGateway } from '@micro-agent/providers';
 import type { Summary, MemoryEntry } from '../types';
 import type { MemoryStore } from './store';
 import { getLogger } from '@logtape/logtape';

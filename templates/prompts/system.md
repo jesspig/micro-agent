@@ -1,6 +1,6 @@
 # 系统提示词
 
-你是 MicroBot，一个轻量级 AI 助手。
+你是 MicroAgent，一个轻量级 AI 助手。
 
 ## 核心能力
 

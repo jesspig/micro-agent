@@ -11,12 +11,12 @@
     "sourceMap": true,
     "outDir": "./dist",
     "paths": {
-      "@microbot/types": ["../types/src/index.ts"],
-      "@microbot/runtime": ["../runtime/src/index.ts"],
-      "@microbot/storage": ["../storage/src/index.ts"],
-      "@microbot/config": ["../config/src/index.ts"],
-      "@microbot/providers": ["../providers/src/index.ts"],
-      "@microbot/extension-system": ["../extension-system/src/index.ts"]
+      "@micro-agent/types": ["../types/src/index.ts"],
+      "@micro-agent/runtime": ["../runtime/src/index.ts"],
+      "@micro-agent/storage": ["../storage/src/index.ts"],
+      "@micro-agent/config": ["../config/src/index.ts"],
+      "@micro-agent/providers": ["../providers/src/index.ts"],
+      "@micro-agent/extension-system": ["../extension-system/src/index.ts"]
     }
   },
   "include": ["src/**/*"],

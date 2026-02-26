@@ -7,7 +7,7 @@
 import { watch, FSWatcher } from 'fs';
 import { resolve, dirname } from 'path';
 import { getLogger } from '@logtape/logtape';
-import type { ExtensionChangeEvent, ExtensionType } from '@microbot/types';
+import type { ExtensionChangeEvent, ExtensionType } from '@micro-agent/types';
 import { ExtensionLoader } from './loader';
 
 const log = getLogger(['extension', 'hot-reload']);

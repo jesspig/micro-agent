@@ -13,7 +13,7 @@ import { join, resolve } from 'path';
 import { homedir } from 'os';
 
 /** 日志目录 */
-const LOG_DIR = resolve(homedir(), '.microbot', 'logs');
+const LOG_DIR = resolve(homedir(), '.micro-agent', 'logs');
 
 /** 格式化日期为 YYYY-MM-DD */
 function formatDate(date: Date): string {
@@ -26,7 +26,7 @@ function formatDate(date: Date): string {
 /** 当前日志文件路径 */
 function getLogFilePath(): string {
   const date = formatDate(new Date());
-  return join(LOG_DIR, `microbot-${date}.log`);
+  return join(LOG_DIR, `micro-agent-${date}.log`);
 }
 
 /** 确保日志目录存在 */

@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach, mock } from 'bun:test'
-import type { MemoryEntry } from '@microbot/runtime'
+import type { MemoryEntry } from '@micro-agent/runtime'
 
 // Mock MemoryStore
 class MockMemoryStore {

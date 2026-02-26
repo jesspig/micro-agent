@@ -7,7 +7,7 @@ import { resolve, dirname } from 'path';
 import { expandPath } from './workspace';
 
 /** 用户配置目录 */
-const USER_CONFIG_DIR = '~/.microbot';
+const USER_CONFIG_DIR = '~/.micro-agent';
 
 /** 模板文件名列表 */
 export const TEMPLATE_FILE_NAMES = ['SOUL.md', 'AGENTS.md', 'USER.md', 'IDENTITY.md', 'TOOLS.md', 'HEARTBEAT.md'];
@@ -50,7 +50,7 @@ function buildSearchPaths(
       const pathChain = buildPathChain(normalizedWorkspace, normalizedCurrent);
 
       for (const d of pathChain) {
-        paths.push(resolve(d, '.microbot', fileName));
+        paths.push(resolve(d, '.micro-agent', fileName));
         paths.push(resolve(d, fileName));
       }
     }
@@ -58,7 +58,7 @@ function buildSearchPaths(
 
   // 项目级
   if (workspace) {
-    paths.push(resolve(workspace, '.microbot', fileName));
+    paths.push(resolve(workspace, '.micro-agent', fileName));
     paths.push(resolve(workspace, fileName));
   }
 

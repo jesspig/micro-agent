@@ -98,10 +98,10 @@ Skills 使用三级加载系统高效管理上下文：
 
 ## Skill 存放位置
 
-用户创建的技能存放在 `~/.microbot/skills/` 目录：
+用户创建的技能存放在 `~/.micro-agent/skills/` 目录：
 
 ```
-~/.microbot/skills/
+~/.micro-agent/skills/
 ├── my-skill/
 │   ├── SKILL.md
 │   └── scripts/
@@ -139,29 +139,29 @@ Skills 使用三级加载系统高效管理上下文：
 bun <skill-dir>/scripts/init_skill.ts <skill-name> --path <output-directory>
 
 # 创建到用户技能目录
-bun <skill-dir>/scripts/init_skill.ts my-skill --path ~/.microbot/skills
+bun <skill-dir>/scripts/init_skill.ts my-skill --path ~/.micro-agent/skills
 
 # 创建带脚本的技能
-bun <skill-dir>/scripts/init_skill.ts my-skill --path ~/.microbot/skills --resources scripts
+bun <skill-dir>/scripts/init_skill.ts my-skill --path ~/.micro-agent/skills --resources scripts
 
 # 创建完整资源的技能
-bun <skill-dir>/scripts/init_skill.ts my-skill --path ~/.microbot/skills --resources scripts,references,assets --examples
+bun <skill-dir>/scripts/init_skill.ts my-skill --path ~/.micro-agent/skills --resources scripts,references,assets --examples
 ```
 
 ### 打包技能
 
 ```bash
 # 打包技能为 .skill 文件
-bun <skill-dir>/scripts/package_skill.ts ~/.microbot/skills/my-skill
+bun <skill-dir>/scripts/package_skill.ts ~/.micro-agent/skills/my-skill
 
 # 指定输出目录
-bun <skill-dir>/scripts/package_skill.ts ~/.microbot/skills/my-skill ./dist
+bun <skill-dir>/scripts/package_skill.ts ~/.micro-agent/skills/my-skill ./dist
 ```
 
 ### 验证技能
 
 ```bash
-bun <skill-dir>/scripts/quick_validate.ts ~/.microbot/skills/my-skill
+bun <skill-dir>/scripts/quick_validate.ts ~/.micro-agent/skills/my-skill
 ```
 
 ## Frontmatter 规范
@@ -178,9 +178,9 @@ description: 技能描述，包含何时使用。这是触发技能的主要机�
 - 所有"何时使用"信息放在这里，而非正文
 - 示例：`系统信息工具 - 获取 CPU/内存/磁盘等信息。当用户询问系统状态、性能监控或资源使用情况时使用。`
 
-## Microbot 扩展字段
+## microAgent 扩展字段
 
-Microbot 支持额外的 frontmatter 字段：
+microAgent 字段支持额外的 frontmatter：
 
 ```yaml
 ---

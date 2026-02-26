@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'bun:test';
 import { createExecTool } from '../extensions/tool';
-import { ToolRegistry } from '@microbot/sdk';
-import type { ToolContext } from '@microbot/types';
+import { ToolRegistry } from '@micro-agent/sdk';
+import type { ToolContext } from '@micro-agent/types';
 
 const defaultCtx: ToolContext = {
   channel: 'test',

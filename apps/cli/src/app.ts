@@ -1,5 +1,5 @@
 /**
- * MicroBot 应用入口
+ * MicroAgent 应用入口
  *
  * 提供 createApp() 工厂函数，组装所有模块。
  */
@@ -8,7 +8,7 @@ import {
   loadConfig,
   expandPath,
   parseModelConfigs,
-} from '@microbot/config';
+} from '@micro-agent/config';
 import {
   ToolRegistry,
   ChannelManager,
@@ -22,8 +22,8 @@ import {
   ConversationSummarizer,
   OpenAIEmbedding,
   NoEmbedding,
-} from '@microbot/sdk';
-import { ChannelGatewayImpl } from '@microbot/runtime';
+} from '@micro-agent/sdk';
+import { ChannelGatewayImpl } from '@micro-agent/runtime';
 import {
   ReadFileTool,
   WriteFileTool,
@@ -39,15 +39,15 @@ import type {
   Config,
   ProviderEntry,
   InboundMessage,
-} from '@microbot/types';
-import type { ModelConfig } from '@microbot/config';
+} from '@micro-agent/types';
+import type { ModelConfig } from '@micro-agent/config';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { homedir } from 'os';
 import { readFileSync, existsSync, mkdirSync, writeFileSync, copyFileSync } from 'fs';
 
 /** 用户级配置目录 */
-const USER_CONFIG_DIR = resolve(homedir(), '.microbot');
+const USER_CONFIG_DIR = resolve(homedir(), '.micro-agent');
 
 /** 获取内置技能路径 */
 function getBuiltinSkillsPath(): string {
@@ -98,7 +98,7 @@ function ensureUserConfigFiles(): { created: string[] } {
 /**
  * 加载系统提示词
  *
- * 优先级：用户级 ~/.microbot/ > workspace/
+ * 优先级：用户级 ~/.micro-agent/ > workspace/
  */
 function loadSystemPromptFromUserConfig(workspace: string): string {
   const parts: string[] = [];
@@ -176,7 +176,7 @@ class AppImpl implements App {
     this.channelManager = new ChannelManager();
     this.messageBus = new MessageBus();
     this.sessionStore = new SessionStore({
-      sessionsDir: `${homedir()}/.microbot/sessions`,
+      sessionsDir: `${homedir()}/.micro-agent/sessions`,
       sessionTimeout: 30 * 60 * 1000,
     });
     this.toolRegistry = new ToolRegistry();
@@ -503,7 +503,7 @@ ${skillsSummary}`);
       // 初始化 MemoryStore
       const storagePath = memoryConfig?.storagePath 
         ? expandPath(memoryConfig.storagePath)
-        : resolve(homedir(), '.microbot/memory');
+        : resolve(homedir(), '.micro-agent/memory');
 
       this.memoryStore = new MemoryStore({
         storagePath,
@@ -554,4 +554,4 @@ export async function createApp(configPath?: string): Promise<App> {
   return new AppImpl(config, workspace);
 }
 
-export type { App } from '@microbot/types';
+export type { App } from '@micro-agent/types';

@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import { mkdirSync, rmSync, writeFileSync, existsSync } from 'fs';
 import { join } from 'path';
 import { ReadFileTool, WriteFileTool, ListDirTool } from '../extensions/tool';
-import { ToolRegistry } from '@microbot/sdk';
-import type { ToolContext } from '@microbot/types';
+import { ToolRegistry } from '@micro-agent/sdk';
+import type { ToolContext } from '@micro-agent/types';
 
 const testDir = join(process.cwd(), 'test-fs-workspace');
 

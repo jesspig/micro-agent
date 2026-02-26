@@ -2,7 +2,7 @@
  * defineTool - 工具定义快捷函数
  */
 
-import type { JSONSchema, Tool, ToolContext, ToolResult, ContentPart } from '@microbot/types';
+import type { JSONSchema, Tool, ToolContext, ToolResult, ContentPart } from '@micro-agent/types';
 
 /**
  * 工具定义选项
@@ -25,7 +25,7 @@ export interface DefineToolOptions<TInput = unknown> {
  * 
  * @example
  * ```typescript
- * import { defineTool } from 'microbot';
+ * import { defineTool } from 'micro-agent';
  * 
  * export const myTool = defineTool({
  *   name: 'my_tool',

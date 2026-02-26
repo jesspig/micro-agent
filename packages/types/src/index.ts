@@ -1,5 +1,5 @@
 /**
- * MicroBot 核心类型定义
+ * MicroAgent 核心类型定义
  * 
  * 零依赖模块，定义所有核心接口和类型。
  * 遵循 MCP (Model Context Protocol) 兼容的 Tool/Resource/Prompt 原语规范。

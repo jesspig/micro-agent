@@ -1,12 +1,12 @@
 /**
  * MCP (Model Context Protocol) 服务器实现
  *
- * 暴露 MicroBot 的工具、资源和提示词给 MCP 客户端（如 Claude Desktop）。
+ * 暴露 MicroAgent 的工具、资源和提示词给 MCP 客户端（如 Claude Desktop）。
  * @see https://modelcontextprotocol.io
  */
 
-import type { MCPServerCapabilities, MCPImplementation, MCPToolDefinition, MCPToolResult, MCPResource, MCPResourceContents, MCPPrompt, MCPPromptResult, MCPLogLevel } from '@microbot/providers/mcp'
-import { MCP_VERSION } from '@microbot/providers/mcp'
+import type { MCPServerCapabilities, MCPImplementation, MCPToolDefinition, MCPToolResult, MCPResource, MCPResourceContents, MCPPrompt, MCPPromptResult, MCPLogLevel } from '@micro-agent/providers/mcp'
+import { MCP_VERSION } from '@micro-agent/providers/mcp'
 import { MCPHandlers } from './handlers'
 import type { MCPServerConfig, ToolHandler, ResourceHandler, PromptHandler, MCPServerLike } from './types'
 

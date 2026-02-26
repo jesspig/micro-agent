@@ -5,11 +5,11 @@
  */
 
 import { getLogger } from '@logtape/logtape';
-import { ACPServer, createACPServer } from '@microbot/server';
-import { ACPAdapter, createACPAdapter } from '@microbot/providers/acp';
-import type { ToolRegistryLike } from '@microbot/providers/acp';
-import type { LLMProvider, LLMMessage } from '@microbot/providers';
-import type { ModelConfig } from '@microbot/config';
+import { ACPServer, createACPServer } from '@micro-agent/server';
+import { ACPAdapter, createACPAdapter } from '@micro-agent/providers/acp';
+import type { ToolRegistryLike } from '@micro-agent/providers/acp';
+import type { LLMProvider, LLMMessage } from '@micro-agent/providers';
+import type { ModelConfig } from '@micro-agent/config';
 
 const log = getLogger(['cli', 'acp']);
 
@@ -56,7 +56,7 @@ export async function runACPCommand(config: ACPCommandConfig): Promise<void> {
 
   // 创建 ACP 适配器
   const adapter = createACPAdapter({
-    serverVersion: 'microbot-0.2.0',
+    serverVersion: 'micro-agent-0.2.1',
     protocolVersion: '0.1.0',
     connection,
     provider: config.provider,
@@ -67,7 +67,7 @@ export async function runACPCommand(config: ACPCommandConfig): Promise<void> {
   // 创建 ACP 服务器
   const server = createACPServer({
     agent: adapter,
-    serverVersion: 'microbot-0.2.0',
+    serverVersion: 'micro-agent-0.2.1',
   });
 
   // 启动服务器

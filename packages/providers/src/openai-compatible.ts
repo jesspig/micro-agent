@@ -4,7 +4,7 @@
 
 import type { LLMProvider, LLMMessage, LLMResponse, LLMToolDefinition, OpenAIResponse, GenerationConfig } from './base';
 import { parseOpenAIResponse, toOpenAIMessages } from './base';
-import type { ModelConfig } from '@microbot/config';
+import type { ModelConfig } from '@micro-agent/config';
 import { getLogger } from '@logtape/logtape';
 
 const log = getLogger(['provider', 'openai']);

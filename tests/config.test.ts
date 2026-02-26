@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import { writeFileSync, mkdirSync, rmSync, existsSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { loadConfig, expandPath, findTemplateFile } from '@microbot/sdk';
+import { loadConfig, expandPath, findTemplateFile } from '@micro-agent/sdk';
 
 const TEST_DIR = join(import.meta.dir, '__config_test__');
 
@@ -73,11 +73,11 @@ providers:
       const dirB = join(dirA, 'B');
       const dirC = join(dirB, 'C');
       
-      mkdirSync(join(dirA, '.microbot'), { recursive: true });
-      mkdirSync(join(dirB, '.microbot'), { recursive: true });
+      mkdirSync(join(dirA, '.micro-agent'), { recursive: true });
+      mkdirSync(join(dirB, '.micro-agent'), { recursive: true });
       
       // A 的配置
-      writeFileSync(join(dirA, '.microbot', 'settings.yaml'), `
+      writeFileSync(join(dirA, '.micro-agent', 'settings.yaml'), `
 agents:
   models:
     chat: model-A
@@ -92,7 +92,7 @@ providers:
 `);
       
       // B 的配置
-      writeFileSync(join(dirB, '.microbot', 'settings.yaml'), `
+      writeFileSync(join(dirB, '.micro-agent', 'settings.yaml'), `
 agents:
   models:
     chat: model-B

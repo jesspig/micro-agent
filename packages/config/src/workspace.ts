@@ -8,7 +8,7 @@ import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'fs';
 import type { WorkspaceConfig } from './schema';
 
 /** 用户配置目录 */
-const USER_CONFIG_DIR = '~/.microbot';
+const USER_CONFIG_DIR = '~/.micro-agent';
 
 /**
  * 展开路径（支持 ~ 前缀）
@@ -30,7 +30,7 @@ export function resolveWorkspacePaths(workspaces: WorkspaceConfig[]): string[] {
 /**
  * 验证工作区访问权限
  *
- * MicroBot 是隔离的，只能读写工作区内的文件
+ * MicroAgent 是隔离的，只能读写工作区内的文件
  */
 export function validateWorkspaceAccess(
   targetPath: string,
@@ -42,7 +42,7 @@ export function validateWorkspaceAccess(
 
   // 允许访问的路径
   const allowedPaths = [
-    userDir,                    // ~/.microbot（配置目录）
+    userDir,                    // ~/.micro-agent（配置目录）
     defaultWorkspace,           // 默认工作区
     ...resolveWorkspacePaths(allowedWorkspaces),
   ];
@@ -63,7 +63,7 @@ export function validateWorkspaceAccess(
   throw new Error(
     '工作区访问被拒绝: ' + targetPath + '\n' +
     '当前允许的工作区:\n' + workspaceList + '\n' +
-    '如需访问此路径，请在 ~/.microbot/settings.yaml 中添加:\n' +
+    '如需访问此路径，请在 ~/.micro-agent/settings.yaml 中添加:\n' +
     'workspaces:\n' +
     '  - ' + targetPath
   );
@@ -130,8 +130,8 @@ export function createDefaultUserConfig(systemDefaultsDir: string): void {
  */
 function getMinimalConfig(): string {
   return '' +
-'# MicroBot 配置文件\n' +
-'# 文档：https://microbot.dev/config\n' +
+'# MicroAgent 配置文件\n' +
+'# 文档：https://micro-agent.dev/config\n' +
 '\n' +
 'agents:\n' +
 '  models:\n' +

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'bun:test';
 import { z } from 'zod';
-import { ToolRegistry } from '@microbot/sdk';
-import type { Tool, ToolContext, ToolResult, JSONSchema } from '@microbot/types';
+import { ToolRegistry } from '@micro-agent/sdk';
+import type { Tool, ToolContext, ToolResult, JSONSchema } from '@micro-agent/types';
 
 // 测试用工具（使用 JSONSchema）
 const testToolSchema: JSONSchema = {

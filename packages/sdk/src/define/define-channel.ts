@@ -2,7 +2,7 @@
  * defineChannel - 通道定义快捷函数
  */
 
-import type { Channel, ChannelType, OutboundMessage } from '@microbot/types';
+import type { Channel, ChannelType, OutboundMessage } from '@micro-agent/types';
 
 /**
  * 通道定义选项
@@ -25,7 +25,7 @@ export interface DefineChannelOptions {
  * 
  * @example
  * ```typescript
- * import { defineChannel } from 'microbot';
+ * import { defineChannel } from 'micro-agent';
  * 
  * export const myChannel = defineChannel({
  *   name: 'my_channel',
