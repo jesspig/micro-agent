@@ -138,7 +138,9 @@ export function getBuiltinDefaults(): Record<string, unknown> {
       workspace: '~/.microbot/workspace',
       maxTokens: 512,
       temperature: 0.7,
-      maxToolIterations: 20,
+      executor: {
+        maxIterations: 20,
+      },
     },
     providers: {},
     channels: {},

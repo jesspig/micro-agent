@@ -19,7 +19,6 @@ export {
   jsonResponse,
   errorResponse,
   AuthManager,
-  hashToken,
   type HTTPServerConfig,
   type HTTPServerInstance,
   type AuthConfig,
@@ -42,7 +41,6 @@ export {
   ACPServer,
   createACPServer,
   DEFAULT_ACP_CAPABILITIES,
-  mergeCapabilities,
   type ACPServerConfig,
   type ACPCapabilities,
 } from './acp';

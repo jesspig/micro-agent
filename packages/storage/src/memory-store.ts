@@ -14,8 +14,8 @@ interface MemoryItem<T> {
   expiresAt?: number;
 }
 
-/** 内存存储配置 */
-export interface MemoryStoreConfig {
+/** 键值内存存储配置 */
+export interface KVMemoryStoreConfig {
   /** 默认过期时间（毫秒），0 表示永不过期 */
   defaultTTL?: number;
   /** 最大条目数 */
@@ -25,19 +25,21 @@ export interface MemoryStoreConfig {
 }
 
 /**
- * 内存存储
+ * 键值内存存储
  * 
- * 支持：
+ * 通用内存键值存储，支持：
  * - 键值存储
  * - TTL 过期
  * - LRU 淘汰
+ * 
+ * 注意：此为通用缓存存储，与 runtime 包中的 MemoryStore（向量记忆存储）不同
  */
-export class MemoryStore<T = unknown> {
+export class KVMemoryStore<T = unknown> {
   private store = new Map<string, MemoryItem<T>>();
-  private config: Required<MemoryStoreConfig>;
+  private config: Required<KVMemoryStoreConfig>;
   private cleanupTimer?: ReturnType<typeof setInterval>;
 
-  constructor(config?: MemoryStoreConfig) {
+  constructor(config?: KVMemoryStoreConfig) {
     this.config = {
       defaultTTL: config?.defaultTTL ?? 0,
       maxSize: config?.maxSize ?? 1000,

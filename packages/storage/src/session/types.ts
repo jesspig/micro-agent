@@ -2,11 +2,11 @@
  * 会话存储类型定义
  */
 
-import type { SessionKey, ContentPart } from '@microbot/types';
+import type { SessionKey, ContentPart, MessageRole } from '@microbot/types';
 
 /** 会话消息 */
 export interface SessionMessage {
-  role: 'user' | 'assistant' | 'system';
+  role: MessageRole;
   content: string | ContentPart[];
   timestamp: number;
   /** 工具调用（可选） */

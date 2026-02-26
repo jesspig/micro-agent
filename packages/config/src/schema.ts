@@ -89,8 +89,6 @@ export const AgentConfigSchema = z.object({
   topP: z.number().default(0.7),
   /** 频率惩罚，控制生成内容的重复性 */
   frequencyPenalty: z.number().default(0.5),
-  /** 最大工具调用迭代次数（已弃用，使用 executor.maxIterations） */
-  maxToolIterations: z.number().default(20),
 });
 
 /** 模型配置 Schema（仅包含 ID 和生成参数） */
@@ -107,8 +105,6 @@ export const ModelConfigSchema = z.object({
   topP: z.number().optional(),
   /** 频率惩罚 */
   frequencyPenalty: z.number().optional(),
-  /** 最大工具调用迭代次数 */
-  maxToolIterations: z.number().optional(),
 });
 
 /** 模型配置类型 */

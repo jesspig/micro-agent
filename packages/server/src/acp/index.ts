@@ -3,4 +3,4 @@
  */
 
 export { ACPServer, createACPServer, type ACPServerConfig } from './acp-server';
-export { DEFAULT_ACP_CAPABILITIES, mergeCapabilities, type ACPCapabilities } from './capabilities';
+export { DEFAULT_ACP_CAPABILITIES, type ACPCapabilities } from './capabilities';

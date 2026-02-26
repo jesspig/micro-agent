@@ -18,7 +18,7 @@ export { Pipeline, type Middleware } from './pipeline';
 export { MessageBus } from './bus';
 
 // Executor
-export { AgentExecutor, type AgentExecutorConfig, type ToolRegistryLike, type ReActPromptBuilder, type ObservationBuilder } from './executor';
+export { AgentExecutor, type AgentExecutorConfig, type ToolRegistryLike } from './executor';
 
 // ReAct Agent
 export { ReActAgent, type ReActAgentConfig, type ReActTool, type ReActResult } from './react';
@@ -40,6 +40,9 @@ export {
   type MessageContent,
   type ContentPart,
   type TextContentPart,
+  type ImageContentPart,
+  type ResourceContentPart,
+  type ProviderContentPart,
   type ImageUrlContentPart,
   type ToolCall,
   type UsageStats,

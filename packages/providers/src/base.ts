@@ -3,103 +3,50 @@
  */
 
 import type { ModelConfig } from '@microbot/config';
+import type {
+  ContentPart,
+  TextContentPart,
+  ImageContentPart,
+  ImageUrlContentPart,
+  ResourceContentPart,
+  MessageRole,
+  MessageContent,
+  ToolCall,
+  LLMMessage,
+  LLMResponse,
+  LLMToolDefinition,
+  GenerationConfig,
+  UsageStats,
+} from '@microbot/types';
 
-/** LLM 消息角色 */
-export type MessageRole = 'system' | 'user' | 'assistant' | 'tool';
-
-/** 生成配置参数 */
-export interface GenerationConfig {
-  /** 生成的最大 token 数量 */
-  maxTokens?: number;
-  /** 控制响应的随机性 */
-  temperature?: number;
-  /** 限制 token 选择范围为前 k 个候选 */
-  topK?: number;
-  /** 核采样参数 */
-  topP?: number;
-  /** 频率惩罚 */
-  frequencyPenalty?: number;
+// 从 @microbot/types 重新导出（保持 API 兼容）
+export type {
+  ContentPart,
+  TextContentPart,
+  ImageContentPart,
+  ImageUrlContentPart,
+  ResourceContentPart,
+  MessageRole,
+  MessageContent,
+  ToolCall,
+  LLMMessage,
+  LLMResponse,
+  LLMToolDefinition,
+  GenerationConfig,
+  UsageStats,
 }
 
-/** 工具调用 */
-export interface ToolCall {
-  /** 调用 ID */
-  id: string;
-  /** 工具名称 */
-  name: string;
-  /** 工具参数 */
-  arguments: Record<string, unknown>;
-}
-
-/** 文本内容部分 */
-export interface TextContentPart {
+/** OpenAI 文本内容部分 */
+export interface OpenAITextContentPart {
   type: 'text';
   text: string;
 }
 
-/** 图片 URL 内容部分 */
-export interface ImageUrlContentPart {
-  type: 'image_url';
-  image_url: {
-    url: string;
-    detail?: 'low' | 'high' | 'auto';
-  };
-}
+/** OpenAI 消息内容部分（用于 OpenAI API 调用） */
+export type OpenAIContentPart = OpenAITextContentPart | ImageUrlContentPart;
 
-/** 消息内容部分（多模态支持） */
-export type ContentPart = TextContentPart | ImageUrlContentPart;
-
-/** 消息内容类型（支持纯文本或多模态数组） */
-export type MessageContent = string | ContentPart[];
-
-/** LLM 消息 */
-export interface LLMMessage {
-  /** 角色 */
-  role: MessageRole;
-  /** 内容（支持纯文本或多模态数组） */
-  content: MessageContent;
-  /** 工具调用 ID（role=tool 时） */
-  toolCallId?: string;
-  /** 工具调用列表（role=assistant 时） */
-  toolCalls?: ToolCall[];
-}
-
-/** 使用统计 */
-export interface UsageStats {
-  promptTokens: number;
-  completionTokens: number;
-  totalTokens: number;
-  cacheWriteTokens?: number;
-  cacheReadTokens?: number;
-}
-
-/** LLM 响应 */
-export interface LLMResponse {
-  /** 文本内容 */
-  content: string;
-  /** 工具调用列表 */
-  toolCalls?: ToolCall[];
-  /** 是否包含工具调用 */
-  hasToolCalls: boolean;
-  /** 推理内容（用于深度思考模型） */
-  reasoning?: string;
-  /** 使用统计 */
-  usage?: UsageStats;
-  /** 实际使用的 Provider 名称 */
-  usedProvider?: string;
-  /** 实际使用的模型 ID */
-  usedModel?: string;
-}
-
-/** 工具定义（LLM 格式） */
-export interface LLMToolDefinition {
-  type: 'function';
-  function: {
-    name: string;
-    description: string;
-    parameters: Record<string, unknown>;
-  };
-}
+/** Provider 消息内容部分（ContentPart 别名，保持向后兼容） */
+export type ProviderContentPart = ContentPart;
 
 /** OpenAI API 响应格式 */
 export interface OpenAIResponse {
@@ -120,7 +67,7 @@ export interface OpenAIResponse {
 /** OpenAI API 消息格式 */
 export interface OpenAIMessage {
   role: string;
-  content: string | ContentPart[];
+  content: string | OpenAIContentPart[];
   tool_call_id?: string;
   tool_calls?: Array<{
     id: string;
@@ -133,13 +80,44 @@ export interface OpenAIMessage {
 }
 
 /**
+ * 将 ContentPart 转换为 OpenAI 格式
+ */
+function toOpenAIContentPart(part: ContentPart): OpenAIContentPart {
+  // OpenAI URL 格式直接返回
+  if (part.type === 'image_url') {
+    return part;
+  }
+  // MCP 文本格式
+  if (part.type === 'text') {
+    return { type: 'text', text: part.text };
+  }
+  // MCP base64 图片格式
+  if (part.type === 'image') {
+    return {
+      type: 'image_url',
+      image_url: { url: `data:${part.mimeType};base64,${part.data}` },
+    };
+  }
+  // resource 类型转换为文本描述
+  return { type: 'text', text: `Resource: ${(part as { uri: string }).uri}` };
+}
+
+/**
  * 将 LLMMessage 转换为 OpenAI API 格式
  */
 export function toOpenAIMessages(messages: LLMMessage[]): OpenAIMessage[] {
   return messages.map(msg => {
+    // 转换内容格式
+    let openaiContent: string | OpenAIContentPart[];
+    if (typeof msg.content === 'string') {
+      openaiContent = msg.content;
+    } else {
+      openaiContent = msg.content.map(toOpenAIContentPart);
+    }
+
     const openaiMsg: OpenAIMessage = {
       role: msg.role,
-      content: msg.content,
+      content: openaiContent,
     };
 
     if (msg.toolCallId) {

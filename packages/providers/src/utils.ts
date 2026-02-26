@@ -2,7 +2,7 @@
  * Provider 工具函数
  */
 
-import type { LLMMessage, ContentPart, MessageContent } from './base';
+import type { LLMMessage, ProviderContentPart, MessageContent } from './base';
 
 /** 图片扩展名 */
 const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg'];
@@ -140,7 +140,7 @@ export function buildUserContent(text: string, media?: string[]): MessageContent
   // 限制媒体数量
   const limitedMedia = media.slice(0, MAX_MEDIA_COUNT);
 
-  const content: ContentPart[] = [];
+  const content: ProviderContentPart[] = [];
   let validCount = 0;
   let invalidCount = 0;
 
@@ -199,7 +199,7 @@ export function convertToPlainText(messages: LLMMessage[]): LLMMessage[] {
 
     // ContentPart[] -> 纯文本
     const textParts: string[] = [];
-    for (const part of msg.content as ContentPart[]) {
+    for (const part of msg.content as ProviderContentPart[]) {
       if (part.type === 'text') {
         textParts.push(part.text);
       } else if (part.type === 'image_url') {

@@ -1,7 +1,7 @@
 {
   "name": "@microbot/storage",
   "version": "0.1.0",
-  "description": "MicroBot 存储层（SessionStore, MemoryStore）",
+  "description": "MicroBot 存储层（SessionStore, KVMemoryStore）",
   "type": "module",
   "author": "jesspig",
   "license": "MIT",

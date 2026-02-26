@@ -6,6 +6,6 @@
 export { SessionStore } from './session/store';
 export type { Session, SessionMessage, SessionMetadata, SessionStoreConfig } from './session/types';
 
-// Memory 存储
-export { MemoryStore } from './memory-store';
-export type { MemoryStoreConfig } from './memory-store';
+// Memory 存储（键值缓存）
+export { KVMemoryStore } from './memory-store';
+export type { KVMemoryStoreConfig } from './memory-store';

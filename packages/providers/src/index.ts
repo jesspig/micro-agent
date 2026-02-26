@@ -8,6 +8,9 @@ export {
   type ToolCall,
   type ContentPart,
   type TextContentPart,
+  type ImageContentPart,
+  type ResourceContentPart,
+  type ProviderContentPart,
   type ImageUrlContentPart,
   type MessageContent,
   type LLMMessage,
@@ -27,9 +30,6 @@ export { OpenAICompatibleProvider, type OpenAICompatibleConfig } from './openai-
 
 // Gateway
 export { LLMGateway, type GatewayConfig } from './gateway';
-
-// Model Config
-export { ModelConfigService, type ModelValidationError, type ModelValidationResult } from './model-config';
 
 // Model Router
 export { ModelRouter, type ModelRouterConfig, type RouteResult } from './router';
@@ -54,27 +54,6 @@ export {
   type ToolCallContent,
   type Usage,
 } from './acp';
-
-// A2A (Agent-to-Agent)
-export {
-  parseAgentCard,
-  createAgentCard,
-  A2AClient,
-  createA2AClient,
-  type AgentCard,
-  type AgentCapabilities,
-  type AgentSkill,
-  type AgentAuthentication,
-  type AgentEndpoint,
-  type ParsedAgentCard,
-  type A2ARole,
-  type A2AMessage,
-  type A2APart,
-  type A2ATaskStatus,
-  type A2ATask,
-  type A2AArtifact,
-  type A2AClientConfig,
-} from './a2a';
 
 // MCP (Model Context Protocol)
 export {

@@ -4,7 +4,9 @@
 
 存储层提供两种存储服务：
 - **SessionStore**：短期会话存储，JSONL 格式
-- **MemoryStore**：长期记忆存储，向量检索
+- **KVMemoryStore**：通用键值内存缓存，支持 TTL 和 LRU
+
+> **注意**：长期记忆存储（向量检索）位于 `@microbot/runtime` 包，详见 [Memory 文档](./memory.md)。
 
 ---
 
@@ -58,83 +60,45 @@ const history = store.getHistory('feishu:chat_123', 100);
 
 ---
 
-## MemoryStore
+## KVMemoryStore
 
-记忆存储提供长期记忆能力，基于 LanceDB 实现向量检索。
+通用键值内存缓存，用于临时数据存储。
 
 ### 功能特性
 
-- **向量存储**：使用嵌入模型将文本转化为向量
-- **语义检索**：基于相似度搜索相关记忆
-- **全文检索**：关键词匹配，支持中文 n-gram
-- **混合搜索**：结合向量和全文检索结果
-- **Markdown 归档**：记忆同时保存为 Markdown 文件
+- **键值存储**：简单的 get/set 接口
+- **TTL 过期**：支持设置过期时间
+- **LRU 淘汰**：超过容量时自动淘汰最久未使用的条目
+- **定时清理**：自动清理过期条目
 
 ### 使用示例
 
 ```typescript
-import { MemoryStore } from '@microbot/runtime';
+import { KVMemoryStore } from '@microbot/storage';
 
-const store = new MemoryStore({
-  storagePath: '~/.microbot/memory',
-  embeddingService: embeddingService, // 可选
-  defaultSearchLimit: 10,
-  shortTermRetentionDays: 7,
+// 创建缓存（默认最大 1000 条目）
+const cache = new KVMemoryStore<string>({
+  defaultTTL: 60000,      // 默认 60 秒过期
+  maxSize: 500,           // 最多 500 条目
+  cleanupInterval: 30000, // 每 30 秒清理过期
 });
 
-await store.initialize();
+// 设置值
+cache.set('user:123', '张三');
+cache.set('token:abc', 'xyz', 300000); // 5 分钟过期
 
-// 存储记忆
-await store.store({
-  id: 'mem_001',
-  sessionId: 'feishu:chat_123',
-  type: 'preference',
-  content: '用户偏好使用 TypeScript 进行开发',
-  metadata: { tags: ['preference', 'tech'] },
-  createdAt: new Date(),
-  updatedAt: new Date(),
-});
+// 获取值
+const name = cache.get('user:123');
 
-// 语义检索（需要 embeddingService）
-const memories = await store.search('TypeScript 项目', { 
-  limit: 5,
-  mode: 'vector'  // 'vector' | 'fulltext'
-});
+// 检查存在
+cache.has('token:abc');
 
-// 获取最近记忆
-const recent = await store.getRecent('feishu:chat_123', 20);
+// 删除
+cache.delete('user:123');
 
-// 清理过期记忆
-const result = await store.cleanupExpired();
-console.log(`已清理 ${result.deletedCount} 条过期记忆`);
+// 清空
+cache.clear();
 ```
-
-### 存储结构
-
-```
-~/.microbot/memory/
-├── lancedb/           # 向量数据库
-├── sessions/          # Markdown 归档
-│   ├── feishu_chat_123.md
-│   └── feishu_chat_456.md
-└── summaries/         # 会话摘要
-```
-
-### 检索模式
-
-| 模式 | 说明 | 依赖 |
-|------|------|------|
-| `vector` | 向量相似度检索 | embeddingService |
-| `fulltext` | 关键词匹配 | 无 |
-
-当未配置 `embeddingService` 时，自动降级为全文检索。
-
-### 全文检索特性
-
-支持中英文混合查询：
-- 英文：提取连续字母单词
-- 中文：使用 n-gram（2-3 字符组）
-- 数字：提取连续数字
 
 ---
 
@@ -143,4 +107,5 @@ console.log(`已清理 ${result.deletedCount} 条过期记忆`);
 | 模块 | 路径 |
 |------|------|
 | SessionStore | `packages/storage/src/session/store.ts` |
-| MemoryStore | `packages/runtime/src/memory/store.ts` |
+| KVMemoryStore | `packages/storage/src/memory-store.ts` |
+| MemoryStore（向量记忆） | `packages/runtime/src/memory/store.ts` |

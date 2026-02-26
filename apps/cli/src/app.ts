@@ -33,7 +33,7 @@ import {
   MessageTool,
 } from '../../../extensions/tool';
 import { FeishuChannel, CliChannel } from '../../../extensions/channel';
-import { buildIntentSystemPrompt, buildIntentUserPrompt, buildReActSystemPrompt, buildObservationMessage } from '../../prompts';
+import { buildIntentSystemPrompt, buildIntentUserPrompt } from '../../prompts';
 import type {
   App,
   Config,
@@ -231,7 +231,7 @@ class AppImpl implements App {
       this.toolRegistry,
       {
         workspace: this.workspace,
-        maxIterations: this.config.agents.maxToolIterations ?? 20,
+        maxIterations: this.config.agents.executor?.maxIterations ?? 20,
         maxTokens: this.config.agents.maxTokens ?? 8192,
         temperature: this.config.agents.temperature ?? 0.7,
         systemPrompt: this.loadSystemPrompt(),
@@ -242,8 +242,6 @@ class AppImpl implements App {
         availableModels: this.availableModels,
         buildIntentPrompt: buildIntentSystemPrompt,
         buildUserPrompt: buildIntentUserPrompt,
-        buildReActPrompt: (tools) => buildReActSystemPrompt(tools, this.buildSkillsPrompt()),
-        buildObservation: buildObservationMessage,
         memoryEnabled: this.config.agents.memory?.enabled,
         summarizeThreshold: this.config.agents.memory?.summarizeThreshold,
         idleTimeout: this.config.agents.memory?.idleTimeout,
@@ -297,44 +295,6 @@ ${skillsSummary}`);
     }
 
     return basePrompt;
-  }
-
-  /**
-   * 构建 ReAct 循环中使用的 Skills Prompt
-   */
-  private buildSkillsPrompt(): string {
-    if (!this.skillsLoader || this.skillsLoader.count === 0) {
-      return '';
-    }
-
-    const parts: string[] = [];
-
-    // Always 技能（Level 2 直接注入）
-    const alwaysContent = this.skillsLoader.buildAlwaysSkillsContent();
-    if (alwaysContent) {
-      parts.push(alwaysContent);
-    }
-
-    // 可用技能摘要（Level 1 渐进式加载）
-    const skillsSummary = this.skillsLoader.buildSkillsSummary();
-    if (skillsSummary) {
-      parts.push(`# 技能
-
-以下技能可以扩展你的能力。
-
-**使用规则：**
-1. 当用户请求与某个技能的 description 关键词匹配时（如"创建XX技能"、"获取天气"等），必须先使用 \`read_file\` 读取该技能的完整内容
-2. 读取 location 路径下的 SKILL.md 文件
-3. 按照 SKILL.md 中的指导执行操作，而不是直接写代码
-
-${skillsSummary}`);
-    }
-
-    if (parts.length === 0) {
-      return '';
-    }
-
-    return parts.join('\n\n---\n\n');
   }
 
   private registerBuiltinTools(): void {
