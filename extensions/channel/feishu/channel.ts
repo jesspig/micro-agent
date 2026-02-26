@@ -2,8 +2,8 @@
  * 飞书通道实现
  */
 
-import type { OutboundMessage, InboundMessage, ChannelType, Channel } from '@microbot/types';
-import type { MessageBus } from '@microbot/runtime';
+import type { OutboundMessage, InboundMessage, ChannelType, Channel } from '@micro-agent/types';
+import type { MessageBus } from '@micro-agent/runtime';
 import { Client, WSClient, EventDispatcher, LoggerLevel, messageCard } from '@larksuiteoapi/node-sdk';
 import { getLogger } from '@logtape/logtape';
 import type { FeishuConfig, FeishuMessageData } from './types';

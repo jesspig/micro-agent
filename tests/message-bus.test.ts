@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'bun:test';
-import { MessageBus } from '@microbot/sdk';
+import { MessageBus } from '@micro-agent/sdk';
 
 describe('MessageBus', () => {
   let bus: MessageBus;

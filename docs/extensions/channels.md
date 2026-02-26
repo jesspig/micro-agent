@@ -35,9 +35,9 @@
 - **App ID**: 应用唯一标识
 - **App Secret**: 应用密钥
 
-### 配置 MicroBot
+### 配置 MicroAgent
 
-编辑 `~/.microbot/settings.yaml`：
+编辑 `~/.micro-agent/settings.yaml`：
 
 ```yaml
 channels:
@@ -56,7 +56,7 @@ channels:
 
 ### 测试连接
 
-启动 MicroBot 后，在飞书中向机器人发送消息，查看日志确认收到消息。
+启动 MicroAgent 后，在飞书中向机器人发送消息，查看日志确认收到消息。
 
 ## 消息格式
 

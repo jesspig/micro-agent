@@ -2,7 +2,7 @@
  * 消息总线
  */
 
-import type { InboundMessage, OutboundMessage } from '@microbot/types';
+import type { InboundMessage, OutboundMessage } from '@micro-agent/types';
 
 /**
  * 消息总线

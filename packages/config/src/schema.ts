@@ -25,7 +25,7 @@ export const MemoryConfigSchema = z.object({
   /** 是否启用记忆系统 */
   enabled: z.boolean().default(true),
   /** 记忆存储路径 */
-  storagePath: z.string().default('~/.microbot/memory'),
+  storagePath: z.string().default('~/.micro-agent/memory'),
   /** 是否启用自动摘要 */
   autoSummarize: z.boolean().default(true),
   /** 触发摘要的消息阈值 */
@@ -72,7 +72,7 @@ export type WorkspaceConfig = z.infer<typeof WorkspaceConfigSchema>;
 /** Agent 配置 Schema */
 export const AgentConfigSchema = z.object({
   /** 默认工作区路径 */
-  workspace: z.string().default('~/.microbot/workspace'),
+  workspace: z.string().default('~/.micro-agent/workspace'),
   /** 模型配置 */
   models: ModelsConfigSchema.optional(),
   /** 记忆系统配置 */

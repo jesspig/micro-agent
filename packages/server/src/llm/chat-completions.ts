@@ -5,7 +5,7 @@
  */
 
 import { getLogger } from '@logtape/logtape';
-import type { LLMProvider, LLMMessage, LLMResponse, LLMToolDefinition } from '@microbot/providers';
+import type { LLMProvider, LLMMessage, LLMResponse, LLMToolDefinition } from '@micro-agent/providers';
 import { jsonResponse, errorResponse } from '../http/server';
 
 const log = getLogger(['server', 'llm', 'chat']);

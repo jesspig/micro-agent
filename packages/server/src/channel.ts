@@ -2,7 +2,7 @@
  * 通道基础模块
  */
 
-import type { ChannelType } from '@microbot/types';
+import type { ChannelType } from '@micro-agent/types';
 import type { InboundMessage, OutboundMessage } from './events';
 import type { MessageBus } from './queue';
 

@@ -2,7 +2,7 @@ import { defineConfig } from 'vitepress';
 import { mermaidPlugin } from './mermaid-plugin';
 
 export default defineConfig({
-  title: 'MicroBot',
+  title: 'MicroAgent',
   description: '超轻量级个人 AI 助手框架',
   base: '/microbot/',
   appearance: 'dark',
@@ -18,7 +18,7 @@ export default defineConfig({
   },
   themeConfig: {
     logo: '/logo.svg',
-    siteTitle: 'MicroBot',
+    siteTitle: 'MicroAgent',
     nav: [
       { text: '指南', link: '/guide/' },
       { text: '核心模块', link: '/core/' },

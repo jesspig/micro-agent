@@ -4,8 +4,8 @@
  * 提供 Web 获取功能。
  */
 
-import { defineTool } from '@microbot/sdk';
-import type { Tool, JSONSchema } from '@microbot/types';
+import { defineTool } from '@micro-agent/sdk';
+import type { Tool, JSONSchema } from '@micro-agent/types';
 
 /** Web 获取工具 */
 export const WebFetchTool = defineTool({

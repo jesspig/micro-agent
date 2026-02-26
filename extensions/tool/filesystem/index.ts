@@ -6,8 +6,8 @@
 
 import { readFileSync, writeFileSync, existsSync, readdirSync, statSync } from 'fs';
 import { resolve, isAbsolute } from 'path';
-import { defineTool } from '@microbot/sdk';
-import type { Tool, JSONSchema, ToolContext } from '@microbot/types';
+import { defineTool } from '@micro-agent/sdk';
+import type { Tool, JSONSchema, ToolContext } from '@micro-agent/types';
 
 /** 读取文件工具 */
 export const ReadFileTool = defineTool({

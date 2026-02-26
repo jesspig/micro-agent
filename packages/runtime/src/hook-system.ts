@@ -4,7 +4,7 @@
  * 支持优先级的钩子执行，用于在关键节点插入自定义逻辑。
  */
 
-import type { HookType } from '@microbot/types';
+import type { HookType } from '@micro-agent/types';
 
 /** 钩子函数 */
 export type Hook<T> = (context: T) => T | Promise<T>;

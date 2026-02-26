@@ -4,8 +4,8 @@
  * 提供消息发送功能。
  */
 
-import { defineTool } from '@microbot/sdk';
-import type { Tool, JSONSchema, ToolContext } from '@microbot/types';
+import { defineTool } from '@micro-agent/sdk';
+import type { Tool, JSONSchema, ToolContext } from '@micro-agent/types';
 
 /** 消息工具 */
 export const MessageTool = defineTool({

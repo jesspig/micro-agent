@@ -7,7 +7,7 @@
  * 3. 将响应广播到所有活跃 Channel
  */
 
-import type { Channel, ChannelType, InboundMessage, BroadcastMessage } from '@microbot/types';
+import type { Channel, ChannelType, InboundMessage, BroadcastMessage } from '@micro-agent/types';
 import type { AgentExecutor } from '../executor';
 import { getLogger } from '@logtape/logtape';
 

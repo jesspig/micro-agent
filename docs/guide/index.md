@@ -4,8 +4,8 @@
 
 ```bash
 # 克隆项目
-git clone https://github.com/jesspig/microbot.git
-cd microbot
+git clone https://github.com/jesspig/micro-agent.git
+cd micro-agent
 
 # 安装依赖
 bun install
@@ -16,13 +16,13 @@ bun install
 ### 1. 创建配置文件
 
 ```bash
-mkdir -p ~/.microbot
-cp workspace/settings.yaml ~/.microbot/settings.yaml
+mkdir -p ~/.micro-agent
+cp workspace/settings.yaml ~/.micro-agent/settings.yaml
 ```
 
 ### 2. 配置 LLM
 
-编辑 `~/.microbot/settings.yaml`：
+编辑 `~/.micro-agent/settings.yaml`：
 
 ```yaml
 providers:
@@ -97,7 +97,7 @@ bun run start
 ## 项目结构
 
 ```
-microbot/
+micro-agent/
 ├── packages/
 │   ├── types/              # 核心类型定义（MCP 兼容）
 │   ├── runtime/            # 运行时引擎（Container、EventBus、HookSystem、Gateway）

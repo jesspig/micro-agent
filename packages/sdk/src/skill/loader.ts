@@ -18,7 +18,7 @@ import { SKILL_NAME_REGEX, DEFAULT_SKILLS_LIMITS } from './types';
 const log = getLogger(['skill', 'loader']);
 
 /** 用户技能目录 */
-const USER_SKILLS_DIR = '~/.microbot/skills';
+const USER_SKILLS_DIR = '~/.micro-agent/skills';
 
 /**
  * 技能加载器

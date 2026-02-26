@@ -2,7 +2,7 @@
  * 工具构建器
  */
 
-import type { Tool, ToolContext, JSONSchema, ToolResult } from '@microbot/types';
+import type { Tool, ToolContext, JSONSchema, ToolResult } from '@micro-agent/types';
 
 /**
  * 工具构建器选项

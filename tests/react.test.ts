@@ -10,7 +10,7 @@ import {
   ReActActionToTool,
   PredefinedActions,
   type ReActResponse,
-} from '@microbot/runtime';
+} from '@micro-agent/runtime';
 
 describe('ReAct Types', () => {
   describe('PredefinedActions', () => {

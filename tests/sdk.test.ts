@@ -3,8 +3,8 @@
  */
 
 import { describe, it, expect, beforeEach } from 'bun:test'
-import { defineTool } from '@microbot/sdk'
-import { ToolBuilder, createToolBuilder } from '@microbot/sdk'
+import { defineTool } from '@micro-agent/sdk'
+import { ToolBuilder, createToolBuilder } from '@micro-agent/sdk'
 
 // Mock ToolContext
 const mockContext = {

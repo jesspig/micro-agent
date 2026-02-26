@@ -6,7 +6,7 @@
 - **SessionStore**：短期会话存储，JSONL 格式
 - **KVMemoryStore**：通用键值内存缓存，支持 TTL 和 LRU
 
-> **注意**：长期记忆存储（向量检索）位于 `@microbot/runtime` 包，详见 [Memory 文档](./memory.md)。
+> **注意**：长期记忆存储（向量检索）位于 `@micro-agent/runtime` 包，详见 [Memory 文档](./memory.md)。
 
 ---
 
@@ -24,10 +24,10 @@
 ### 使用示例
 
 ```typescript
-import { SessionStore } from '@microbot/storage';
+import { SessionStore } from '@micro-agent/storage';
 
 const store = new SessionStore({
-  sessionsDir: '~/.microbot/sessions',
+  sessionsDir: '~/.micro-agent/sessions',
   maxMessages: 500,
   sessionTimeout: 30 * 60 * 1000, // 30 分钟
 });
@@ -46,7 +46,7 @@ const history = store.getHistory('feishu:chat_123', 100);
 ### 存储格式
 
 ```
-~/.microbot/sessions/
+~/.micro-agent/sessions/
 ├── feishu_chat_123.jsonl
 └── feishu_chat_456.jsonl
 ```
@@ -74,7 +74,7 @@ const history = store.getHistory('feishu:chat_123', 100);
 ### 使用示例
 
 ```typescript
-import { KVMemoryStore } from '@microbot/storage';
+import { KVMemoryStore } from '@micro-agent/storage';
 
 // 创建缓存（默认最大 1000 条目）
 const cache = new KVMemoryStore<string>({

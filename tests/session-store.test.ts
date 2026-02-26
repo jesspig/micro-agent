@@ -2,9 +2,9 @@ import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import { mkdirSync, rmSync, existsSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
-import { SessionStore } from '@microbot/sdk';
+import { SessionStore } from '@micro-agent/sdk';
 
-const TEST_DIR = join(homedir(), '.microbot', 'test-sessions');
+const TEST_DIR = join(homedir(), '.micro-agent', 'test-sessions');
 
 describe('SessionStore', () => {
   let store: SessionStore;

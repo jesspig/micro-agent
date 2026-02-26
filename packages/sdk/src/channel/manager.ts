@@ -4,7 +4,7 @@
  * 管理所有通道，提供消息路由和广播接口。
  */
 
-import type { Channel, ChannelType, BroadcastMessage } from '@microbot/types';
+import type { Channel, ChannelType, BroadcastMessage } from '@micro-agent/types';
 import { getLogger } from '@logtape/logtape';
 
 const log = getLogger(['channel', 'manager']);
@@ -12,7 +12,7 @@ const log = getLogger(['channel', 'manager']);
 /** 消息处理器接口 */
 export interface MessageHandler {
   /** 处理入站消息 */
-  process(msg: import('@microbot/types').InboundMessage): Promise<void>;
+  process(msg: import('@micro-agent/types').InboundMessage): Promise<void>;
 }
 
 /**
@@ -44,7 +44,7 @@ export class ChannelManager {
   /**
    * 接收来自通道的消息，转发给处理器
    */
-  async onMessage(msg: import('@microbot/types').InboundMessage): Promise<void> {
+  async onMessage(msg: import('@micro-agent/types').InboundMessage): Promise<void> {
     if (!this.handler) {
       log.warn('未设置消息处理器，消息已丢弃');
       return;
@@ -97,7 +97,7 @@ export class ChannelManager {
   /**
    * 发送消息到指定通道（向后兼容）
    */
-  async send(msg: import('@microbot/types').OutboundMessage): Promise<void> {
+  async send(msg: import('@micro-agent/types').OutboundMessage): Promise<void> {
     const channel = this.channels.get(msg.channel);
     if (!channel) {
       throw new Error(`通道不存在: ${msg.channel}`);

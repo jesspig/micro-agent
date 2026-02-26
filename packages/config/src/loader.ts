@@ -29,7 +29,7 @@ interface ConfigPath {
 }
 
 /** 用户配置目录 */
-const USER_CONFIG_DIR = '~/.microbot';
+const USER_CONFIG_DIR = '~/.micro-agent';
 
 /** 配置加载选项 */
 export interface LoadConfigOptions {
@@ -83,7 +83,7 @@ function collectConfigPaths(workspace?: string, currentDir?: string): ConfigPath
 
   // 项目级
   if (workspace) {
-    const projectDir = resolve(workspace, '.microbot');
+    const projectDir = resolve(workspace, '.micro-agent');
     paths.push({
       level: ConfigLevel.PROJECT,
       dir: projectDir,
@@ -114,7 +114,7 @@ function collectDirectoryConfigs(workspace: string, currentDir: string): ConfigP
   pathChain.reverse();
 
   for (const d of pathChain) {
-    const configDir = resolve(d, '.microbot');
+    const configDir = resolve(d, '.micro-agent');
     paths.push({
       level: ConfigLevel.DIRECTORY,
       dir: configDir,

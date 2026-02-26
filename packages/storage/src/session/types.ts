@@ -2,7 +2,7 @@
  * 会话存储类型定义
  */
 
-import type { SessionKey, ContentPart, MessageRole } from '@microbot/types';
+import type { SessionKey, ContentPart, MessageRole } from '@micro-agent/types';
 
 /** 会话消息 */
 export interface SessionMessage {

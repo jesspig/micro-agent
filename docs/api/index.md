@@ -5,7 +5,7 @@
 ### Container
 
 ```typescript
-import { Container, container } from '@microbot/sdk';
+import { Container, container } from '@micro-agent/sdk';
 
 // 注册瞬态依赖
 container.register('service', () => new Service());
@@ -20,7 +20,7 @@ const service = container.resolve<Service>('service');
 ### EventBus
 
 ```typescript
-import { EventBus, eventBus } from '@microbot/sdk';
+import { EventBus, eventBus } from '@micro-agent/sdk';
 
 // 订阅事件
 eventBus.on('message:received', (msg) => {
@@ -34,7 +34,7 @@ eventBus.emit('message:received', { content: 'hello' });
 ### HookSystem
 
 ```typescript
-import { HookSystem, hookSystem } from '@microbot/sdk';
+import { HookSystem, hookSystem } from '@micro-agent/sdk';
 
 // 注册钩子
 hookSystem.register('pre:chat', async (ctx) => {
@@ -46,7 +46,7 @@ hookSystem.register('pre:chat', async (ctx) => {
 ## Provider 模块
 
 ```typescript
-import { OpenAICompatibleProvider } from '@microbot/sdk/providers';
+import { OpenAICompatibleProvider } from '@micro-agent/sdk/providers';
 
 const provider = new OpenAICompatibleProvider({
   baseUrl: 'https://api.deepseek.com/v1',
@@ -65,9 +65,9 @@ const response = await provider.chat([
 ### SessionStore
 
 ```typescript
-import { SessionStore } from '@microbot/sdk/storage';
+import { SessionStore } from '@micro-agent/sdk/storage';
 
-const store = new SessionStore('~/.microbot/data');
+const store = new SessionStore('~/.micro-agent/data');
 
 // 添加消息
 store.addMessage('channel:chatId', 'user', 'Hello');

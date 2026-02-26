@@ -2,7 +2,7 @@
  * 通道管理器
  */
 
-import type { ChannelType } from '@microbot/types';
+import type { ChannelType } from '@micro-agent/types';
 import type { Channel } from './channel';
 import type { OutboundMessage } from './events';
 import { getLogger } from '@logtape/logtape';

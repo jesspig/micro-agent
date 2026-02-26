@@ -32,8 +32,8 @@
 
 ```typescript
 // extensions/tool/my-tool/index.ts
-import { defineTool } from '@microbot/sdk';
-import type { JSONSchema, ToolContext } from '@microbot/types';
+import { defineTool } from '@micro-agent/sdk';
+import type { JSONSchema, ToolContext } from '@micro-agent/types';
 
 export const MyTool = defineTool({
   name: 'my_tool',

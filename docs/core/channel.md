@@ -86,8 +86,8 @@ ChannelManager 负责管理所有通道实例，提供注册、启停和消息�
 ## 实现示例
 
 ```typescript
-import type { Channel, ChannelType, OutboundMessage } from '@microbot/types';
-import type { ChannelManager } from '@microbot/sdk';
+import type { Channel, ChannelType, OutboundMessage } from '@micro-agent/types';
+import type { ChannelManager } from '@micro-agent/sdk';
 
 class MyChannel implements Channel {
   readonly name: ChannelType = 'mychannel';

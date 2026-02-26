@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'bun:test';
-import { LLMGateway } from '@microbot/sdk';
-import type { LLMProvider, LLMMessage, LLMResponse } from '@microbot/types';
-import type { ModelConfig } from '@microbot/sdk';
+import { LLMGateway } from '@micro-agent/sdk';
+import type { LLMProvider, LLMMessage, LLMResponse } from '@micro-agent/types';
+import type { ModelConfig } from '@micro-agent/sdk';
 
 /** Mock Provider 用于测试 */
 class MockProvider implements LLMProvider {

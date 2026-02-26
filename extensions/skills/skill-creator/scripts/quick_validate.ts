@@ -48,7 +48,7 @@ async function validateSkill(skillPath: string): Promise<ValidationResult> {
     return { valid: false, message: `frontmatter 中 YAML 无效: ${e}` };
   }
 
-  // Microbot 扩展字段
+  // microAgent 字段（package.json 中的扩展字段）
   const allowedProperties = new Set([
     "name",
     "description",
@@ -122,7 +122,7 @@ async function validateSkill(skillPath: string): Promise<ValidationResult> {
     }
   }
 
-  // 检查 requires 依赖 (Microbot 扩展)
+  // 检查 requires 依赖 (microAgent 扩展字段)
   const metadata = frontmatter.metadata as Record<string, unknown> | undefined;
   if (metadata && typeof metadata === "object") {
     const requires = metadata.requires as Record<string, unknown> | undefined;

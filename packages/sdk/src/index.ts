@@ -1,20 +1,20 @@
 /**
- * MicroBot SDK 入口
+ * MicroAgent SDK 入口
  * 
  * 聚合所有子模块，提供统一的开发接口
  */
 
 // ============ Types - 核心类型定义 ============
-// 从 @microbot/types 导出所有类型
-export * from '@microbot/types';
+// 从 @micro-agent/types 导出所有类型
+export * from '@micro-agent/types';
 
 // ============ Runtime - 运行时引擎 ============
-export { ContainerImpl, container } from '@microbot/runtime';
-export { EventBus, eventBus } from '@microbot/runtime';
-export { HookSystem, hookSystem, type Hook } from '@microbot/runtime';
-export { Pipeline, type Middleware } from '@microbot/runtime';
-export { MessageBus } from '@microbot/runtime';
-export { AgentExecutor, type AgentExecutorConfig } from '@microbot/runtime';
+export { ContainerImpl, container } from '@micro-agent/runtime';
+export { EventBus, eventBus } from '@micro-agent/runtime';
+export { HookSystem, hookSystem, type Hook } from '@micro-agent/runtime';
+export { Pipeline, type Middleware } from '@micro-agent/runtime';
+export { MessageBus } from '@micro-agent/runtime';
+export { AgentExecutor, type AgentExecutorConfig } from '@micro-agent/runtime';
 // Memory System
 export {
   MemoryStore,
@@ -22,7 +22,7 @@ export {
   OpenAIEmbedding,
   NoEmbedding,
   createEmbeddingService,
-} from '@microbot/runtime';
+} from '@micro-agent/runtime';
 export type {
   MemoryEntry,
   MemoryMetadata,
@@ -32,11 +32,11 @@ export type {
   MemoryFilter,
   EmbeddingService,
   SummarizerConfig,
-} from '@microbot/runtime';
+} from '@micro-agent/runtime';
 
 // ============ Storage - 存储层 ============
-export { SessionStore } from '@microbot/storage';
-export type { SessionStoreConfig } from '@microbot/storage';
+export { SessionStore } from '@micro-agent/storage';
+export type { SessionStoreConfig } from '@micro-agent/storage';
 
 // ============ Config - 配置层 ============
 export {
@@ -57,12 +57,12 @@ export {
   loadAllTemplateFiles,
   ConfigSchema,
   parseModelConfigs,
-} from '@microbot/config';
+} from '@micro-agent/config';
 
-// 注意：ModelConfig 从 @microbot/config 导出（有必填字段）
-// 而 @microbot/types 中的 ModelConfig 有可选字段
-// SDK 优先使用 @microbot/config 的版本
-export type { ModelConfig } from '@microbot/config';
+// 注意：ModelConfig 从 @micro-agent/config 导出（有必填字段）
+// 而 @micro-agent/types 中的 ModelConfig 有可选字段
+// SDK 优先使用 @micro-agent/config 的版本
+export type { ModelConfig } from '@micro-agent/config';
 
 // ============ Providers - LLM 提供商层 ============
 export {
@@ -72,7 +72,7 @@ export {
   hasImageMedia,
   parseOpenAIResponse,
   toOpenAIMessages,
-} from '@microbot/providers';
+} from '@micro-agent/providers';
 
 export type {
   GenerationConfig,
@@ -85,11 +85,11 @@ export type {
   ModelInfo,
   IntentPromptBuilder,
   UserPromptBuilder,
-} from '@microbot/providers';
+} from '@micro-agent/providers';
 
 // ============ Extension System - 扩展系统 ============
-export { ExtensionRegistry, ExtensionDiscovery, ExtensionLoader, HotReloadManager } from '@microbot/extension-system';
-export type { RegistryConfig, LoaderConfig, LoaderState, HotReloadConfig } from '@microbot/extension-system';
+export { ExtensionRegistry, ExtensionDiscovery, ExtensionLoader, HotReloadManager } from '@micro-agent/extension-system';
+export type { RegistryConfig, LoaderConfig, LoaderState, HotReloadConfig } from '@micro-agent/extension-system';
 
 // ============ Tool - 工具模块 ============
 export { ToolRegistry } from './tool/registry';

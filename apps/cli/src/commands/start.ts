@@ -1,11 +1,11 @@
 /**
  * start 命令实现
  *
- * 启动 MicroBot 服务。
+ * 启动 MicroAgent 服务。
  */
 
 import { createApp } from '../app';
-import { loadConfig, getConfigStatus } from '@microbot/config';
+import { loadConfig, getConfigStatus } from '@micro-agent/config';
 import { configure, getConsoleSink } from '@logtape/logtape';
 import { prettyFormatter } from '@logtape/pretty';
 
@@ -34,7 +34,7 @@ export async function runStartCommand(configPath?: string, verbose: boolean = fa
   
   console.log('\x1b[2J\x1b[H'); // 清屏
   console.log();
-  console.log('\x1b[1m\x1b[36mMicroBot\x1b[0m');
+  console.log('\x1b[1m\x1b[36mMicroAgent\x1b[0m');
   console.log('─'.repeat(50));
 
   // 检查配置状态
@@ -51,7 +51,7 @@ export async function runStartCommand(configPath?: string, verbose: boolean = fa
       console.log(`    \x1b[31m✗\x1b[0m ${item}`);
     }
     console.log();
-    console.log('  请编辑 \x1b[36m~/.microbot/settings.yaml\x1b[0m 完成配置后重启');
+    console.log('  请编辑 \x1b[36m~/.micro-agent/settings.yaml\x1b[0m 完成配置后重启');
     console.log('─'.repeat(50));
   }
 

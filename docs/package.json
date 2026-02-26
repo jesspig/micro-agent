@@ -1,7 +1,7 @@
 {
-  "name": "@microbot/docs",
+  "name": "@micro-agent/docs",
   "version": "0.1.0",
-  "description": "MicroBot 在线文档",
+  "description": "MicroAgent 在线文档",
   "type": "module",
   "scripts": {
     "docs:dev": "vitepress dev",

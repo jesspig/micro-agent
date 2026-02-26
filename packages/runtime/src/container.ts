@@ -4,7 +4,7 @@
  * 支持瞬态（每次创建新实例）和单例（全局唯一实例）两种模式。
  */
 
-import type { Container } from '@microbot/types';
+import type { Container } from '@micro-agent/types';
 
 type Factory<T> = () => T;
 

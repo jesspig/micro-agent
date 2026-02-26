@@ -47,12 +47,12 @@ sequenceDiagram
 
 ## 依赖注入容器
 
-Container 是 Microbot 的核心，提供依赖注入能力。
+Container 是 MicroAgent 的核心，提供依赖注入能力。
 
 ### 基本使用
 
 ```typescript
-import { container } from '@microbot/sdk';
+import { container } from '@micro-agent/sdk';
 
 // 注册瞬态工厂
 container.register('Provider', () => new OpenAIProvider());
@@ -152,7 +152,7 @@ flowchart TD
 
 ```typescript
 import { z } from 'zod';
-import { Tool } from '@microbot/sdk';
+import { Tool } from '@micro-agent/sdk';
 
 class FileReadTool extends Tool {
   readonly name = 'read_file';
@@ -194,7 +194,7 @@ allowed-tools:
 ### 加载优先级
 
 1. 项目技能（最高）
-2. 用户技能 `~/.microbot/skills/`
+2. 用户技能 `~/.micro-agent/skills/`
 3. 内置技能（最低）
 
 ## 存储系统
@@ -251,7 +251,7 @@ agents:
   
   memory:
     enabled: true
-    storagePath: ~/.microbot/memory
+    storagePath: ~/.micro-agent/memory
     searchLimit: 10
     shortTermRetentionDays: 7
     autoSummarize: true

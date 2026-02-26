@@ -18,7 +18,7 @@ export type {
   LLMResponse,
   LLMToolDefinition,
   GenerationConfig,
-} from '@microbot/providers';
+} from '@micro-agent/providers';
 
 // ============================================================================
 // 记忆系统类型

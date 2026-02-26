@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'bun:test';
-import { ContainerImpl } from '@microbot/sdk';
+import { ContainerImpl } from '@micro-agent/sdk';
 
 describe('Container', () => {
   let container: ContainerImpl;

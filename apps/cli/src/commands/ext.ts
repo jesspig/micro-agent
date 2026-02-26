@@ -22,8 +22,8 @@ interface ExtensionInfo {
 /** 获取扩展目录 */
 function getExtensionDirs(): string[] {
   return [
-    join(homedir(), '.microbot', 'extensions'), // 用户级
-    resolve('.microbot', 'extensions'), // 项目级
+    join(homedir(), '.micro-agent', 'extensions'), // 用户级
+    resolve('.micro-agent', 'extensions'), // 项目级
   ];
 }
 
@@ -131,7 +131,7 @@ function showHelp(): void {
 扩展管理命令
 
 用法:
-  microbot ext <子命令> [参数]
+  micro-agent ext <子命令> [参数]
 
 子命令:
   list        列出所有扩展
@@ -139,8 +139,8 @@ function showHelp(): void {
   help        显示帮助信息
 
 示例:
-  microbot ext list
-  microbot ext show my-tool
+  micro-agent ext list
+  micro-agent ext show my-tool
 `);
 }
 
@@ -160,7 +160,7 @@ export async function runExtCommand(args: string[]): Promise<void> {
     case 'show':
       if (!args[1]) {
         console.log('\x1b[33m请指定扩展名称\x1b[0m');
-        console.log('用法: microbot ext show <name>');
+        console.log('用法: micro-agent ext show <name>');
         return;
       }
       showExtensionDetail(args[1]);

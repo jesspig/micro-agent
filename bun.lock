@@ -3,13 +3,13 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "microbot",
+      "name": "micro-agent",
       "dependencies": {
         "@lancedb/lancedb": "^0.26.2",
         "@larksuiteoapi/node-sdk": "^1.59.0",
         "@logtape/logtape": "^2.0.2",
         "@logtape/pretty": "^2.0.2",
-        "@microbot/sdk": "workspace:*",
+        "@micro-agent/sdk": "workspace:*",
         "ai": "^6.0.97",
         "gray-matter": "^4.0.3",
         "js-yaml": "^4.1.1",
@@ -25,23 +25,23 @@
       },
     },
     "apps/cli": {
-      "name": "@microbot/cli",
+      "name": "@micro-agent/cli",
       "version": "0.1.0",
       "bin": {
-        "microbot": "./src/cli.ts",
+        "micro-agent": "./src/cli.ts",
       },
       "dependencies": {
         "@larksuiteoapi/node-sdk": "^1.59.0",
         "@logtape/logtape": "^2.0.2",
         "@logtape/pretty": "^2.0.2",
-        "@microbot/config": "workspace:*",
-        "@microbot/extension-system": "workspace:*",
-        "@microbot/providers": "workspace:*",
-        "@microbot/runtime": "workspace:*",
-        "@microbot/sdk": "workspace:*",
-        "@microbot/server": "workspace:*",
-        "@microbot/storage": "workspace:*",
-        "@microbot/types": "workspace:*",
+        "@micro-agent/config": "workspace:*",
+        "@micro-agent/extension-system": "workspace:*",
+        "@micro-agent/providers": "workspace:*",
+        "@micro-agent/runtime": "workspace:*",
+        "@micro-agent/sdk": "workspace:*",
+        "@micro-agent/server": "workspace:*",
+        "@micro-agent/storage": "workspace:*",
+        "@micro-agent/types": "workspace:*",
         "js-yaml": "^4.1.1",
         "zod": "^4.3.6",
       },
@@ -52,12 +52,12 @@
       },
     },
     "packages/config": {
-      "name": "@microbot/config",
+      "name": "@micro-agent/config",
       "version": "0.1.0",
       "dependencies": {
         "@logtape/logtape": "^2.0.2",
         "@logtape/pretty": "^2.0.2",
-        "@microbot/types": "workspace:*",
+        "@micro-agent/types": "workspace:*",
         "gray-matter": "^4.0.3",
         "js-yaml": "^4.1.1",
         "zod": "^4.3.6",
@@ -69,11 +69,11 @@
       },
     },
     "packages/extension-system": {
-      "name": "@microbot/extension-system",
+      "name": "@micro-agent/extension-system",
       "version": "0.1.0",
       "dependencies": {
         "@logtape/logtape": "^2.0.2",
-        "@microbot/types": "workspace:*",
+        "@micro-agent/types": "workspace:*",
         "js-yaml": "^4.1.1",
       },
       "devDependencies": {
@@ -82,13 +82,13 @@
       },
     },
     "packages/providers": {
-      "name": "@microbot/providers",
+      "name": "@micro-agent/providers",
       "version": "0.1.0",
       "dependencies": {
         "@logtape/logtape": "^2.0.2",
-        "@microbot/config": "workspace:*",
-        "@microbot/runtime": "workspace:*",
-        "@microbot/types": "workspace:*",
+        "@micro-agent/config": "workspace:*",
+        "@micro-agent/runtime": "workspace:*",
+        "@micro-agent/types": "workspace:*",
         "ai": "^6.0.92",
       },
       "devDependencies": {
@@ -97,13 +97,13 @@
       },
     },
     "packages/runtime": {
-      "name": "@microbot/runtime",
+      "name": "@micro-agent/runtime",
       "version": "0.1.0",
       "dependencies": {
         "@logtape/logtape": "^2.0.2",
-        "@microbot/config": "workspace:*",
-        "@microbot/providers": "workspace:*",
-        "@microbot/types": "workspace:*",
+        "@micro-agent/config": "workspace:*",
+        "@micro-agent/providers": "workspace:*",
+        "@micro-agent/types": "workspace:*",
         "mitt": "^3.0.1",
       },
       "devDependencies": {
@@ -112,16 +112,16 @@
       },
     },
     "packages/sdk": {
-      "name": "@microbot/sdk",
+      "name": "@micro-agent/sdk",
       "version": "0.1.0",
       "dependencies": {
         "@logtape/logtape": "^2.0.2",
-        "@microbot/config": "workspace:*",
-        "@microbot/extension-system": "workspace:*",
-        "@microbot/providers": "workspace:*",
-        "@microbot/runtime": "workspace:*",
-        "@microbot/storage": "workspace:*",
-        "@microbot/types": "workspace:*",
+        "@micro-agent/config": "workspace:*",
+        "@micro-agent/extension-system": "workspace:*",
+        "@micro-agent/providers": "workspace:*",
+        "@micro-agent/runtime": "workspace:*",
+        "@micro-agent/storage": "workspace:*",
+        "@micro-agent/types": "workspace:*",
         "mitt": "^3.0.1",
         "zod": "^4.3.6",
       },
@@ -131,14 +131,14 @@
       },
     },
     "packages/server": {
-      "name": "@microbot/server",
+      "name": "@micro-agent/server",
       "version": "0.1.0",
       "dependencies": {
         "@logtape/logtape": "^2.0.2",
-        "@microbot/providers": "workspace:*",
-        "@microbot/runtime": "workspace:*",
-        "@microbot/sdk": "workspace:*",
-        "@microbot/types": "workspace:*",
+        "@micro-agent/providers": "workspace:*",
+        "@micro-agent/runtime": "workspace:*",
+        "@micro-agent/sdk": "workspace:*",
+        "@micro-agent/types": "workspace:*",
       },
       "devDependencies": {
         "@types/bun": "latest",
@@ -146,11 +146,11 @@
       },
     },
     "packages/storage": {
-      "name": "@microbot/storage",
+      "name": "@micro-agent/storage",
       "version": "0.1.0",
       "dependencies": {
         "@logtape/logtape": "^2.0.2",
-        "@microbot/types": "workspace:*",
+        "@micro-agent/types": "workspace:*",
       },
       "devDependencies": {
         "@types/bun": "latest",
@@ -158,7 +158,7 @@
       },
     },
     "packages/types": {
-      "name": "@microbot/types",
+      "name": "@micro-agent/types",
       "version": "0.1.0",
       "devDependencies": {
         "@types/bun": "latest",
@@ -170,7 +170,7 @@
     "@larksuiteoapi/node-sdk",
   ],
   "packages": {
-    "@ai-sdk/gateway": ["@ai-sdk/gateway@3.0.53", "", { "dependencies": { "@ai-sdk/provider": "3.0.8", "@ai-sdk/provider-utils": "4.0.15", "@vercel/oidc": "3.1.0" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-QT3FEoNARMRlk8JJVR7L98exiK9C8AGfrEJVbRxBT1yIXKs/N19o/+PsjTRVsARgDJNcy9JbJp1FspKucEat0Q=="],
+    "@ai-sdk/gateway": ["@ai-sdk/gateway@3.0.55", "", { "dependencies": { "@ai-sdk/provider": "3.0.8", "@ai-sdk/provider-utils": "4.0.15", "@vercel/oidc": "3.1.0" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-7xMeTJnCjwRwXKVCiv4Ly4qzWvDuW3+W1WIV0X1EFu6W83d4mEhV9bFArto10MeTw40ewuDjrbrZd21mXKohkw=="],
 
     "@ai-sdk/provider": ["@ai-sdk/provider@3.0.8", "", { "dependencies": { "json-schema": "^0.4.0" } }, "sha512-oGMAgGoQdBXbZqNG0Ze56CHjDZ1IDYOwGYxYjO5KLSlz5HiNQ9udIXsPZ61VWaHGZ5XW/jyjmr6t2xz2jGVwbQ=="],
 
@@ -194,27 +194,27 @@
 
     "@larksuiteoapi/node-sdk": ["@larksuiteoapi/node-sdk@1.59.0", "", { "dependencies": { "axios": "~1.13.3", "lodash.identity": "^3.0.0", "lodash.merge": "^4.6.2", "lodash.pickby": "^4.6.0", "protobufjs": "^7.2.6", "qs": "^6.14.2", "ws": "^8.19.0" } }, "sha512-sBpkruTvZDOxnVtoTbepWKRX0j1Y1ZElQYu0x7+v088sI9pcpbVp6ZzCGn62dhrKPatzNyCJyzYCPXPYQWccrA=="],
 
-    "@logtape/logtape": ["@logtape/logtape@2.0.2", "", {}, "sha512-cveUBLbCMFkvkLycP/2vNWvywl47JcJbazHIju94/QNGboZ/jyYAgZIm0ZXezAOx3eIz8OG1EOZ5CuQP3+2FQg=="],
+    "@logtape/logtape": ["@logtape/logtape@2.0.4", "", {}, "sha512-Z4COeAMdedcBFuFkXaPFvDPOVuHoEom1hwNnPCIkSyojyikuNguplwPoSG+kZthWrS7GiOJo1USQyjWwIFfTKA=="],
 
-    "@logtape/pretty": ["@logtape/pretty@2.0.2", "", { "peerDependencies": { "@logtape/logtape": "^2.0.2" } }, "sha512-WMKoHuaEZvJgDeciIM/OL+joDDlheuoSpkfJOuKncdim7eV6GfIh0BUxLt0Td4JJsljzt5dAttxaX0kXqE0N9Q=="],
+    "@logtape/pretty": ["@logtape/pretty@2.0.4", "", { "peerDependencies": { "@logtape/logtape": "^2.0.4" } }, "sha512-y1nubV70avD9Gx8Q3gcWBlVUsVwpaBdHUntrkkpXIrC/UPRoHuWnBo+FNrtyvgjCEHSbKuxIaOgsE8rxTPEhzg=="],
 
-    "@microbot/cli": ["@microbot/cli@workspace:apps/cli"],
+    "@micro-agent/cli": ["@micro-agent/cli@workspace:apps/cli"],
 
-    "@microbot/config": ["@microbot/config@workspace:packages/config"],
+    "@micro-agent/config": ["@micro-agent/config@workspace:packages/config"],
 
-    "@microbot/extension-system": ["@microbot/extension-system@workspace:packages/extension-system"],
+    "@micro-agent/extension-system": ["@micro-agent/extension-system@workspace:packages/extension-system"],
 
-    "@microbot/providers": ["@microbot/providers@workspace:packages/providers"],
+    "@micro-agent/providers": ["@micro-agent/providers@workspace:packages/providers"],
 
-    "@microbot/runtime": ["@microbot/runtime@workspace:packages/runtime"],
+    "@micro-agent/runtime": ["@micro-agent/runtime@workspace:packages/runtime"],
 
-    "@microbot/sdk": ["@microbot/sdk@workspace:packages/sdk"],
+    "@micro-agent/sdk": ["@micro-agent/sdk@workspace:packages/sdk"],
 
-    "@microbot/server": ["@microbot/server@workspace:packages/server"],
+    "@micro-agent/server": ["@micro-agent/server@workspace:packages/server"],
 
-    "@microbot/storage": ["@microbot/storage@workspace:packages/storage"],
+    "@micro-agent/storage": ["@micro-agent/storage@workspace:packages/storage"],
 
-    "@microbot/types": ["@microbot/types@workspace:packages/types"],
+    "@micro-agent/types": ["@micro-agent/types@workspace:packages/types"],
 
     "@opentelemetry/api": ["@opentelemetry/api@1.9.0", "", {}, "sha512-3giAOQvZiH5F9bMlMiv8+GSPMeqg0dbaeo58/0SlA9sxSqZhnUtxzX9/2FzyhS9sWQf5S0GJE0AKBrFqjpeYcg=="],
 
@@ -250,11 +250,11 @@
 
     "@types/js-yaml": ["@types/js-yaml@4.0.9", "", {}, "sha512-k4MGaQl5TGo/iipqb2UDG2UwjXziSWkh0uysQelTlJpX1qGlpUZYm8PnO4DxG1qBomtJUdYJ6qR6xdIah10JLg=="],
 
-    "@types/node": ["@types/node@25.3.0", "", { "dependencies": { "undici-types": "~7.18.0" } }, "sha512-4K3bqJpXpqfg2XKGK9bpDTc6xO/xoUP/RBWS7AtRMug6zZFaRekiLzjVtAoZMquxoAbzBvy5nxQ7veS5eYzf8A=="],
+    "@types/node": ["@types/node@25.3.1", "", { "dependencies": { "undici-types": "~7.18.0" } }, "sha512-hj9YIJimBCipHVfHKRMnvmHg+wfhKc0o4mTtXh9pKBjC8TLJzz0nzGmLi5UJsYAUgSvXFHgb0V2oY10DUFtImw=="],
 
     "@vercel/oidc": ["@vercel/oidc@3.1.0", "", {}, "sha512-Fw28YZpRnA3cAHHDlkt7xQHiJ0fcL+NRcIqsocZQUSmbzeIKRpwttJjik5ZGanXP+vlA4SbTg+AbA3bP363l+w=="],
 
-    "ai": ["ai@6.0.97", "", { "dependencies": { "@ai-sdk/gateway": "3.0.53", "@ai-sdk/provider": "3.0.8", "@ai-sdk/provider-utils": "4.0.15", "@opentelemetry/api": "1.9.0" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-eZIAcBymwGhBwncRH/v9pillZNMeRCDkc4BwcvwXerXd7sxjVxRis3ZNCNCpP02pVH4NLs81ljm4cElC4vbNcQ=="],
+    "ai": ["ai@6.0.101", "", { "dependencies": { "@ai-sdk/gateway": "3.0.55", "@ai-sdk/provider": "3.0.8", "@ai-sdk/provider-utils": "4.0.15", "@opentelemetry/api": "1.9.0" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-Ur/NgbgOp1rdhyDiKDk6EOpSgd1g5ADlbcD1cjQJtQsnmhEngz3Rf8nK5JetDh0vnbLy2aEBpaQeL+zvLRWuaA=="],
 
     "ansi-styles": ["ansi-styles@4.3.0", "", { "dependencies": { "color-convert": "^2.0.1" } }, "sha512-zbB9rCJAT1rbjiVDb2hqKFHNYLxgtk8NURxZ3IZwD3F6NtxbXZQCnnSi1Lkx+IDohdPlFp222wVALIheZJQSEg=="],
 
@@ -404,9 +404,7 @@
 
     "zod": ["zod@4.3.6", "", {}, "sha512-rftlrkhHZOcjDwkGlnUtZZkvaPHCsDATp4pGpuOOMDaTdDDXF91wuVDJoWoPsKX/3YPQ5fHuF3STjcYyKr+Qhg=="],
 
-    "@microbot/providers/ai": ["ai@6.0.92", "", { "dependencies": { "@ai-sdk/gateway": "3.0.51", "@ai-sdk/provider": "3.0.8", "@ai-sdk/provider-utils": "4.0.15", "@opentelemetry/api": "1.9.0" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-TeXJX2PBv2djoqZN5J5+pL5etJFwxEiv55i6iZF4/qthLx1SjWDk6i3SETd7r9XZfvOlDaOJBQZ6MIHkAaOnhw=="],
-
-    "apache-arrow/@types/node": ["@types/node@20.19.33", "", { "dependencies": { "undici-types": "~6.21.0" } }, "sha512-Rs1bVAIdBs5gbTIKza/tgpMuG1k3U/UMJLWecIMxNdJFDMzcM5LOiLVRYh3PilWEYDIeUDv7bpiHPLPsbydGcw=="],
+    "apache-arrow/@types/node": ["@types/node@20.19.34", "", { "dependencies": { "undici-types": "~6.21.0" } }, "sha512-by3/Z0Qp+L9cAySEsSNNwZ6WWw8ywgGLPQGgbQDhNRSitqYgkgp4pErd23ZSCavbtUA2CN4jQtoB3T8nk4j3Rg=="],
 
     "command-line-usage/array-back": ["array-back@6.2.2", "", {}, "sha512-gUAZ7HPyb4SJczXAMUXMGAvI976JoK3qEx9v1FTmeYuJj0IBiaKttG1ydtGKdkfqWkIkouke7nG8ufGy77+Cvw=="],
 
@@ -415,8 +413,6 @@
     "gray-matter/js-yaml": ["js-yaml@3.14.2", "", { "dependencies": { "argparse": "^1.0.7", "esprima": "^4.0.0" }, "bin": { "js-yaml": "bin/js-yaml.js" } }, "sha512-PMSmkqxr106Xa156c2M265Z+FTrPl+oxd/rgOQy2tijQeK5TxQ43psO1ZCwhVOSdnn+RzkzlRz/eY4BgJBYVpg=="],
 
     "table-layout/array-back": ["array-back@6.2.2", "", {}, "sha512-gUAZ7HPyb4SJczXAMUXMGAvI976JoK3qEx9v1FTmeYuJj0IBiaKttG1ydtGKdkfqWkIkouke7nG8ufGy77+Cvw=="],
-
-    "@microbot/providers/ai/@ai-sdk/gateway": ["@ai-sdk/gateway@3.0.51", "", { "dependencies": { "@ai-sdk/provider": "3.0.8", "@ai-sdk/provider-utils": "4.0.15", "@vercel/oidc": "3.1.0" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-VXYxgDv2U1GJj6xY3aVd9glEmotGmsQllmKDUEghoghlZhEX6F64JsBQx/TukmlJGM98iAYCmofIwGFddv8ZTA=="],
 
     "apache-arrow/@types/node/undici-types": ["undici-types@6.21.0", "", {}, "sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ=="],
 

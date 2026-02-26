@@ -1,7 +1,7 @@
 /**
  * ACP 适配器
  *
- * 将 ACP 客户端与 MicroBot Agent 集成。
+ * 将 ACP 客户端与 MicroAgent Agent 集成。
  */
 
 import { getLogger } from '@logtape/logtape';

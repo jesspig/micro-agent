@@ -2,7 +2,7 @@
  * 消息类型定义
  */
 
-import type { ChannelType } from '@microbot/types';
+import type { ChannelType } from '@micro-agent/types';
 
 /** 入站消息 */
 export interface InboundMessage {

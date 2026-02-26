@@ -2,12 +2,12 @@
 
 ## 概述
 
-Container 是 Microbot 的核心，提供轻量级依赖注入能力。支持瞬态和单例两种模式。
+Container 是 MicroAgent 的核心，提供轻量级依赖注入能力。支持瞬态和单例两种模式。
 
 ## 使用方法
 
 ```typescript
-import { Container, container } from '@microbot/sdk';
+import { Container, container } from '@micro-agent/sdk';
 
 // 方式 1：使用全局容器
 container.register('Service', () => new Service());

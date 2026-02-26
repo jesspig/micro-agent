@@ -7,8 +7,8 @@
 
 import { which } from 'bun';
 import { existsSync, mkdirSync } from 'fs';
-import { defineTool } from '@microbot/sdk';
-import type { Tool, JSONSchema, ToolContext } from '@microbot/types';
+import { defineTool } from '@micro-agent/sdk';
+import type { Tool, JSONSchema, ToolContext } from '@micro-agent/types';
 
 /**
  * ExecTool 工厂
