@@ -4,7 +4,7 @@ import { mermaidPlugin } from './mermaid-plugin';
 export default defineConfig({
   title: 'MicroAgent',
   description: '超轻量级个人 AI 助手框架',
-  base: '/microbot/',
+  base: '/micro-agent/',
   appearance: 'dark',
   lastUpdated: true,
   cleanUrls: true,
@@ -92,7 +92,7 @@ export default defineConfig({
       ],
     },
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/jesspig/microbot' },
+      { icon: 'github', link: 'https://github.com/jesspig/micro-agent' },
     ],
     footer: {
       message: '基于 MIT 许可证开源',
