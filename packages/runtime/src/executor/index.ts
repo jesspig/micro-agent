@@ -521,9 +521,19 @@ export class AgentExecutor {
           log.info('⚠️ 循环警告，继续执行', { reason: loopCheck.reason });
         }
 
+        // 输出工具调用信息
+        const inputPreview = this.formatInputPreview(tc.arguments);
+        log.info(`📞 调用工具 \x1b[36m${tc.name}\x1b[0m${inputPreview ? `(${inputPreview})` : ''}`);
+
         // 执行工具
+        const toolStartTime = Date.now();
         const toolResult = await this.executeTool(tc.name, tc.arguments, msg);
-        log.info('🔧 工具执行', { tool: tc.name, callKey, result: toolResult.slice(0, 100) });
+        const toolElapsed = Date.now() - toolStartTime;
+        
+        // 输出工具执行结果摘要
+        const resultPreview = this.formatResultPreview(toolResult);
+        const elapsedStr = toolElapsed > 1000 ? `${(toolElapsed / 1000).toFixed(1)}s` : `${toolElapsed}ms`;
+        log.info(`📋 工具结果 \x1b[90m${elapsedStr}\x1b[0m ${resultPreview}`);
 
         // 添加工具结果消息
         messages.push({
@@ -730,5 +740,69 @@ export class AgentExecutor {
     msg = msg.replace(/[a-zA-Z0-9_-]{20,}/g, '[密钥]');
 
     return msg;
+  }
+
+  /**
+   * 格式化工具输入参数预览
+   */
+  private formatInputPreview(input: unknown, maxLength = 50): string {
+    if (input === null || input === undefined) return '';
+    
+    if (typeof input === 'object') {
+      const entries = Object.entries(input as Record<string, unknown>);
+      if (entries.length === 0) return '';
+      
+      const parts = entries.slice(0, 2).map(([key, value]) => {
+        let valStr: string;
+        if (typeof value === 'string') {
+          valStr = value.length > 20 ? `${value.slice(0, 20)}...` : value;
+        } else if (typeof value === 'object' && value !== null) {
+          valStr = '{...}';
+        } else {
+          valStr = String(value);
+        }
+        return `${key}=${valStr}`;
+      });
+      
+      let result = parts.join(', ');
+      if (entries.length > 2) {
+        result += ` +${entries.length - 2}`;
+      }
+      return result.length > maxLength ? result.slice(0, maxLength) + '...' : result;
+    }
+    
+    return '';
+  }
+
+  /**
+   * 格式化工具结果预览
+   */
+  private formatResultPreview(result: string, maxLength = 100): string {
+    if (!result) return '\x1b[90m(空)\x1b[0m';
+    
+    // 尝试解析 JSON 结果
+    try {
+      const parsed = JSON.parse(result);
+      if (typeof parsed === 'object' && parsed !== null) {
+        if (parsed.error) {
+          return `\x1b[31m❌ ${parsed.message || '执行失败'}\x1b[0m`;
+        }
+        // 显示关键字段
+        const keys = Object.keys(parsed);
+        if (keys.length > 0) {
+          const preview = keys.slice(0, 3).join(', ');
+          return `\x1b[32m{${preview}${keys.length > 3 ? ', ...' : ''}}\x1b[0m`;
+        }
+      }
+    } catch {
+      // 非 JSON
+    }
+    
+    // 普通文本截取
+    const cleanResult = result.replace(/\n/g, ' ').trim();
+    if (cleanResult.length > maxLength) {
+      return `\x1b[90m${cleanResult.slice(0, maxLength)}...\x1b[0m`;
+    }
+    return `\x1b[90m${cleanResult}\x1b[0m`;
   }
 }
