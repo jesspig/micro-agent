@@ -203,7 +203,8 @@ export class AgentExecutor {
         hasMedia: msg.media?.length ?? 0 > 0
       },
       async () => {
-        const sessionKey = 'default';
+        // 使用 channel:chatId 作为会话标识，实现会话隔离
+        const sessionKey = `${msg.channel}:${msg.chatId}`;
         const sessionHistory = this.conversationHistory.get(sessionKey) ?? [];
 
         // 检索相关记忆

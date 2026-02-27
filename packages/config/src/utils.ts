@@ -141,6 +141,15 @@ export function getBuiltinDefaults(): Record<string, unknown> {
       executor: {
         maxIterations: 20,
       },
+      memory: {
+        enabled: true,
+        storagePath: '~/.micro-agent/memory',
+        autoSummarize: true,
+        summarizeThreshold: 20,
+        idleTimeout: 300000,
+        shortTermRetentionDays: 7,
+        searchLimit: 10,
+      },
     },
     providers: {},
     channels: {},
