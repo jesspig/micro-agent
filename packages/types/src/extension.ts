@@ -2,16 +2,60 @@
  * 扩展系统类型定义
  */
 
-/** 扩展类型 */
-export type ExtensionType =
-  | 'tool'
-  | 'channel'
-  | 'skill'
-  | 'agent'
-  | 'workflow'
-  | 'command'
-  | 'mcp-client'
-  | 'mcp-server';
+/** 扩展类型常量 */
+export const EXTENSION_TYPES = [
+  'tool',
+  'channel',
+  'skill',
+  'agent',
+  'workflow',
+  'command',
+  'mcp-client',
+  'mcp-server',
+] as const;
+
+/** 扩展类型（从常量推导） */
+export type ExtensionType = typeof EXTENSION_TYPES[number];
+
+/** 扩展类型标签 */
+export const EXTENSION_TYPE_LABELS: Record<ExtensionType, string> = {
+  'tool': '工具',
+  'channel': '通道',
+  'skill': '技能',
+  'agent': 'Agent',
+  'workflow': '工作流',
+  'command': '命令',
+  'mcp-client': 'MCP 客户端',
+  'mcp-server': 'MCP 服务端',
+} as const;
+
+/**
+ * 检查是否为有效的扩展类型
+ * @param type - 类型字符串
+ * @returns 是否有效
+ */
+export function isValidExtensionType(type: string): type is ExtensionType {
+  return EXTENSION_TYPES.includes(type as ExtensionType);
+}
+
+/**
+ * 获取扩展类型的目录名（复数形式）
+ * @param type - 扩展类型
+ * @returns 目录名
+ */
+export function getExtensionTypeDir(type: ExtensionType): string {
+  const dirMap: Record<ExtensionType, string> = {
+    'tool': 'tools',
+    'channel': 'channels',
+    'skill': 'skills',
+    'agent': 'agents',
+    'workflow': 'workflows',
+    'command': 'commands',
+    'mcp-client': 'mcp',
+    'mcp-server': 'mcp',
+  };
+  return dirMap[type];
+}
 
 /** 扩展描述符 */
 export interface ExtensionDescriptor {

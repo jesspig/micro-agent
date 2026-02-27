@@ -139,12 +139,12 @@ describe('Types Package', () => {
     it('should define event names', () => {
       const events = [
         'message:received',
-        'message:processed',
-        'message:outbound',
+        'message:afterProcess',
+        'message:sent',
         'tool:beforeExecute',
         'tool:afterExecute',
-        'llm:beforeRequest',
-        'llm:afterResponse',
+        'llm:beforeCall',
+        'llm:afterCall',
       ]
       expect(events).toContain('message:received')
       expect(events).toContain('tool:beforeExecute')
