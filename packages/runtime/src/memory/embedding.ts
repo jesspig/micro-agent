@@ -106,10 +106,10 @@ export function createEmbeddingService(
   apiKey: string
 ): EmbeddingService {
   if (!modelId) {
-    log.info('未配置嵌入模型，使用降级方案');
+    log.debug('未配置嵌入模型，使用降级方案');
     return new NoEmbedding();
   }
 
-  log.info('创建嵌入服务', { model: modelId });
+  log.debug('创建嵌入服务', { model: modelId });
   return new OpenAIEmbedding(modelId, baseUrl, apiKey);
 }

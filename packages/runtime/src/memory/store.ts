@@ -84,13 +84,13 @@ export class MemoryStore {
     
     // 显示已有记忆数量
     const existingCount = await this.table?.countRows() ?? 0;
-    log.info('记忆存储已初始化', { 
+    log.debug('记忆存储已初始化', { 
       path: storagePath,
       existingEntries: existingCount
     });
     
     if (existingCount > 0) {
-      log.info('📚 [MemoryStore] 加载已有记忆', { count: existingCount });
+      log.debug('📚 [MemoryStore] 加载已有记忆', { count: existingCount });
     }
   }
 
@@ -117,7 +117,7 @@ export class MemoryStore {
     };
 
     await this.table?.add([record]);
-    log.info('💾 [MemoryStore] 记忆已存储', { 
+    log.debug('💾 [MemoryStore] 记忆已存储', { 
       id: entry.id, 
       type: entry.type,
       sessionId: entry.sessionId,
@@ -140,7 +140,7 @@ export class MemoryStore {
     const hasEmbedding = this.config.embeddingService?.isAvailable();
     const mode = options?.mode ?? (hasEmbedding ? 'vector' : 'fulltext');
 
-    log.info('🔍 [MemoryStore] 开始搜索', { 
+    log.debug('🔍 [MemoryStore] 开始搜索', { 
       query: query.slice(0, 50),
       limit,
       mode,
@@ -169,7 +169,7 @@ export class MemoryStore {
     const results = await this.table?.vectorSearch(vector).limit(limit).toArray();
     const elapsed = Date.now() - startTime;
 
-    log.info('🔎 [MemoryStore] 向量检索完成', { 
+    log.debug('🔎 [MemoryStore] 向量检索完成', { 
       query: query.slice(0, 50),
       resultCount: results?.length ?? 0,
       elapsed: `${elapsed}ms`
@@ -229,7 +229,7 @@ export class MemoryStore {
 
     const elapsed = Date.now() - startTime;
     
-    log.info('🔎 [MemoryStore] 全文检索完成', { 
+    log.debug('🔎 [MemoryStore] 全文检索完成', { 
       query: query.slice(0, 50),
       keywords,
       totalRecords: allResults.length,
