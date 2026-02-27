@@ -540,11 +540,12 @@ ${skillsSummary}`);
       if (embedModel) {
         const slashIndex = embedModel.indexOf('/');
         const providerName = slashIndex > 0 ? embedModel.slice(0, slashIndex) : Object.keys(this.config.providers)[0];
+        const modelName = slashIndex > 0 ? embedModel.slice(slashIndex + 1) : embedModel;
         const providerConfig = this.config.providers[providerName || ''];
         
         if (providerConfig?.baseUrl) {
           embeddingService = new OpenAIEmbedding(
-            embedModel,
+            modelName,
             providerConfig.baseUrl,
             providerConfig.apiKey || ''
           );

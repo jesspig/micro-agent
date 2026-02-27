@@ -19,6 +19,8 @@ export interface MemoryStoreConfig {
   storagePath: string;
   /** 嵌入服务实例 */
   embeddingService?: EmbeddingService;
+  /** 向量维度（可选，默认自动检测） */
+  vectorDimension?: number;
   /** 默认检索数量限制 */
   defaultSearchLimit?: number;
   /** 最大检索数量限制 */

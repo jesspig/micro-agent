@@ -16,6 +16,7 @@ const DEFAULT_CONFIG: Partial<MemoryStoreConfig> = {
   defaultSearchLimit: 10,
   maxSearchLimit: 50,
   shortTermRetentionDays: 7,
+  // vectorDimension 不设置默认值，由 detectVectorDimension 动态检测
 };
 
 /**
@@ -63,14 +64,26 @@ export class MemoryStore {
 
     if (tables.includes(tableName)) {
       this.table = await this.db.openTable(tableName);
+      const existingCount = await this.table.countRows();
+      log.info('📐 [MemoryStore] 打开已有向量表', { 
+        existingEntries: existingCount 
+      });
     } else {
+      // 动态检测嵌入维度
+      const vectorDimension = await this.detectVectorDimension();
+      
+      if (vectorDimension === 0) {
+        // 全文检索模式：使用默认维度创建表（未来可能启用向量检索）
+        log.info('📐 [MemoryStore] 创建向量表（全文检索模式）');
+      }
+      
       // 创建表，使用示例数据定义 schema
       const sampleRecord: Record<string, unknown> = {
         id: 'placeholder',
         sessionId: 'placeholder',
         type: 'placeholder',
         content: 'placeholder',
-        vector: new Array(1536).fill(0), // 默认 OpenAI 嵌入维度
+        vector: new Array(vectorDimension || 1536).fill(0), // 使用检测到的维度或默认维度
         metadata: '{}',
         createdAt: Date.now(),
         updatedAt: Date.now(),
@@ -78,6 +91,12 @@ export class MemoryStore {
       this.table = await this.db.createTable(tableName, [sampleRecord]);
       // 删除占位符
       await this.table.delete('id = "placeholder"');
+      
+      log.info('📐 [MemoryStore] 创建向量表', { 
+        vectorDimension: vectorDimension || 1536,
+        mode: vectorDimension === 0 ? 'fulltext' : 'vector',
+        embeddingAvailable: this.config.embeddingService?.isAvailable() ?? false
+      });
     }
 
     this.initialized = true;
@@ -92,6 +111,29 @@ export class MemoryStore {
     if (existingCount > 0) {
       log.debug('📚 [MemoryStore] 加载已有记忆', { count: existingCount });
     }
+  }
+
+  /**
+   * 动态检测嵌入向量维度
+   */
+  private async detectVectorDimension(): Promise<number> {
+    // 尝试通过嵌入服务获取实际维度
+    if (this.config.embeddingService?.isAvailable()) {
+      try {
+        const sampleVector = await this.config.embeddingService.embed('test');
+        const dimension = sampleVector.length;
+        log.info('📐 [MemoryStore] 检测到嵌入模型维度', { dimension });
+        return dimension;
+      } catch (error) {
+        log.warn('📐 [MemoryStore] 嵌入维度检测失败', { 
+          error: String(error)
+        });
+      }
+    }
+
+    // 降级：使用全文检索模式（向量维度设为 0）
+    log.info('📐 [MemoryStore] 无可用嵌入服务，使用全文检索模式');
+    return 0;
   }
 
   /**
@@ -160,22 +202,67 @@ export class MemoryStore {
    * 向量检索
    */
   private async vectorSearch(query: string, limit: number): Promise<MemoryEntry[]> {
+    // 检查嵌入服务是否可用
     if (!this.config.embeddingService?.isAvailable()) {
+      log.info('🔎 [MemoryStore] 嵌入服务不可用，使用全文检索');
       return this.fulltextSearch(query, limit);
     }
 
-    const startTime = Date.now();
-    const vector = await this.config.embeddingService.embed(query);
-    const results = await this.table?.vectorSearch(vector).limit(limit).toArray();
-    const elapsed = Date.now() - startTime;
+    // 检查表的向量维度
+    const tableVectorDimension = await this.getTableVectorDimension();
+    if (tableVectorDimension === 0) {
+      log.info('🔎 [MemoryStore] 表无向量数据，使用全文检索');
+      return this.fulltextSearch(query, limit);
+    }
 
-    log.debug('🔎 [MemoryStore] 向量检索完成', { 
-      query: query.slice(0, 50),
-      resultCount: results?.length ?? 0,
-      elapsed: `${elapsed}ms`
-    });
+    try {
+      const startTime = Date.now();
+      const vector = await this.config.embeddingService.embed(query);
+      
+      // 检查向量维度是否匹配
+      if (vector.length !== tableVectorDimension) {
+        log.error('🚨 [MemoryStore] 向量维度不匹配', { 
+          queryDimension: vector.length, 
+          tableDimension: tableVectorDimension,
+          hint: '请删除 ~/.micro-agent/memory/lancedb 目录后重试'
+        });
+        // 降级为全文检索
+        return this.fulltextSearch(query, limit);
+      }
+      
+      const results = await this.table?.vectorSearch(vector).limit(limit).toArray();
+      const elapsed = Date.now() - startTime;
 
-    return (results ?? []).map(r => this.recordToEntry(r));
+      log.info('📖 记忆检索完成', { 
+        query: query.slice(0, 50),
+        resultCount: results?.length ?? 0,
+        elapsed: `${elapsed}ms`
+      });
+
+      return (results ?? []).map(r => this.recordToEntry(r));
+    } catch (error) {
+      log.error('🔎 [MemoryStore] 向量检索失败，降级为全文检索', { 
+        error: String(error) 
+      });
+      return this.fulltextSearch(query, limit);
+    }
+  }
+
+  /**
+   * 获取表的向量维度
+   */
+  private async getTableVectorDimension(): Promise<number> {
+    if (!this.table) return 0;
+    
+    try {
+      const results = await this.table.query().limit(1).toArray();
+      if (results.length > 0 && Array.isArray(results[0].vector)) {
+        return (results[0].vector as number[]).length;
+      }
+    } catch {
+      // 忽略错误
+    }
+    return 0;
   }
 
   /**
@@ -183,62 +270,67 @@ export class MemoryStore {
    */
   private async fulltextSearch(query: string, limit: number, filter?: MemoryFilter): Promise<MemoryEntry[]> {
     if (!this.table) {
-      log.warn('🔎 [MemoryStore] 全文检索失败: 表未初始化');
+      log.error('🚨 [MemoryStore] 全文检索失败: 表未初始化，请检查记忆系统是否正确初始化');
       return [];
     }
 
-    const startTime = Date.now();
+    try {
+      const startTime = Date.now();
 
-    // 获取所有记录后在内存中过滤（LanceDB 免费版不支持 FTS）
-    let queryBuilder = this.table.query();
+      // 获取所有记录后在内存中过滤（LanceDB 免费版不支持 FTS）
+      let queryBuilder = this.table.query();
 
-    // 应用过滤条件
-    if (filter) {
-      const conditions: string[] = [];
-      if (filter.sessionId) {
-        conditions.push(`sessionId = "${filter.sessionId}"`);
-      }
-      if (filter.type) {
-        conditions.push(`type = "${filter.type}"`);
-      }
-      if (conditions.length > 0) {
-        queryBuilder = queryBuilder.where(conditions.join(' AND '));
-      }
-    }
-
-    // 获取所有匹配记录
-    const allResults = await queryBuilder.toArray();
-    
-    // 提取关键词（支持中英文混合）
-    const keywords = this.extractKeywords(query);
-    
-    const scored = allResults
-      .map(r => {
-        const content = (r.content as string).toLowerCase();
-        // 计算匹配分数
-        let score = 0;
-        for (const kw of keywords) {
-          const count = (content.match(new RegExp(kw, 'g')) || []).length;
-          score += count;
+      // 应用过滤条件
+      if (filter) {
+        const conditions: string[] = [];
+        if (filter.sessionId) {
+          conditions.push(`sessionId = "${filter.sessionId}"`);
         }
-        return { record: r, score };
-      })
-      .filter(item => item.score > 0)
-      .sort((a, b) => b.score - a.score)
-      .slice(0, limit);
+        if (filter.type) {
+          conditions.push(`type = "${filter.type}"`);
+        }
+        if (conditions.length > 0) {
+          queryBuilder = queryBuilder.where(conditions.join(' AND '));
+        }
+      }
 
-    const elapsed = Date.now() - startTime;
-    
-    log.debug('🔎 [MemoryStore] 全文检索完成', { 
-      query: query.slice(0, 50),
-      keywords,
-      totalRecords: allResults.length,
-      matchedRecords: scored.length,
-      topScores: scored.slice(0, 3).map(s => s.score),
-      elapsed: `${elapsed}ms`
-    });
+      // 获取所有匹配记录
+      const allResults = await queryBuilder.toArray();
+      
+      // 提取关键词（支持中英文混合）
+      const keywords = this.extractKeywords(query);
+      
+      const scored = allResults
+        .map(r => {
+          const content = (r.content as string).toLowerCase();
+          // 计算匹配分数
+          let score = 0;
+          for (const kw of keywords) {
+            const count = (content.match(new RegExp(kw, 'g')) || []).length;
+            score += count;
+          }
+          return { record: r, score };
+        })
+        .filter(item => item.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, limit);
 
-    return scored.map(item => this.recordToEntry(item.record));
+      const elapsed = Date.now() - startTime;
+      
+      log.debug('🔎 [MemoryStore] 全文检索完成', { 
+        query: query.slice(0, 50),
+        keywords,
+        totalRecords: allResults.length,
+        matchedRecords: scored.length,
+        topScores: scored.slice(0, 3).map(s => s.score),
+        elapsed: `${elapsed}ms`
+      });
+
+      return scored.map(item => this.recordToEntry(item.record));
+    } catch (error) {
+      log.error('🚨 [MemoryStore] 全文检索异常', { error: String(error) });
+      return [];
+    }
   }
 
   /**
