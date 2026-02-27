@@ -18,12 +18,12 @@ import type { App } from '@micro-agent/types';
 const VERSION = '0.2.1';
 
 /** 初始化日志系统 */
-async function initLoggingSystem(verbose: boolean = false): Promise<void> {
+async function initLoggingSystem(level: 'debug' | 'info' | 'warn' = 'info'): Promise<void> {
   await initLogging({
     console: true,
     file: true,
-    level: verbose ? 'debug' : 'info',
-    traceEnabled: true,
+    level,
+    traceEnabled: level === 'debug',
   });
 }
 
@@ -42,15 +42,22 @@ MicroAgent - 轻量级 AI 助手框架
 
 选项:
   -c, --config <path>   配置文件路径
-  -v, --verbose         显示详细日志
+  -v, --verbose         显示详细日志（工具调用详情）
+  -q, --quiet           静默模式，仅显示警告和错误
   -h, --help            显示帮助
       --version         显示版本
 
+日志级别:
+  默认      显示 INFO 级别日志，工具调用摘要
+  -v        显示 DEBUG 级别日志，工具调用详情
+  -q        仅显示 WARNING 和 ERROR 日志
+
 示例:
-  micro-agent start             # 启动服务连接飞书/钉钉
+  micro-agent start             # 启动服务
+  micro-agent start -v          # 详细模式，查看工具调用详情
+  micro-agent start -q          # 静默模式
   micro-agent start -c ./config.yaml
   micro-agent status
-  micro-agent ext list
 `);
 }
 
@@ -73,14 +80,21 @@ function showStatus(app: App): void {
 }
 
 /** 启动服务 */
-async function startService(configPath?: string, verbose: boolean = false): Promise<void> {
+async function startService(configPath?: string, logLevel: 'debug' | 'info' | 'warn' = 'info'): Promise<void> {
   // 初始化日志
-  await initLoggingSystem(verbose);
+  await initLoggingSystem(logLevel);
 
   console.log('\x1b[2J\x1b[H'); // 清屏
   console.log();
   console.log('\x1b[1m\x1b[36mMicroAgent\x1b[0m');
   console.log('─'.repeat(50));
+  
+  // 显示日志级别
+  if (logLevel === 'debug') {
+    console.log('  \x1b[90m日志级别:\x1b[0m \x1b[36mDEBUG\x1b[0m (详细模式)');
+  } else if (logLevel === 'warn') {
+    console.log('  \x1b[90m日志级别:\x1b[0m \x1b[33mWARN\x1b[0m (静默模式)');
+  }
 
   // 检查配置状态
   const baseConfig = loadConfig(configPath ? { configPath } : {});
@@ -161,6 +175,7 @@ export async function runCli(argv: string[] = process.argv.slice(2)): Promise<vo
     options: {
       config: { type: 'string', short: 'c' },
       verbose: { type: 'boolean', short: 'v' },
+      quiet: { type: 'boolean', short: 'q' },
       help: { type: 'boolean', short: 'h' },
       version: { type: 'boolean' },
     },
@@ -171,6 +186,7 @@ export async function runCli(argv: string[] = process.argv.slice(2)): Promise<vo
   const helpVal = parsed.values.help as boolean | undefined;
   const versionVal = parsed.values.version as boolean | undefined;
   const verboseVal = parsed.values.verbose as boolean | undefined;
+  const quietVal = parsed.values.quiet as boolean | undefined;
   const configVal = parsed.values.config as string | undefined;
   const { positionals } = parsed;
 
@@ -187,11 +203,13 @@ export async function runCli(argv: string[] = process.argv.slice(2)): Promise<vo
 
   const command = positionals[0];
   const configPath = typeof configVal === 'string' ? configVal : undefined;
-  const verbose = verboseVal ?? false;
+  
+  // 日志级别：quiet > verbose > 默认
+  const logLevel = quietVal ? 'warn' : (verboseVal ? 'debug' : 'info');
 
   switch (command) {
     case 'start':
-      await startService(configPath, verbose);
+      await startService(configPath, logLevel);
       break;
 
     case 'status': {
