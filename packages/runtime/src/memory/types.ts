@@ -29,6 +29,15 @@ export interface MemoryStoreConfig {
   shortTermRetentionDays?: number;
 }
 
+/**
+ * 搜索模式
+ * - auto: 自动选择（优先向量，失败回退全文）
+ * - vector: 强制向量检索
+ * - fulltext: 强制全文检索
+ * - hybrid: 混合检索（向量 + 全文合并）
+ */
+export type SearchMode = 'auto' | 'vector' | 'fulltext' | 'hybrid';
+
 /** 清理结果 */
 export interface CleanupResult {
   /** 删除条目数 */

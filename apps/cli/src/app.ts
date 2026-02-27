@@ -447,6 +447,11 @@ ${skillsSummary}`);
     }
 
     await this.channelManager.stopAll();
+
+    // 关闭记忆存储，刷新 Markdown 批次
+    if (this.memoryStore) {
+      await this.memoryStore.close();
+    }
   }
 
   getRunningChannels(): string[] {

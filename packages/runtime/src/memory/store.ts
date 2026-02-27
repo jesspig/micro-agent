@@ -1,10 +1,14 @@
 /**
  * 记忆存储 - LanceDB 集成
+ * 
+ * 双存储架构：
+ * - LanceDB：向量检索 + 全文检索
+ * - Markdown：人类可读的会话记录（YYYY-MM-DD-<batch>.md）
  */
 
 import * as lancedb from '@lancedb/lancedb';
-import { mkdir, writeFile, readFile, readdir, unlink, stat } from 'fs/promises';
-import { join } from 'path';
+import { mkdir, writeFile, readFile, readdir, unlink, stat, appendFile } from 'fs/promises';
+import { join, basename } from 'path';
 import type { MemoryEntry, Summary, MemoryStats, SearchOptions, MemoryFilter } from '../types';
 import type { MemoryStoreConfig, CleanupResult, EmbeddingService } from './types';
 import { getLogger } from '@logtape/logtape';
@@ -27,10 +31,9 @@ type LanceDBRecord = Record<string, unknown>;
 /**
  * 记忆存储
  * 
- * 功能：
- * - 使用 LanceDB 存储向量
- * - 使用 Markdown 存储会话记录
- * - 支持向量检索和全文检索
+ * 双存储架构：
+ * - LanceDB：向量检索 + 全文检索（主存储）
+ * - Markdown：人类可读备份（YYYY-MM-DD-<batch>.md）
  */
 export class MemoryStore {
   private db: lancedb.Connection | null = null;
@@ -137,16 +140,15 @@ export class MemoryStore {
   }
 
   /**
-   * 存储记忆条目
+   * 存储记忆条目（双存储）
    */
   async store(entry: MemoryEntry): Promise<void> {
     await this.ensureInitialized();
 
-    // 存储 Markdown
-    await this.storeMarkdown(entry);
-
-    // 存储到 LanceDB
+    // 获取向量（如果嵌入服务可用）
     const vector = entry.vector ?? (await this.getEmbedding(entry.content));
+
+    // 1. 存储到 LanceDB（主存储）
     const record: Record<string, unknown> = {
       id: entry.id,
       sessionId: entry.sessionId,
@@ -159,17 +161,59 @@ export class MemoryStore {
     };
 
     await this.table?.add([record]);
+
+    // 2. 存储到 Markdown（人类可读备份）
+    await this.storeMarkdown(entry);
+
     log.debug('💾 [MemoryStore] 记忆已存储', { 
       id: entry.id, 
       type: entry.type,
       sessionId: entry.sessionId,
-      contentPreview: entry.content.slice(0, 100) + '...',
-      hasVector: !!vector
+      hasVector: !!vector,
+      mode: vector ? 'vector' : 'fulltext'
     });
   }
 
   /**
-   * 搜索记忆
+   * 批量存储记忆条目
+   */
+  async storeBatch(entries: MemoryEntry[]): Promise<void> {
+    await this.ensureInitialized();
+
+    const records: Record<string, unknown>[] = [];
+
+    for (const entry of entries) {
+      const vector = entry.vector ?? (await this.getEmbedding(entry.content));
+      records.push({
+        id: entry.id,
+        sessionId: entry.sessionId,
+        type: entry.type,
+        content: entry.content,
+        vector: vector ?? [],
+        metadata: JSON.stringify(entry.metadata),
+        createdAt: entry.createdAt.getTime(),
+        updatedAt: entry.updatedAt.getTime(),
+      });
+    }
+
+    // 批量写入 LanceDB
+    await this.table?.add(records);
+
+    // 批量写入 Markdown
+    for (const entry of entries) {
+      await this.storeMarkdown(entry);
+    }
+
+    log.info('💾 [MemoryStore] 批量存储完成', { count: entries.length });
+  }
+
+  /**
+   * 搜索记忆（智能检索）
+   * 
+   * 策略：
+   * 1. 优先使用向量检索（如果嵌入服务可用）
+   * 2. 向量检索失败时自动回退到全文检索
+   * 3. 支持 hybrid 模式：向量 + 全文合并结果
    */
   async search(query: string, options?: SearchOptions): Promise<MemoryEntry[]> {
     await this.ensureInitialized();
@@ -179,8 +223,8 @@ export class MemoryStore {
       this.config.maxSearchLimit!
     );
 
+    const mode = options?.mode ?? 'auto';
     const hasEmbedding = this.config.embeddingService?.isAvailable();
-    const mode = options?.mode ?? (hasEmbedding ? 'vector' : 'fulltext');
 
     log.debug('🔍 [MemoryStore] 开始搜索', { 
       query: query.slice(0, 50),
@@ -189,30 +233,94 @@ export class MemoryStore {
       hasEmbedding
     });
 
-    // 有嵌入服务且非全文模式 -> 向量检索
-    if (hasEmbedding && options?.mode !== 'fulltext') {
-      return this.vectorSearch(query, limit);
+    // 根据模式选择检索策略
+    switch (mode) {
+      case 'fulltext':
+        return this.fulltextSearch(query, limit, options?.filter);
+      
+      case 'vector':
+        if (!hasEmbedding) {
+          log.warn('🔍 [MemoryStore] 向量模式但嵌入服务不可用，回退到全文检索');
+          return this.fulltextSearch(query, limit, options?.filter);
+        }
+        return this.vectorSearch(query, limit, options?.filter);
+      
+      case 'hybrid':
+        return this.hybridSearch(query, limit, options?.filter);
+      
+      case 'auto':
+      default:
+        // 自动模式：优先向量，失败回退全文
+        if (hasEmbedding) {
+          const results = await this.vectorSearch(query, limit, options?.filter);
+          if (results.length > 0) {
+            return results;
+          }
+          // 向量检索无结果，尝试全文检索
+          log.debug('🔍 [MemoryStore] 向量检索无结果，尝试全文检索');
+          return this.fulltextSearch(query, limit, options?.filter);
+        }
+        return this.fulltextSearch(query, limit, options?.filter);
+    }
+  }
+
+  /**
+   * 混合检索（向量 + 全文）
+   */
+  private async hybridSearch(query: string, limit: number, filter?: MemoryFilter): Promise<MemoryEntry[]> {
+    const [vectorResults, fulltextResults] = await Promise.all([
+      this.config.embeddingService?.isAvailable() 
+        ? this.vectorSearch(query, limit, filter) 
+        : Promise.resolve([]),
+      this.fulltextSearch(query, limit, filter),
+    ]);
+
+    // 合并结果，去重
+    const seen = new Set<string>();
+    const merged: MemoryEntry[] = [];
+
+    // 优先添加向量检索结果
+    for (const entry of vectorResults) {
+      if (!seen.has(entry.id)) {
+        seen.add(entry.id);
+        merged.push(entry);
+      }
     }
 
-    // 降级为全文检索
-    return this.fulltextSearch(query, limit, options?.filter);
+    // 补充全文检索结果
+    for (const entry of fulltextResults) {
+      if (!seen.has(entry.id) && merged.length < limit) {
+        seen.add(entry.id);
+        merged.push(entry);
+      }
+    }
+
+    log.info('📖 记忆检索完成', { 
+      query: query.slice(0, 50),
+      vectorCount: vectorResults.length,
+      fulltextCount: fulltextResults.length,
+      mergedCount: merged.length,
+      mode: 'hybrid'
+    });
+
+    return merged.slice(0, limit);
   }
 
   /**
    * 向量检索
    */
-  private async vectorSearch(query: string, limit: number): Promise<MemoryEntry[]> {
+  private async vectorSearch(query: string, limit: number, filter?: MemoryFilter): Promise<MemoryEntry[]> {
     // 检查嵌入服务是否可用
     if (!this.config.embeddingService?.isAvailable()) {
-      log.info('🔎 [MemoryStore] 嵌入服务不可用，使用全文检索');
-      return this.fulltextSearch(query, limit);
+      log.debug('🔍 [MemoryStore] 嵌入服务不可用，跳过向量检索');
+      return [];
     }
 
     // 检查表的向量维度
     const tableVectorDimension = await this.getTableVectorDimension();
     if (tableVectorDimension === 0) {
-      log.info('🔎 [MemoryStore] 表无向量数据，使用全文检索');
-      return this.fulltextSearch(query, limit);
+      log.debug('🔍 [MemoryStore] 表无向量数据，跳过向量检索');
+      return [];
     }
 
     try {
@@ -221,30 +329,37 @@ export class MemoryStore {
       
       // 检查向量维度是否匹配
       if (vector.length !== tableVectorDimension) {
-        log.error('🚨 [MemoryStore] 向量维度不匹配', { 
+        log.warn('⚠️ [MemoryStore] 向量维度不匹配，跳过向量检索', { 
           queryDimension: vector.length, 
-          tableDimension: tableVectorDimension,
-          hint: '请删除 ~/.micro-agent/memory/lancedb 目录后重试'
+          tableDimension: tableVectorDimension
         });
-        // 降级为全文检索
-        return this.fulltextSearch(query, limit);
+        return [];
       }
       
-      const results = await this.table?.vectorSearch(vector).limit(limit).toArray();
+      let queryBuilder = this.table!.vectorSearch(vector).limit(limit);
+      
+      // 应用过滤条件
+      if (filter?.sessionId) {
+        queryBuilder = queryBuilder.where(`sessionId = "${filter.sessionId}"`);
+      }
+      if (filter?.type) {
+        queryBuilder = queryBuilder.where(`type = "${filter.type}"`);
+      }
+      
+      const results = await queryBuilder.toArray();
       const elapsed = Date.now() - startTime;
 
       log.info('📖 记忆检索完成', { 
         query: query.slice(0, 50),
-        resultCount: results?.length ?? 0,
+        resultCount: results.length,
+        mode: 'vector',
         elapsed: `${elapsed}ms`
       });
 
-      return (results ?? []).map(r => this.recordToEntry(r));
+      return results.map(r => this.recordToEntry(r));
     } catch (error) {
-      log.error('🔎 [MemoryStore] 向量检索失败，降级为全文检索', { 
-        error: String(error) 
-      });
-      return this.fulltextSearch(query, limit);
+      log.warn('⚠️ [MemoryStore] 向量检索失败', { error: String(error) });
+      return [];
     }
   }
 
@@ -270,14 +385,14 @@ export class MemoryStore {
    */
   private async fulltextSearch(query: string, limit: number, filter?: MemoryFilter): Promise<MemoryEntry[]> {
     if (!this.table) {
-      log.error('🚨 [MemoryStore] 全文检索失败: 表未初始化，请检查记忆系统是否正确初始化');
+      log.error('🚨 [MemoryStore] 全文检索失败: 表未初始化');
       return [];
     }
 
     try {
       const startTime = Date.now();
 
-      // 获取所有记录后在内存中过滤（LanceDB 免费版不支持 FTS）
+      // 构建查询
       let queryBuilder = this.table.query();
 
       // 应用过滤条件
@@ -303,10 +418,9 @@ export class MemoryStore {
       const scored = allResults
         .map(r => {
           const content = (r.content as string).toLowerCase();
-          // 计算匹配分数
           let score = 0;
           for (const kw of keywords) {
-            const count = (content.match(new RegExp(kw, 'g')) || []).length;
+            const count = (content.match(new RegExp(this.escapeRegex(kw), 'g')) || []).length;
             score += count;
           }
           return { record: r, score };
@@ -317,12 +431,11 @@ export class MemoryStore {
 
       const elapsed = Date.now() - startTime;
       
-      log.debug('🔎 [MemoryStore] 全文检索完成', { 
+      log.info('📖 记忆检索完成', { 
         query: query.slice(0, 50),
-        keywords,
-        totalRecords: allResults.length,
-        matchedRecords: scored.length,
-        topScores: scored.slice(0, 3).map(s => s.score),
+        resultCount: scored.length,
+        mode: 'fulltext',
+        keywords: keywords.slice(0, 5),
         elapsed: `${elapsed}ms`
       });
 
@@ -331,6 +444,13 @@ export class MemoryStore {
       log.error('🚨 [MemoryStore] 全文检索异常', { error: String(error) });
       return [];
     }
+  }
+
+  /**
+   * 转义正则表达式特殊字符
+   */
+  private escapeRegex(str: string): string {
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
 
   /**
@@ -490,28 +610,83 @@ export class MemoryStore {
     return path;
   }
 
+  /**
+   * 存储到 Markdown 文件（追加模式，确保数据安全）
+   * 
+   * 文件格式：YYYY-MM-DD.md（每天一个文件）
+   */
   private async storeMarkdown(entry: MemoryEntry): Promise<void> {
     const storagePath = this.expandPath(this.config.storagePath);
-    const mdPath = join(storagePath, 'sessions', `${entry.sessionId}.md`);
-    const content = this.formatMarkdown(entry);
+    const sessionsPath = join(storagePath, 'sessions');
+    
+    // 确保目录存在
+    await mkdir(sessionsPath, { recursive: true });
 
+    // 当天的文件名
+    const today = this.formatDate(new Date());
+    const mdPath = join(sessionsPath, `${today}.md`);
+
+    // 检查文件是否存在
+    let isNewFile = false;
     try {
-      await writeFile(mdPath, content, { flag: 'a' });
-    } catch (error) {
-      log.warn('Markdown 存储失败', { error: String(error) });
+      await stat(mdPath);
+    } catch {
+      isNewFile = true;
     }
+
+    // 构建要写入的内容
+    let content = '';
+    if (isNewFile) {
+      // 新文件：写入头部
+      content = `# 记忆 - ${today}\n\n`;
+    } else {
+      // 已有文件：添加分隔符
+      content = '\n---\n\n';
+    }
+
+    // 追加当前记录
+    content += this.formatEntryMarkdown(entry) + '\n';
+
+    // 立即写入文件
+    await appendFile(mdPath, content, 'utf-8');
+    
+    log.debug('📝 [MemoryStore] Markdown 已保存', { 
+      file: `${today}.md`,
+      entryId: entry.id 
+    });
   }
 
-  private formatMarkdown(entry: MemoryEntry): string {
-    const frontmatter = `---
-id: ${entry.id}
-type: ${entry.type}
-created: ${entry.createdAt.toISOString()}
-tags: ${(entry.metadata.tags ?? []).join(', ')}
----
+  /**
+   * 格式化日期为 YYYY-MM-DD
+   */
+  private formatDate(date: Date): string {
+    const year = date.getFullYear();
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const day = date.getDate().toString().padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
 
-`;
-    return frontmatter + entry.content + '\n\n---\n\n';
+  /**
+   * 格式化单条记忆为 Markdown
+   */
+  private formatEntryMarkdown(entry: MemoryEntry): string {
+    const timeLabel = entry.type === 'summary' ? '📝 摘要' : 
+                      entry.type === 'entity' ? '🏷️ 实体' : '💬 对话';
+    
+    const lines: string[] = [
+      `## ${timeLabel}`,
+      ``,
+      `**ID**: \`${entry.id}\``,
+      `**会话**: \`${entry.sessionId}\``,
+      `**时间**: ${entry.createdAt.toLocaleString('zh-CN')}`,
+      `**标签**: ${(entry.metadata.tags ?? []).join(', ') || '无'}`,
+      ``,
+      '### 内容',
+      ``,
+      entry.content,
+    ];
+
+    return lines.join('\n');
   }
 
   private async getEmbedding(text: string): Promise<number[] | undefined> {
@@ -538,5 +713,15 @@ tags: ${(entry.metadata.tags ?? []).join(', ')}
       createdAt: new Date(record.createdAt as number),
       updatedAt: new Date(record.updatedAt as number),
     };
+  }
+
+  /**
+   * 关闭存储
+   * 
+   * 注意：追加模式下每次存储已立即写入文件，此方法仅清理状态
+   */
+  async close(): Promise<void> {
+    this.initialized = false;
+    log.info('📦 [MemoryStore] 存储已关闭');
   }
 }
