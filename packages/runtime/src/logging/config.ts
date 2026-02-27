@@ -145,6 +145,66 @@ function jsonLinesFormatter(record: LogRecord): string {
 }
 
 /**
+ * 格式化工具参数摘要
+ */
+function formatToolInput(input: unknown, maxLength = 60): string {
+  if (input === null || input === undefined) return '';
+  
+  if (typeof input === 'object') {
+    const entries = Object.entries(input as Record<string, unknown>);
+    if (entries.length === 0) return '';
+    
+    const parts = entries.slice(0, 3).map(([key, value]) => {
+      let valStr: string;
+      if (typeof value === 'string') {
+        valStr = value.length > 30 ? `"${value.slice(0, 30)}..."` : `"${value}"`;
+      } else if (typeof value === 'object' && value !== null) {
+        valStr = '{...}';
+      } else {
+        valStr = String(value);
+      }
+      return `${key}=${valStr}`;
+    });
+    
+    let result = parts.join(', ');
+    if (entries.length > 3) {
+      result += `, +${entries.length - 3}更多`;
+    }
+    return result.length > maxLength ? result.slice(0, maxLength) + '...' : result;
+  }
+  
+  return '';
+}
+
+/**
+ * 格式化工具输出摘要
+ */
+function formatToolOutput(output: string | undefined, maxLength = 80): string {
+  if (!output) return '';
+  
+  // 尝试解析 JSON 输出
+  try {
+    const parsed = JSON.parse(output);
+    if (typeof parsed === 'object' && parsed !== null) {
+      if (parsed.error) {
+        return `\x1b[31m错误: ${parsed.message || '未知错误'}\x1b[0m`;
+      }
+      const keys = Object.keys(parsed);
+      if (keys.length > 0) {
+        return `{${keys.slice(0, 3).join(', ')}${keys.length > 3 ? ', ...' : ''}}`;
+      }
+    }
+  } catch {
+    // 非 JSON，直接截取
+  }
+  
+  const cleanOutput = output.replace(/\n/g, ' ').trim();
+  return cleanOutput.length > maxLength 
+    ? cleanOutput.slice(0, maxLength) + '...' 
+    : cleanOutput;
+}
+
+/**
  * 详细控制台格式化器
  */
 function detailedConsoleFormatter(record: LogRecord): readonly unknown[] {
@@ -164,6 +224,77 @@ function detailedConsoleFormatter(record: LogRecord): readonly unknown[] {
   const category = record.category.join('\x1b[2m·\x1b[0m');
   const timestamp = new Date().toISOString().slice(11, 23);
 
+  // 提取 properties（日志附加数据）
+  const properties = record.message.length > 1 ? record.message[record.message.length - 1] : null;
+  
+  // 特殊处理工具调用日志
+  if (properties && typeof properties === 'object' && '_type' in properties) {
+    const logData = properties as Record<string, unknown>;
+    
+    if (logData._type === 'tool_call') {
+      const toolName = String(logData.tool || 'unknown');
+      const input = logData.input;
+      const output = logData.output as string | undefined;
+      const duration = Number(logData.duration) || 0;
+      const success = logData.success !== false;
+      const error = logData.error as string | undefined;
+      
+      // 工具调用格式：🔧 tool_name(params) → 结果 (耗时)
+      const inputStr = formatToolInput(input);
+      const statusIcon = success ? '✓' : '✗';
+      const statusColor = success ? '\x1b[32m' : '\x1b[31m';
+      
+      let outputStr = '';
+      if (error) {
+        outputStr = `\x1b[31m${error}\x1b[0m`;
+      } else if (output) {
+        outputStr = formatToolOutput(output);
+      }
+      
+      const durationStr = duration > 1000 
+        ? `${(duration / 1000).toFixed(1)}s` 
+        : `${duration}ms`;
+      
+      return [
+        `${timestamp} ${levelColor}${level}${resetColor} ` +
+        `\x1b[36m🔧 ${toolName}\x1b[0m` +
+        `${inputStr ? `(${inputStr})` : '()'}` +
+        ` ${statusColor}${statusIcon}${resetColor}` +
+        `${outputStr ? ` ${outputStr}` : ''}` +
+        ` \x1b[90m${durationStr}\x1b[0m`,
+      ];
+    }
+    
+    if (logData._type === 'llm_call') {
+      const model = String(logData.model || 'unknown');
+      const provider = String(logData.provider || 'unknown');
+      const duration = Number(logData.duration) || 0;
+      const promptTokens = logData.promptTokens as number | undefined;
+      const completionTokens = logData.completionTokens as number | undefined;
+      const success = logData.success !== false;
+      
+      const statusIcon = success ? '✓' : '✗';
+      const statusColor = success ? '\x1b[32m' : '\x1b[31m';
+      const durationStr = duration > 1000 
+        ? `${(duration / 1000).toFixed(1)}s` 
+        : `${duration}ms`;
+      
+      let tokensStr = '';
+      if (promptTokens !== undefined && completionTokens !== undefined) {
+        tokensStr = ` \x1b[90m${promptTokens}→${completionTokens} tokens\x1b[0m`;
+      }
+      
+      return [
+        `${timestamp} ${levelColor}${level}${resetColor} ` +
+        `\x1b[35m🤖 ${provider}/${model}\x1b[0m` +
+        ` ${statusColor}${statusIcon}${resetColor}` +
+        ` \x1b[90m${durationStr}\x1b[0m` +
+        tokensStr,
+      ];
+    }
+  }
+
+  // 默认格式化
   let message = '';
   const values: unknown[] = [];
 
