@@ -117,6 +117,10 @@ export interface LLMCallLog {
   success: boolean;
   /** 错误信息 */
   error?: string;
+  /** 响应内容 */
+  content?: string;
+  /** 是否有工具调用 */
+  hasToolCalls?: boolean;
 }
 
 /** 工具调用日志 */

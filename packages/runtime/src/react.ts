@@ -84,7 +84,11 @@ export class ReActAgent {
         this.config.generationConfig ?? { maxTokens: 8192, temperature: 0.7 }
       );
 
-      log.info('[ReAct] LLM 响应', { iteration: iterations, content: response.content.slice(0, 200) });
+      log.info('[ReAct] LLM 响应', { 
+        iteration: iterations, 
+        content: response.content.slice(0, 500),
+        fullLength: response.content.length,
+      });
 
       // 解析 ReAct 响应
       const reactResponse = parseReActResponse(response.content);
@@ -95,7 +99,11 @@ export class ReActAgent {
         return { answer: response.content, iterations, toolCalls };
       }
 
-      log.info('[ReAct] 解析结果', { thought: reactResponse.thought, action: reactResponse.action });
+      log.info('[ReAct] 解析结果', { 
+        thought: reactResponse.thought,
+        action: reactResponse.action,
+        actionInput: reactResponse.action_input,
+      });
 
       // 检查是否完成
       if (reactResponse.action === 'finish') {
@@ -118,8 +126,16 @@ export class ReActAgent {
       }
 
       try {
+        log.info('[ReAct] 开始执行工具', { 
+          action: reactResponse.action, 
+          input: reactResponse.action_input 
+        });
         const result = await tool.execute(reactResponse.action_input);
-        log.info('[ReAct] 工具执行成功', { action: reactResponse.action, result: result.slice(0, 200) });
+        log.info('[ReAct] 工具执行成功', { 
+          action: reactResponse.action, 
+          result: result.slice(0, 500),
+          fullLength: result.length,
+        });
         toolCalls.push({ action: reactResponse.action, input: reactResponse.action_input, result });
 
         messages.push({ role: 'assistant', content: response.content });

@@ -190,83 +190,82 @@ export class AgentExecutor {
    * 处理单条消息
    */
   async processMessage(msg: InboundMessage): Promise<OutboundMessage | null> {
-    // 开始新的追踪会话
-    const traceId = tracer.startTrace();
+    const startTime = Date.now();
     
-    return tracer.traceAsync(
-      'executor',
-      'processMessage',
-      { 
-        channel: msg.channel, 
-        chatId: msg.chatId,
-        contentLength: msg.content.length,
-        hasMedia: msg.media?.length ?? 0 > 0
-      },
-      async () => {
-        // 使用 channel:chatId 作为会话标识，实现会话隔离
-        const sessionKey = `${msg.channel}:${msg.chatId}`;
-        const sessionHistory = this.conversationHistory.get(sessionKey) ?? [];
+    // 使用 channel:chatId 作为会话标识，实现会话隔离
+    const sessionKey = `${msg.channel}:${msg.chatId}`;
+    const sessionHistory = this.conversationHistory.get(sessionKey) ?? [];
 
-        // 检索相关记忆
-        log.info('🔍 开始检索记忆', { query: msg.content.slice(0, 100), sessionKey });
-        const relevantMemories = await this.retrieveMemories(msg.content);
-        if (relevantMemories.length > 0) {
-          log.info('🧠 检索到相关记忆', { 
-            count: relevantMemories.length,
-            types: relevantMemories.map(m => m.type),
-            previews: relevantMemories.map(m => m.content.slice(0, 50) + '...')
-          });
-        } else {
-          log.info('🧠 未检索到相关记忆');
-        }
+    log.info('📝 开始处理消息', { 
+      channel: msg.channel, 
+      chatId: msg.chatId,
+      contentLength: msg.content.length 
+    });
 
-        const messages = this.buildMessages(sessionHistory, msg, relevantMemories);
+    // 检索相关记忆
+    log.info('🔍 开始检索记忆', { query: msg.content.slice(0, 100), sessionKey });
+    const relevantMemories = await this.retrieveMemories(msg.content);
+    if (relevantMemories.length > 0) {
+      log.info('🧠 检索到相关记忆', { 
+        count: relevantMemories.length,
+        searchMode: this.memoryStore?.getLastSearchMode?.() ?? 'unknown',
+        types: relevantMemories.map(m => m.type),
+        previews: relevantMemories.map(m => m.content.slice(0, 50) + '...')
+      });
+    } else {
+      log.info('🧠 未检索到相关记忆', {
+        searchMode: this.memoryStore?.getLastSearchMode?.() ?? 'unknown'
+      });
+    }
 
-        // 先执行主流程
-        let result: AgentLoopResult;
-        try {
-          result = await this.runAgentLoop(messages, msg);
-        } catch (error) {
-          log.error('❌ 处理消息异常', { error: this.safeErrorMsg(error) });
-          return this.createErrorResponse(msg);
-        }
+    const messages = this.buildMessages(sessionHistory, msg, relevantMemories);
 
-        // 更新历史记录
-        this.updateHistory(sessionKey, messages.slice(1));
+    // 先执行主流程
+    let result: AgentLoopResult;
+    try {
+      result = await this.runAgentLoop(messages, msg);
+    } catch (error) {
+      log.error('❌ 处理消息异常', { error: this.safeErrorMsg(error) });
+      return this.createErrorResponse(msg);
+    }
 
-        // 存储记忆（失败不影响对话返回，但会记录状态并抛出警告）
-        try {
-          await this.storeMemory(msg, result, sessionKey);
-        } catch (error) {
-          // 存储失败已记录到 storeMemoryResult，此处仅记录日志
-          // 不阻断对话流程，但仍让上层感知到问题
-          log.error('⚠️ 记忆存储失败，对话仍正常返回', { 
-            error: this.safeErrorMsg(error),
-            sessionKey 
-          });
-        }
+    // 更新历史记录
+    this.updateHistory(sessionKey, messages.slice(1));
 
-        // 记录活动时间并启动空闲检查
-        if (this.summarizer) {
-          this.summarizer.recordActivity();
-          this.summarizer.startIdleCheck(sessionKey, () => this.conversationHistory.get(sessionKey) ?? []);
-        }
+    // 存储记忆（失败不影响对话返回，但会记录状态并抛出警告）
+    try {
+      await this.storeMemory(msg, result, sessionKey);
+    } catch (error) {
+      // 存储失败已记录到 storeMemoryResult，此处仅记录日志
+      // 不阻断对话流程，但仍让上层感知到问题
+      log.error('⚠️ 记忆存储失败，对话仍正常返回', { 
+        error: this.safeErrorMsg(error),
+        sessionKey 
+      });
+    }
 
-        // 检查是否需要摘要
-        await this.checkAndSummarize(sessionKey, messages);
+    // 记录活动时间并启动空闲检查
+    if (this.summarizer) {
+      this.summarizer.recordActivity();
+      this.summarizer.startIdleCheck(sessionKey, () => this.conversationHistory.get(sessionKey) ?? []);
+    }
 
-        return {
-          channel: msg.channel,
-          chatId: msg.chatId,
-          content: result.content || '处理完成',
-          media: [],
-          metadata: msg.metadata,
-        };
-      },
-      'AgentExecutor'
-    ).finally(() => {
-      tracer.endTrace();
-    }) as Promise<OutboundMessage | null>;
+    // 检查是否需要摘要
+    await this.checkAndSummarize(sessionKey, messages);
+
+    const elapsed = Date.now() - startTime;
+    log.info('✅ 消息处理完成', { 
+      elapsed: `${elapsed}ms`,
+      contentLength: result.content?.length ?? 0 
+    });
+
+    return {
+      channel: msg.channel,
+      chatId: msg.chatId,
+      content: result.content || '处理完成',
+      media: [],
+      metadata: msg.metadata,
+    };
   }
 
   /**
@@ -519,21 +518,66 @@ export class AgentExecutor {
       const response = await this.gateway.chat(messagesWithSystem, llmTools, toolModel, generationConfig);
       const llmElapsed = Date.now() - llmStartTime;
 
+      // 构建 LLM 响应内容摘要
+      const contentPreview = response.content
+        ? response.content.slice(0, 200).replace(/\n/g, ' ') + (response.content.length > 200 ? '...' : '')
+        : response.hasToolCalls ? '[调用工具]' : '[无内容]';
+
       log.info('💬 LLM 响应', {
         model: `${response.usedProvider}/${response.usedModel}`,
         tokens: response.usage ? `${response.usage.promptTokens}→${response.usage.completionTokens}` : 'N/A',
         elapsed: `${llmElapsed}ms`,
         hasToolCalls: response.hasToolCalls,
+        content: contentPreview,
+      });
+
+      // 记录详细的 LLM 调用（debug 级别，避免重复显示）
+      log.debug('🤖 LLM 调用详情', {
+        model: `${response.usedProvider}/${response.usedModel}`,
+        messages: messagesWithSystem.length,
+        tools: llmTools?.length ?? 0,
+        duration: `${llmElapsed}ms`,
+        tokens: response.usage,
+        content: response.content,
+        hasToolCalls: response.hasToolCalls,
       });
 
       // 无工具调用，返回结果
       if (!response.hasToolCalls || !response.toolCalls?.length) {
-        log.info('✅ 任务完成', { content: response.content.slice(0, 100) });
+        log.info('✅ 任务完成', { 
+          content: response.content.slice(0, 500),
+          fullLength: response.content.length,
+        });
         return {
           content: response.content,
           iterations: iteration,
           loopDetected: false,
         };
+      }
+
+      // 记录工具调用计划
+      log.info('🛠️ 工具调用计划', {
+        count: response.toolCalls.length,
+        tools: response.toolCalls.map(tc => tc.name),
+      });
+
+      // 详细记录每个工具调用的参数
+      for (const tc of response.toolCalls) {
+        const args = tc.arguments as Record<string, unknown>;
+        const argEntries = Object.entries(args || {});
+        const argStr = argEntries.length > 0
+          ? argEntries.map(([k, v]) => {
+              let valStr: string;
+              if (typeof v === 'string') {
+                valStr = v.length > 50 ? `"${v.slice(0, 50)}..."` : `"${v}"`;
+              } else {
+                valStr = JSON.stringify(v);
+              }
+              return `${k}=${valStr}`;
+            }).join(', ')
+          : '无参数';
+        
+        log.info(`📞 调用工具: ${tc.name}`, { args: argStr });
       }
 
       // 添加 assistant 消息（包含工具调用）
@@ -567,19 +611,8 @@ export class AgentExecutor {
           log.info('⚠️ 循环警告，继续执行', { reason: loopCheck.reason });
         }
 
-        // 输出工具调用信息
-        const inputPreview = this.formatInputPreview(tc.arguments);
-        log.info(`📞 调用工具 \x1b[36m${tc.name}\x1b[0m${inputPreview ? `(${inputPreview})` : ''}`);
-
-        // 执行工具
-        const toolStartTime = Date.now();
+        // 执行工具（工具调用的日志在 executeTool 内部统一处理）
         const toolResult = await this.executeTool(tc.name, tc.arguments, msg);
-        const toolElapsed = Date.now() - toolStartTime;
-        
-        // 输出工具执行结果摘要
-        const resultPreview = this.formatResultPreview(toolResult);
-        const elapsedStr = toolElapsed > 1000 ? `${(toolElapsed / 1000).toFixed(1)}s` : `${toolElapsed}ms`;
-        log.info(`📋 工具结果 \x1b[90m${elapsedStr}\x1b[0m ${resultPreview}`);
 
         // 添加工具结果消息
         messages.push({
@@ -654,18 +687,20 @@ export class AgentExecutor {
     let errorMsg: string | undefined;
     
     try {
-      const result = await tracer.traceAsync(
-        'executor',
-        'executeTool',
-        { toolName: name, input },
-        async () => {
-          return this.tools.execute(name, input, this.createContext(msg));
-        },
-        'AgentExecutor'
-      );
+      // 执行工具
+      const result = await this.tools.execute(name, input, this.createContext(msg));
       
       const elapsed = Date.now() - startTime;
+      
+      // 记录工具调用结果（使用 tracer 格式化）
       tracer.logToolCall(name, input, result, elapsed, true);
+      
+      // 在 CLI 中显示简洁的工具结果
+      const resultPreview = this.formatResultPreview(result);
+      log.info(`✅ 工具完成: ${name}`, {
+        duration: `${elapsed}ms`,
+        result: resultPreview,
+      });
       
       return result;
     } catch (error) {
@@ -674,7 +709,7 @@ export class AgentExecutor {
       const elapsed = Date.now() - startTime;
       
       tracer.logToolCall(name, input, '', elapsed, false, errorMsg);
-      log.error('❌ 工具执行失败', { tool: name, error: errorMsg });
+      log.error(`❌ 工具失败: ${name}`, { error: errorMsg, duration: `${elapsed}ms` });
       
       return JSON.stringify({
         error: true,
