@@ -213,11 +213,14 @@ export class AgentExecutor {
         if (relevantMemories.length > 0) {
           log.info('🧠 检索到相关记忆', { 
             count: relevantMemories.length,
+            searchMode: this.memoryStore?.getLastSearchMode?.() ?? 'unknown',
             types: relevantMemories.map(m => m.type),
             previews: relevantMemories.map(m => m.content.slice(0, 50) + '...')
           });
         } else {
-          log.info('🧠 未检索到相关记忆');
+          log.info('🧠 未检索到相关记忆', {
+            searchMode: this.memoryStore?.getLastSearchMode?.() ?? 'unknown'
+          });
         }
 
         const messages = this.buildMessages(sessionHistory, msg, relevantMemories);

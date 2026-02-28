@@ -40,9 +40,18 @@ export class MemoryStore {
   private table: lancedb.Table | null = null;
   private config: MemoryStoreConfig;
   private initialized = false;
+  private lastSearchMode: 'vector' | 'fulltext' | 'hybrid' | 'migration-hybrid' | 'unknown' = 'unknown';
 
   constructor(config: MemoryStoreConfig) {
     this.config = { ...DEFAULT_CONFIG, ...config };
+  }
+
+  /**
+   * 获取最后一次记忆检索使用的模式
+   * @returns 检索模式：vector | fulltext | hybrid | migration-hybrid | unknown
+   */
+  getLastSearchMode(): 'vector' | 'fulltext' | 'hybrid' | 'migration-hybrid' | 'unknown' {
+    return this.lastSearchMode;
   }
 
   /**
@@ -508,19 +517,15 @@ export class MemoryStore {
     // 检查该模型的向量列是否存在
     const hasVectorColumn = targetModel ? await this.hasVectorColumn(targetModel) : true;
 
-    log.debug('🔍 [MemoryStore] 开始搜索', { 
-      query: query.slice(0, 50),
-      limit,
-      mode,
-      hasEmbedding,
-      targetModel,
-      vectorColumn,
-      hasVectorColumn,
-    });
-
-    // 根据模式选择检索策略
+    // 根据模式选择检索策略，并在开始前记录日志
     switch (mode) {
       case 'fulltext':
+        log.info('🔍 [MemoryStore] 开始检索全文记忆', { 
+          query: query.slice(0, 50),
+          limit,
+          mode: 'fulltext'
+        });
+        this.lastSearchMode = 'fulltext';
         return this.fulltextSearch(query, limit, options?.filter);
       
       case 'vector':
@@ -529,11 +534,33 @@ export class MemoryStore {
             hasEmbedding,
             hasVectorColumn,
           });
+          log.info('🔍 [MemoryStore] 开始检索全文记忆', { 
+            query: query.slice(0, 50),
+            limit,
+            mode: 'fulltext (回退)'
+          });
+          this.lastSearchMode = 'fulltext';
           return this.fulltextSearch(query, limit, options?.filter);
         }
+        log.info('🔍 [MemoryStore] 开始检索向量记忆', { 
+          query: query.slice(0, 50),
+          limit,
+          mode: 'vector',
+          vectorColumn,
+          targetModel
+        });
+        this.lastSearchMode = 'vector';
         return this.vectorSearch(query, limit, options?.filter, targetModel);
       
       case 'hybrid':
+        log.info('🔍 [MemoryStore] 开始检索混合记忆', { 
+          query: query.slice(0, 50),
+          limit,
+          mode: 'hybrid',
+          vectorColumn,
+          targetModel
+        });
+        this.lastSearchMode = 'hybrid';
         return this.hybridSearch(query, limit, options?.filter, targetModel);
       
       case 'auto':
@@ -543,23 +570,42 @@ export class MemoryStore {
         
         if (migrationStatus.status === 'running' && migrationStatus.targetModel === targetModel) {
           // 迁移中：混合检索（已迁移向量 + 未迁移全文）
-          log.debug('🔍 [MemoryStore] 迁移中，执行混合检索', {
+          log.info('🔍 [MemoryStore] 开始检索混合记忆', { 
+            query: query.slice(0, 50),
+            limit,
+            mode: 'migration-hybrid',
             migratedUntil: migrationStatus.migratedUntil,
             progress: migrationStatus.progress,
           });
+          this.lastSearchMode = 'migration-hybrid';
           return this.migrationAwareSearch(query, limit, options?.filter, targetModel, migrationStatus);
         }
         
         // 非迁移中：优先向量，失败回退全文
         if (hasEmbedding && hasVectorColumn) {
+          log.info('🔍 [MemoryStore] 开始检索向量记忆', { 
+            query: query.slice(0, 50),
+            limit,
+            mode: 'vector',
+            vectorColumn,
+            targetModel
+          });
           const results = await this.vectorSearch(query, limit, options?.filter, targetModel);
           if (results.length > 0) {
+            this.lastSearchMode = 'vector';
             return results;
           }
           // 向量检索无结果，尝试全文检索
-          log.debug('🔍 [MemoryStore] 向量检索无结果，尝试全文检索');
+          log.info('🔍 [MemoryStore] 向量检索无结果，开始检索全文记忆');
+          this.lastSearchMode = 'fulltext';
           return this.fulltextSearch(query, limit, options?.filter);
         }
+        log.info('🔍 [MemoryStore] 开始检索全文记忆', { 
+          query: query.slice(0, 50),
+          limit,
+          mode: 'fulltext'
+        });
+        this.lastSearchMode = 'fulltext';
         return this.fulltextSearch(query, limit, options?.filter);
     }
   }
