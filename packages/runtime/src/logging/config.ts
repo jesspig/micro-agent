@@ -5,12 +5,205 @@
  * 日志文件格式：YYYY-MM-DD-<batch>.log
  */
 
+// ============================================================
+// 常量定义
+// ============================================================
+
+/**
+ * 日志限制常量
+ */
+const LOG_LIMITS = {
+  /** 工具输入摘要最大长度 */
+  TOOL_INPUT_MAX_LENGTH: 60,
+  /** 工具输入值最大显示长度 */
+  TOOL_INPUT_VALUE_MAX_LENGTH: 30,
+  /** 工具输入最大条目数 */
+  TOOL_INPUT_MAX_ENTRIES: 3,
+  /** 工具输出摘要最大长度 */
+  TOOL_OUTPUT_MAX_LENGTH: 80,
+  /** 工具输出预览长度（detailedConsoleFormatter中使用） */
+  TOOL_OUTPUT_PREVIEW_LENGTH: 200,
+  /** 内容预览长度 */
+  CONTENT_PREVIEW_LENGTH: 100,
+  /** 毫秒转秒阈值 */
+  MS_TO_S_THRESHOLD: 1000,
+} as const;
+
+/**
+ * 文件管理常量
+ */
+const FILE_CONSTANTS = {
+  /** 最大文件大小：10MB */
+  MAX_FILE_SIZE: 10 * 1024 * 1024,
+  /** 最大保留日志文件数 */
+  MAX_FILES: 30,
+  /** 批次号填充位数 */
+  BATCH_NUMBER_PADDING: 3,
+} as const;
+
+/**
+ * ANSI 颜色代码
+ */
+const COLOR_CODE = {
+  /** 暗淡灰色 */
+  DIM_GRAY: '\x1b[90m',
+  /** 青色 */
+  CYAN: '\x1b[36m',
+  /** 绿色 */
+  GREEN: '\x1b[32m',
+  /** 黄色 */
+  YELLOW: '\x1b[33m',
+  /** 红色 */
+  RED: '\x1b[31m',
+  /** 洋红色 */
+  MAGENTA: '\x1b[35m',
+  /** 暗淡模式 */
+  DIM: '\x1b[2m',
+  /** 重置颜色 */
+  RESET: '\x1b[0m',
+  /** 白色 */
+  WHITE: '\x1b[37m',
+} as const;
+
+/**
+ * 日志级别颜色映射
+ */
+const LEVEL_COLORS: Record<string, string> = {
+  trace: COLOR_CODE.DIM_GRAY,
+  debug: COLOR_CODE.CYAN,
+  info: COLOR_CODE.GREEN,
+  warn: COLOR_CODE.YELLOW,
+  warning: COLOR_CODE.YELLOW,
+  error: COLOR_CODE.RED,
+  fatal: COLOR_CODE.MAGENTA,
+} as const;
+
 import { configure, getConsoleSink, reset, type LogRecord, type Sink } from '@logtape/logtape';
 import { mkdirSync, existsSync, statSync, readdirSync, createWriteStream, unlinkSync } from 'node:fs';
 import { join, basename } from 'node:path';
 import { homedir } from 'node:os';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { LoggingConfig } from './types';
+
+/**
+ * 工具调用日志数据接口
+ * 
+ * 用于记录工具调用的详细信息，包括工具名称、输入参数、输出结果、执行耗时等。
+ */
+export interface ToolCallLogData {
+  /** 日志类型标识，固定为 'tool_call' */
+  _type: 'tool_call';
+  /** 调用的工具名称 */
+  tool: string;
+  /** 工具输入参数（可选） */
+  input?: unknown;
+  /** 工具输出结果（可选） */
+  output?: string;
+  /** 执行耗时（毫秒） */
+  duration: number;
+  /** 是否执行成功（可选，默认为 true） */
+  success?: boolean;
+  /** 错误信息（可选，执行失败时包含） */
+  error?: string;
+}
+
+/**
+ * LLM 调用日志数据接口
+ * 
+ * 用于记录 LLM 调用的详细信息，包括模型名称、提供商、消息数量、Token 消耗等。
+ */
+export interface LLMCallLogData {
+  /** 日志类型标识，固定为 'llm_call' */
+  _type: 'llm_call';
+  /** 模型名称 */
+  model: string;
+  /** 提供商名称 */
+  provider: string;
+  /** 消息数量 */
+  messageCount: number;
+  /** 工具调用数量 */
+  toolCount: number;
+  /** 执行耗时（毫秒） */
+  duration: number;
+  /** 是否执行成功 */
+  success: boolean;
+  /** 提示词 Token 数量（可选） */
+  promptTokens?: number;
+  /** 完成 Token 数量（可选） */
+  completionTokens?: number;
+  /** 错误信息（可选，执行失败时包含） */
+  error?: string;
+  /** 响应内容（可选） */
+  content?: string;
+  /** 是否包含工具调用（可选） */
+  hasToolCalls?: boolean;
+}
+
+/**
+ * 类型守卫：检查数据是否为 ToolCallLogData 类型
+ * 
+ * 验证必需字段：_type、tool、duration
+ * 
+ * @param data - 待验证的数据
+ * @returns 如果数据符合 ToolCallLogData 接口则返回 true
+ * 
+ * @example
+ * ```typescript
+ * const data = { _type: 'tool_call', tool: 'fs_read', duration: 100 };
+ * if (isToolCallLog(data)) {
+ *   console.log(data.tool); // 类型安全访问
+ * }
+ * ```
+ */
+export function isToolCallLog(data: unknown): data is ToolCallLogData {
+  if (typeof data !== 'object' || data === null) {
+    return false;
+  }
+
+  const record = data as Record<string, unknown>;
+
+  return (
+    record._type === 'tool_call' &&
+    typeof record.tool === 'string' &&
+    typeof record.duration === 'number'
+  );
+}
+
+/**
+ * 类型守卫：检查数据是否为 LLMCallLogData 类型
+ * 
+ * 验证必需字段：_type、model、provider、messageCount、toolCount、duration、success
+ * 
+ * @param data - 待验证的数据
+ * @returns 如果数据符合 LLMCallLogData 接口则返回 true
+ * 
+ * @example
+ * ```typescript
+ * const data = { _type: 'llm_call', model: 'gpt-4', provider: 'openai', ... };
+ * if (isLLMCallLog(data)) {
+ *   console.log(data.model); // 类型安全访问
+ * }
+ * ```
+ */
+export function isLLMCallLog(data: unknown): data is LLMCallLogData {
+  if (typeof data !== 'object' || data === null) {
+    return false;
+  }
+
+  const record = data as Record<string, unknown>;
+
+  return (
+    record._type === 'llm_call' &&
+    typeof record.model === 'string' &&
+    typeof record.provider === 'string' &&
+    typeof record.messageCount === 'number' &&
+    typeof record.toolCount === 'number' &&
+    typeof record.duration === 'number' &&
+    typeof record.success === 'boolean'
+  );
+}
+
+// 注意：常量定义已移到文件顶部，使用 COLOR_CODE、LOG_LIMITS 和 LEVEL_COLORS
 
 /** 默认日志配置 */
 const DEFAULT_CONFIG: LoggingConfig = {
@@ -24,8 +217,8 @@ const DEFAULT_CONFIG: LoggingConfig = {
   logOutput: true,
   logDuration: true,
   sensitiveFields: ['password', 'token', 'secret', 'apiKey', 'api_key', 'authorization'],
-  maxFileSize: 10 * 1024 * 1024, // 10MB
-  maxFiles: 30, // 保留30个日志文件
+  maxFileSize: FILE_CONSTANTS.MAX_FILE_SIZE,
+  maxFiles: FILE_CONSTANTS.MAX_FILES,
 };
 
 /** 是否已初始化 */
@@ -36,6 +229,12 @@ interface LogFileInfo {
   path: string;
   date: string;
   batch: number;
+}
+
+/** 日志文件写入器状态 */
+interface LogWriterState {
+  file: LogFileInfo;
+  writer: ReturnType<typeof createWriteStream>;
 }
 
 /**
@@ -96,7 +295,7 @@ function findOrCreateLogFile(logDir: string, maxFileSize: number): LogFileInfo {
   const newBatch = files.length > 0 
     ? parseInt(files[0].match(/-(\d+)\.log$/)?.[1] ?? '0', 10) + 1 
     : 1;
-  const batchStr = newBatch.toString().padStart(3, '0');
+  const batchStr = newBatch.toString().padStart(FILE_CONSTANTS.BATCH_NUMBER_PADDING, '0');
   const newFileName = `${today}-${batchStr}.log`;
   const newPath = join(logDir, newFileName);
 
@@ -148,17 +347,19 @@ function jsonLinesFormatter(record: LogRecord): string {
 /**
  * 格式化工具参数摘要
  */
-function formatToolInput(input: unknown, maxLength = 60): string {
+function formatToolInput(input: unknown, maxLength = LOG_LIMITS.TOOL_INPUT_MAX_LENGTH): string {
   if (input === null || input === undefined) return '';
   
   if (typeof input === 'object') {
     const entries = Object.entries(input as Record<string, unknown>);
     if (entries.length === 0) return '';
     
-    const parts = entries.slice(0, 3).map(([key, value]) => {
+    const parts = entries.slice(0, LOG_LIMITS.TOOL_INPUT_MAX_ENTRIES).map(([key, value]) => {
       let valStr: string;
       if (typeof value === 'string') {
-        valStr = value.length > 30 ? `"${value.slice(0, 30)}..."` : `"${value}"`;
+        valStr = value.length > LOG_LIMITS.TOOL_INPUT_VALUE_MAX_LENGTH 
+          ? `"${value.slice(0, LOG_LIMITS.TOOL_INPUT_VALUE_MAX_LENGTH)}..."` 
+          : `"${value}"`;
       } else if (typeof value === 'object' && value !== null) {
         valStr = '{...}';
       } else {
@@ -168,8 +369,8 @@ function formatToolInput(input: unknown, maxLength = 60): string {
     });
     
     let result = parts.join(', ');
-    if (entries.length > 3) {
-      result += `, +${entries.length - 3}更多`;
+    if (entries.length > LOG_LIMITS.TOOL_INPUT_MAX_ENTRIES) {
+      result += `, +${entries.length - LOG_LIMITS.TOOL_INPUT_MAX_ENTRIES}更多`;
     }
     return result.length > maxLength ? result.slice(0, maxLength) + '...' : result;
   }
@@ -180,7 +381,7 @@ function formatToolInput(input: unknown, maxLength = 60): string {
 /**
  * 格式化工具输出摘要
  */
-function formatToolOutput(output: string | undefined, maxLength = 80): string {
+function formatToolOutput(output: string | undefined, maxLength: number = LOG_LIMITS.TOOL_OUTPUT_MAX_LENGTH): string {
   if (!output) return '';
   
   // 尝试解析 JSON 输出
@@ -188,11 +389,11 @@ function formatToolOutput(output: string | undefined, maxLength = 80): string {
     const parsed = JSON.parse(output);
     if (typeof parsed === 'object' && parsed !== null) {
       if (parsed.error) {
-        return `\x1b[31m错误: ${parsed.message || '未知错误'}\x1b[0m`;
+        return `${COLOR_CODE.RED}错误: ${parsed.message || '未知错误'}${COLOR_CODE.RESET}`;
       }
       const keys = Object.keys(parsed);
       if (keys.length > 0) {
-        return `{${keys.slice(0, 3).join(', ')}${keys.length > 3 ? ', ...' : ''}}`;
+        return `{${keys.slice(0, LOG_LIMITS.TOOL_INPUT_MAX_ENTRIES).join(', ')}${keys.length > LOG_LIMITS.TOOL_INPUT_MAX_ENTRIES ? ', ...' : ''}}`;
       }
     }
   } catch {
@@ -206,132 +407,166 @@ function formatToolOutput(output: string | undefined, maxLength = 80): string {
 }
 
 /**
+ * 格式化耗时显示
+ */
+function formatDuration(duration: number): string {
+  return duration > LOG_LIMITS.MS_TO_S_THRESHOLD 
+    ? `${(duration / 1000).toFixed(1)}s` 
+    : `${duration}ms`;
+}
+
+/**
+ * 格式化工具调用日志
+ */
+function formatToolCallLog(logData: Record<string, unknown>): string {
+  const toolName = String(logData.tool || 'unknown');
+  const input = logData.input;
+  const output = logData.output as string | undefined;
+  const duration = Number(logData.duration) || 0;
+  const success = logData.success !== false;
+  const error = logData.error as string | undefined;
+  
+  const inputStr = formatToolInput(input);
+  const statusIcon = success ? '✓' : '✗';
+  const statusColor = success ? COLOR_CODE.GREEN : COLOR_CODE.RED;
+  const durationStr = formatDuration(duration);
+  
+  let outputStr = '';
+  if (error) {
+    outputStr = `${COLOR_CODE.RED}错误: ${error}${COLOR_CODE.RESET}`;
+  } else if (output) {
+    outputStr = formatToolOutput(output, LOG_LIMITS.TOOL_OUTPUT_PREVIEW_LENGTH);
+  }
+  
+  return `${COLOR_CODE.CYAN}🔧 ${toolName}${COLOR_CODE.RESET}` +
+    `${inputStr ? `(${inputStr})` : '()'}` +
+    ` ${statusColor}${statusIcon}${COLOR_CODE.RESET}` +
+    `${outputStr ? ` → ${outputStr}` : ''}` +
+    ` ${COLOR_CODE.DIM_GRAY}${durationStr}${COLOR_CODE.RESET}`;
+}
+
+/**
+ * 格式化 LLM 调用日志
+ */
+function formatLLMCallLog(logData: Record<string, unknown>): string {
+  const model = String(logData.model || 'unknown');
+  const provider = String(logData.provider || 'unknown');
+  const duration = Number(logData.duration) || 0;
+  const promptTokens = logData.promptTokens as number | undefined;
+  const completionTokens = logData.completionTokens as number | undefined;
+  const success = logData.success !== false;
+  const content = logData.content as string | undefined;
+  const hasToolCalls = logData.hasToolCalls as boolean | undefined;
+  
+  const statusIcon = success ? '✓' : '✗';
+  const statusColor = success ? COLOR_CODE.GREEN : COLOR_CODE.RED;
+  const durationStr = formatDuration(duration);
+  
+  let tokensStr = '';
+  if (promptTokens !== undefined && completionTokens !== undefined) {
+    tokensStr = ` ${COLOR_CODE.DIM_GRAY}${promptTokens}→${completionTokens} tokens${COLOR_CODE.RESET}`;
+  }
+  
+  const contentStr = formatLLMContentPreview(content, hasToolCalls);
+  
+  return `${COLOR_CODE.MAGENTA}🤖 ${provider}/${model}${COLOR_CODE.RESET}` +
+    ` ${statusColor}${statusIcon}${COLOR_CODE.RESET}` +
+    ` ${COLOR_CODE.DIM_GRAY}${durationStr}${COLOR_CODE.RESET}` +
+    tokensStr +
+    contentStr;
+}
+
+/**
+ * 格式化 LLM 内容预览
+ */
+function formatLLMContentPreview(content: string | undefined, hasToolCalls: boolean | undefined): string {
+  if (content) {
+    const cleanContent = content.replace(/\n/g, ' ').trim();
+        const preview = cleanContent.length > LOG_LIMITS.CONTENT_PREVIEW_LENGTH
+          ? cleanContent.slice(0, LOG_LIMITS.CONTENT_PREVIEW_LENGTH) + '...'      : cleanContent;
+    return ` ${COLOR_CODE.WHITE}"${preview}"${COLOR_CODE.RESET}`;
+  }
+  if (hasToolCalls) {
+    return ` ${COLOR_CODE.YELLOW}[调用工具]${COLOR_CODE.RESET}`;
+  }
+  return '';
+}
+
+/**
+ * 格式化普通日志
+ */
+function formatDefaultLog(record: LogRecord, properties?: Record<string, unknown>): string {
+  let message = record.message.length > 0 ? String(record.message[0]) : '';
+  
+  if (properties && Object.keys(properties).length > 0 && !('_type' in properties)) {
+    try {
+      message += ` ${JSON.stringify(properties, null, 0)}`;
+    } catch {
+      message += ' [Object]';
+    }
+  }
+  
+  return message;
+}
+
+/**
  * 详细控制台格式化器
  */
 function detailedConsoleFormatter(record: LogRecord): readonly unknown[] {
-  const levelColors: Record<string, string> = {
-    trace: '\x1b[90m',
-    debug: '\x1b[36m',
-    info: '\x1b[32m',
-    warn: '\x1b[33m',
-    warning: '\x1b[33m',
-    error: '\x1b[31m',
-    fatal: '\x1b[35m',
-  };
-
-  const resetColor = '\x1b[0m';
   const level = record.level.toUpperCase().padEnd(5);
-  const levelColor = levelColors[record.level] ?? '';
-  const category = record.category.join('\x1b[2m·\x1b[0m');
+  const levelColor = LEVEL_COLORS[record.level] ?? '';
+  const category = record.category.join(`${COLOR_CODE.DIM}·${COLOR_CODE.RESET}`);
   const timestamp = new Date().toISOString().slice(11, 23);
-
-  // 提取 properties（日志附加数据）
   const properties = (record as unknown as { properties?: Record<string, unknown> }).properties;
   
-  // 特殊处理工具调用日志
   if (properties && typeof properties === 'object' && '_type' in properties) {
     const logData = properties as Record<string, unknown>;
     
     if (logData._type === 'tool_call') {
-      const toolName = String(logData.tool || 'unknown');
-      const input = logData.input;
-      const output = logData.output as string | undefined;
-      const duration = Number(logData.duration) || 0;
-      const success = logData.success !== false;
-      const error = logData.error as string | undefined;
-      
-      // 工具调用格式：🔧 tool_name(params) → 结果 (耗时)
-      const inputStr = formatToolInput(input);
-      const statusIcon = success ? '✓' : '✗';
-      const statusColor = success ? '\x1b[32m' : '\x1b[31m';
-      
-      let outputStr = '';
-      if (error) {
-        outputStr = `\x1b[31m错误: ${error}\x1b[0m`;
-      } else if (output) {
-        outputStr = formatToolOutput(output, 200); // 增加输出长度到200字符
-      }
-      
-      const durationStr = duration > 1000 
-        ? `${(duration / 1000).toFixed(1)}s` 
-        : `${duration}ms`;
-      
-      return [
-        `${timestamp} ${levelColor}${level}${resetColor} ` +
-        `\x1b[36m🔧 ${toolName}\x1b[0m` +
-        `${inputStr ? `(${inputStr})` : '()'}` +
-        ` ${statusColor}${statusIcon}${resetColor}` +
-        `${outputStr ? ` → ${outputStr}` : ''}` +
-        ` \x1b[90m${durationStr}\x1b[0m`,
-      ];
+      return [`${timestamp} ${levelColor}${level}${COLOR_CODE.RESET} ${formatToolCallLog(logData)}`];
     }
     
     if (logData._type === 'llm_call') {
-      const model = String(logData.model || 'unknown');
-      const provider = String(logData.provider || 'unknown');
-      const duration = Number(logData.duration) || 0;
-      const promptTokens = logData.promptTokens as number | undefined;
-      const completionTokens = logData.completionTokens as number | undefined;
-      const success = logData.success !== false;
-      const content = logData.content as string | undefined;
-      const hasToolCalls = logData.hasToolCalls as boolean | undefined;
-      
-      const statusIcon = success ? '✓' : '✗';
-      const statusColor = success ? '\x1b[32m' : '\x1b[31m';
-      const durationStr = duration > 1000 
-        ? `${(duration / 1000).toFixed(1)}s` 
-        : `${duration}ms`;
-      
-      let tokensStr = '';
-      if (promptTokens !== undefined && completionTokens !== undefined) {
-        tokensStr = ` \x1b[90m${promptTokens}→${completionTokens} tokens\x1b[0m`;
-      }
-      
-      // 构建响应内容摘要
-      let contentStr = '';
-      if (content) {
-        const cleanContent = content.replace(/\n/g, ' ').trim();
-        const preview = cleanContent.length > 100 ? cleanContent.slice(0, 100) + '...' : cleanContent;
-        contentStr = ` \x1b[37m"${preview}"\x1b[0m`;
-      } else if (hasToolCalls) {
-        contentStr = ' \x1b[33m[调用工具]\x1b[0m';
-      }
-      
-      return [
-        `${timestamp} ${levelColor}${level}${resetColor} ` +
-        `\x1b[35m🤖 ${provider}/${model}\x1b[0m` +
-        ` ${statusColor}${statusIcon}${resetColor}` +
-        ` \x1b[90m${durationStr}\x1b[0m` +
-        tokensStr +
-        contentStr,
-      ];
+      return [`${timestamp} ${levelColor}${level}${COLOR_CODE.RESET} ${formatLLMCallLog(logData)}`];
     }
   }
-
-  // 默认格式化 - 智能处理对象属性
-  let message = '';
   
-  // 第一个元素是主消息
-  if (record.message.length > 0) {
-    message += record.message[0];
-  }
-  
-  // 从 properties 获取对象属性（前面已定义）
-  if (properties && typeof properties === 'object' && Object.keys(properties).length > 0) {
-    // 如果已经被特殊处理（如 tool_call, llm_call），则不再显示
-    if (!('_type' in properties)) {
-      try {
-        const jsonStr = JSON.stringify(properties, null, 0);
-        message += ` ${jsonStr}`;
-      } catch {
-        message += ' [Object]';
-      }
-    }
-  }
+  const message = formatDefaultLog(record, properties);
+  return [`${timestamp} ${levelColor}${level}${COLOR_CODE.RESET} ${COLOR_CODE.DIM_GRAY}${category}${COLOR_CODE.RESET} ${message}`];
+}
 
-  return [
-    `${timestamp} ${levelColor}${level}${resetColor} \x1b[90m${category}\x1b[0m ${message}`,
-  ];
+/**
+ * 检查是否需要切换日志文件
+ * 
+ * 切换条件：
+ * 1. 日期发生变化
+ * 2. 当前文件大小超过 maxFileSize
+ * 3. 文件访问失败（返回 true 以触发重新创建）
+ */
+function shouldRotateFile(currentFile: LogFileInfo, today: string, maxFileSize: number): boolean {
+  if (today !== currentFile.date) return true;
+  try {
+    const stats = statSync(currentFile.path);
+    return stats.size >= maxFileSize;
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * 切换日志文件
+ * 
+ * 关闭当前文件，创建新文件，并清理旧日志
+ */
+function rotateLogFile(
+  logDir: string,
+  maxFileSize: number,
+  maxFiles: number
+): LogWriterState {
+  const file = findOrCreateLogFile(logDir, maxFileSize);
+  const writer = createWriteStream(file.path, { flags: 'a' });
+  cleanupOldLogs(logDir, maxFiles);
+  return { file, writer };
 }
 
 /**
@@ -347,55 +582,19 @@ function createDateBatchFileSink(
   maxFiles: number,
   formatter: (record: LogRecord) => string
 ): Sink {
-  let currentFile: LogFileInfo | null = null;
-  let writer: ReturnType<typeof createWriteStream> | null = null;
-  let lastCheckDate = '';
-
-  // 初始化
-  currentFile = findOrCreateLogFile(logDir, maxFileSize);
-  writer = createWriteStream(currentFile.path, { flags: 'a' });
-  lastCheckDate = currentFile.date;
-
-  // 清理旧日志
-  cleanupOldLogs(logDir, maxFiles);
+  let current = rotateLogFile(logDir, maxFileSize, maxFiles);
+  let lastCheckDate = current.file.date;
 
   return (record: LogRecord) => {
     const today = getCurrentDate();
 
-    // 确保文件已初始化
-    if (!currentFile || !writer) {
-      currentFile = findOrCreateLogFile(logDir, maxFileSize);
-      writer = createWriteStream(currentFile.path, { flags: 'a' });
-      lastCheckDate = currentFile.date;
-      cleanupOldLogs(logDir, maxFiles);
-    }
-
-    // 检查是否需要切换文件（日期变化或文件过大）
-    try {
-      const stats = statSync(currentFile.path);
-      if (today !== lastCheckDate || stats.size >= maxFileSize) {
-        // 关闭当前文件
-        writer.end();
-        writer = null;
-
-        // 创建新文件
-        currentFile = findOrCreateLogFile(logDir, maxFileSize);
-        writer = createWriteStream(currentFile.path, { flags: 'a' });
-        lastCheckDate = today;
-
-        // 清理旧日志
-        cleanupOldLogs(logDir, maxFiles);
-      }
-    } catch {
-      // 文件访问失败，重新创建
-      currentFile = findOrCreateLogFile(logDir, maxFileSize);
-      writer = createWriteStream(currentFile.path, { flags: 'a' });
+    if (shouldRotateFile(current.file, today, maxFileSize)) {
+      current.writer.end();
+      current = rotateLogFile(logDir, maxFileSize, maxFiles);
       lastCheckDate = today;
     }
 
-    // 写入日志
-    const formatted = formatter(record);
-    writer.write(formatted);
+    current.writer.write(formatter(record));
   };
 }
 

@@ -4,6 +4,19 @@
  * 提供方法调用的追踪、入参/输出记录和耗时统计。
  */
 
+// ============================================================
+// 常量定义
+// ============================================================
+
+/** 脱敏处理最大递归深度 */
+const SANITIZE_MAX_DEPTH = 5;
+/** 数组截断长度 */
+const ARRAY_TRUNCATE_LENGTH = 100;
+/** ID 随机部分长度 */
+const ID_RANDOM_LENGTH = 7;
+/** Span ID 填充位数 */
+const SPAN_ID_PADDING = 4;
+
 import { getLogger, withContext, type Logger } from '@logtape/logtape';
 import type {
   TraceContext,
@@ -41,7 +54,7 @@ export class Tracer {
    * 生成唯一 ID
    */
   private generateId(): string {
-    return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
+    return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 2 + ID_RANDOM_LENGTH)}`;
   }
 
   /**
@@ -49,14 +62,14 @@ export class Tracer {
    */
   private generateSpanId(): string {
     this.spanCounter++;
-    return `span-${this.spanCounter.toString(36).padStart(4, '0')}`;
+    return `span-${this.spanCounter.toString(36).padStart(SPAN_ID_PADDING, '0')}`;
   }
 
   /**
    * 脱敏处理
    */
   private sanitize(data: unknown, depth = 0): unknown {
-    if (depth > 5) return '[深度超限]';
+    if (depth > SANITIZE_MAX_DEPTH) return '[深度超限]';
     if (data === null || data === undefined) return data;
     if (typeof data !== 'object') return data;
     if (data instanceof Error) {
@@ -68,7 +81,7 @@ export class Tracer {
     }
     if (Buffer.isBuffer(data)) return '[Buffer]';
     if (Array.isArray(data)) {
-      return data.slice(0, 100).map(item => this.sanitize(item, depth + 1));
+      return data.slice(0, ARRAY_TRUNCATE_LENGTH).map(item => this.sanitize(item, depth + 1));
     }
 
     const result: Record<string, unknown> = {};
