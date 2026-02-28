@@ -2,7 +2,7 @@
  * 日志配置模块
  * 
  * 提供统一的日志配置，支持控制台和文件输出，JSON Lines 格式。
- * 日志文件格式：YYYY-MM-DD-<batch>.log
+ * 日志文件格式：YYYY-MM-DD-HH-<batch>.log（按小时分割）
  */
 
 // ============================================================
@@ -248,24 +248,34 @@ function expandPath(path: string): string {
 }
 
 /**
- * 获取当前日期字符串 (YYYY-MM-DD)
+ * 获取当前日期时间字符串 (YYYY-MM-DD-HH)
+ * 
+ * 使用本地时间而非 UTC 时间，按小时分割日志文件
  */
-function getCurrentDate(): string {
+function getCurrentDateHour(): string {
   const now = new Date();
-  return now.toISOString().slice(0, 10);
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const hour = String(now.getHours()).padStart(2, '0');
+  return `${year}-${month}-${day}-${hour}`;
 }
 
 /**
- * 查找或创建当天最新的日志文件
+ * 查找或创建当前小时最新的日志文件
+ * 
+ * @param logDir 日志目录
+ * @param maxFileSize 最大文件大小
+ * @param targetDateHour 目标日期小时（可选，用于强制指定）
  */
-function findOrCreateLogFile(logDir: string, maxFileSize: number): LogFileInfo {
-  const today = getCurrentDate();
+function findOrCreateLogFile(logDir: string, maxFileSize: number, targetDateHour?: string): LogFileInfo {
+  const currentHour = targetDateHour || getCurrentDateHour();
   
-  // 查找当天已有的日志文件
+  // 查找当前小时已有的日志文件
   let files: string[] = [];
   try {
     files = readdirSync(logDir)
-      .filter(f => f.startsWith(today) && f.endsWith('.log'))
+      .filter(f => f.startsWith(currentHour) && f.endsWith('.log'))
       .sort((a, b) => {
         // 按批次号降序排序
         const batchA = parseInt(a.match(/-(\d+)\.log$/)?.[1] ?? '0', 10);
@@ -284,7 +294,7 @@ function findOrCreateLogFile(logDir: string, maxFileSize: number): LogFileInfo {
       const stats = statSync(filePath);
       if (stats.size < maxFileSize) {
         const batch = parseInt(latestFile.match(/-(\d+)\.log$/)?.[1] ?? '1', 10);
-        return { path: filePath, date: today, batch };
+        return { path: filePath, date: currentHour, batch };
       }
     } catch {
       // 文件访问失败，创建新文件
@@ -296,10 +306,10 @@ function findOrCreateLogFile(logDir: string, maxFileSize: number): LogFileInfo {
     ? parseInt(files[0].match(/-(\d+)\.log$/)?.[1] ?? '0', 10) + 1 
     : 1;
   const batchStr = newBatch.toString().padStart(FILE_CONSTANTS.BATCH_NUMBER_PADDING, '0');
-  const newFileName = `${today}-${batchStr}.log`;
+  const newFileName = `${currentHour}-${batchStr}.log`;
   const newPath = join(logDir, newFileName);
 
-  return { path: newPath, date: today, batch: newBatch };
+  return { path: newPath, date: currentHour, batch: newBatch };
 }
 
 /**
@@ -539,12 +549,12 @@ function detailedConsoleFormatter(record: LogRecord): readonly unknown[] {
  * 检查是否需要切换日志文件
  * 
  * 切换条件：
- * 1. 日期发生变化
+ * 1. 小时发生变化
  * 2. 当前文件大小超过 maxFileSize
  * 3. 文件访问失败（返回 true 以触发重新创建）
  */
-function shouldRotateFile(currentFile: LogFileInfo, today: string, maxFileSize: number): boolean {
-  if (today !== currentFile.date) return true;
+function shouldRotateFile(currentFile: LogFileInfo, currentHour: string, maxFileSize: number): boolean {
+  if (currentHour !== currentFile.date) return true;
   try {
     const stats = statSync(currentFile.path);
     return stats.size >= maxFileSize;
@@ -561,20 +571,21 @@ function shouldRotateFile(currentFile: LogFileInfo, today: string, maxFileSize: 
 function rotateLogFile(
   logDir: string,
   maxFileSize: number,
-  maxFiles: number
+  maxFiles: number,
+  targetDate?: string
 ): LogWriterState {
-  const file = findOrCreateLogFile(logDir, maxFileSize);
+  const file = findOrCreateLogFile(logDir, maxFileSize, targetDate);
   const writer = createWriteStream(file.path, { flags: 'a' });
   cleanupOldLogs(logDir, maxFiles);
   return { file, writer };
 }
 
 /**
- * 创建日期批次文件 Sink
+ * 创建小时批次文件 Sink
  * 
- * 日志文件格式：YYYY-MM-DD-<batch>.log
- * - 每天自动创建新日期的文件
- * - 文件超过 maxFileSize 时自动创建新批次
+ * 日志文件格式：YYYY-MM-DD-HH-<batch>.log
+ * - 每小时自动创建新的日志文件
+ * - 同一小时内，文件超过 maxFileSize 时自动创建新批次
  */
 function createDateBatchFileSink(
   logDir: string,
@@ -583,15 +594,15 @@ function createDateBatchFileSink(
   formatter: (record: LogRecord) => string
 ): Sink {
   let current = rotateLogFile(logDir, maxFileSize, maxFiles);
-  let lastCheckDate = current.file.date;
+  let lastCheckHour = current.file.date;
 
   return (record: LogRecord) => {
-    const today = getCurrentDate();
+    const currentHour = getCurrentDateHour();
 
-    if (shouldRotateFile(current.file, today, maxFileSize)) {
+    if (shouldRotateFile(current.file, currentHour, maxFileSize)) {
       current.writer.end();
-      current = rotateLogFile(logDir, maxFileSize, maxFiles);
-      lastCheckDate = today;
+      current = rotateLogFile(logDir, maxFileSize, maxFiles, currentHour);
+      lastCheckHour = currentHour;
     }
 
     current.writer.write(formatter(record));
@@ -622,7 +633,7 @@ export async function initLogging(config: Partial<LoggingConfig> = {}): Promise<
     });
   }
 
-  // 文件输出 - 日期批次格式
+  // 文件输出 - 小时批次格式
   if (fullConfig.file) {
     sinks.file = createDateBatchFileSink(
       logDir,
@@ -685,8 +696,8 @@ export function isLoggingInitialized(): boolean {
 export function getLogFilePath(config: Partial<LoggingConfig> = {}): string {
   const fullConfig = { ...DEFAULT_CONFIG, ...config };
   const logDir = expandPath(fullConfig.logDir);
-  const today = getCurrentDate();
-  return join(logDir, `${today}-001.log`);
+  const currentHour = getCurrentDateHour();
+  return join(logDir, `${currentHour}-001.log`);
 }
 
 /**
