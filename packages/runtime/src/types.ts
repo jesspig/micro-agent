@@ -160,7 +160,9 @@ export interface SearchOptions {
   /** 过滤条件 */
   filter?: MemoryFilter;
   /** 检索模式 */
-  mode?: 'vector' | 'fulltext' | 'hybrid';
+  mode?: 'auto' | 'vector' | 'fulltext' | 'hybrid';
+  /** 指定使用的嵌入模型 ID（格式：<provider>/<model>） */
+  model?: string;
 }
 
 // ============================================================================

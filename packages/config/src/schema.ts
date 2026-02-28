@@ -36,6 +36,19 @@ export const MemoryConfigSchema = z.object({
   shortTermRetentionDays: z.number().default(7),
   /** 检索结果数量限制 */
   searchLimit: z.number().min(1).max(50).default(10),
+  /** 多嵌入模型配置 */
+  multiEmbed: z.object({
+    /** 是否启用多嵌入模型支持 */
+    enabled: z.boolean().default(true),
+    /** 最大保留模型数 (1-10) */
+    maxModels: z.number().min(1).max(10).default(3),
+    /** 是否自动迁移 */
+    autoMigrate: z.boolean().default(true),
+    /** 迁移批次大小 */
+    batchSize: z.number().min(1).max(100).default(50),
+    /** 迁移间隔（毫秒，0 表示自适应） */
+    migrateInterval: z.number().min(0).default(0),
+  }).optional(),
 });
 
 /** 循环检测配置 Schema */

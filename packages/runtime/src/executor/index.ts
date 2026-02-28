@@ -203,7 +203,8 @@ export class AgentExecutor {
         hasMedia: msg.media?.length ?? 0 > 0
       },
       async () => {
-        const sessionKey = 'default';
+        // 使用 channel:chatId 作为会话标识，实现会话隔离
+        const sessionKey = `${msg.channel}:${msg.chatId}`;
         const sessionHistory = this.conversationHistory.get(sessionKey) ?? [];
 
         // 检索相关记忆
@@ -221,33 +222,46 @@ export class AgentExecutor {
 
         const messages = this.buildMessages(sessionHistory, msg, relevantMemories);
 
+        // 先执行主流程
+        let result: AgentLoopResult;
         try {
-          const result = await this.runAgentLoop(messages, msg);
-          this.updateHistory(sessionKey, messages.slice(1));
-
-          // 存储记忆
-          await this.storeMemory(msg, result, sessionKey);
-
-          // 记录活动时间并启动空闲检查
-          if (this.summarizer) {
-            this.summarizer.recordActivity();
-            this.summarizer.startIdleCheck(sessionKey, () => this.conversationHistory.get(sessionKey) ?? []);
-          }
-
-          // 检查是否需要摘要
-          await this.checkAndSummarize(sessionKey, messages);
-
-          return {
-            channel: msg.channel,
-            chatId: msg.chatId,
-            content: result.content || '处理完成',
-            media: [],
-            metadata: msg.metadata,
-          };
+          result = await this.runAgentLoop(messages, msg);
         } catch (error) {
           log.error('❌ 处理消息异常', { error: this.safeErrorMsg(error) });
           return this.createErrorResponse(msg);
         }
+
+        // 更新历史记录
+        this.updateHistory(sessionKey, messages.slice(1));
+
+        // 存储记忆（失败不影响对话返回，但会记录状态并抛出警告）
+        try {
+          await this.storeMemory(msg, result, sessionKey);
+        } catch (error) {
+          // 存储失败已记录到 storeMemoryResult，此处仅记录日志
+          // 不阻断对话流程，但仍让上层感知到问题
+          log.error('⚠️ 记忆存储失败，对话仍正常返回', { 
+            error: this.safeErrorMsg(error),
+            sessionKey 
+          });
+        }
+
+        // 记录活动时间并启动空闲检查
+        if (this.summarizer) {
+          this.summarizer.recordActivity();
+          this.summarizer.startIdleCheck(sessionKey, () => this.conversationHistory.get(sessionKey) ?? []);
+        }
+
+        // 检查是否需要摘要
+        await this.checkAndSummarize(sessionKey, messages);
+
+        return {
+          channel: msg.channel,
+          chatId: msg.chatId,
+          content: result.content || '处理完成',
+          media: [],
+          metadata: msg.metadata,
+        };
       },
       'AgentExecutor'
     ).finally(() => {
@@ -265,16 +279,8 @@ export class AgentExecutor {
     }
 
     try {
-      const startTime = Date.now();
       const results = await this.memoryStore.search(query, { limit: 5 });
-      const elapsed = Date.now() - startTime;
-      
-      log.info('📖 记忆检索完成', { 
-        query: query.slice(0, 50),
-        resultCount: results.length,
-        elapsed: `${elapsed}ms`
-      });
-      
+      // 详细日志由 MemoryStore.search() 打印，包含 source 信息
       return results;
     } catch (error) {
       log.warn('记忆检索失败', { error: this.safeErrorMsg(error) });
@@ -283,7 +289,14 @@ export class AgentExecutor {
   }
 
   /**
+   * 存储记忆结果
+   */
+  private storeMemoryResult: { success: boolean; error?: string } = { success: true };
+
+  /**
    * 存储记忆
+   * 
+   * 包含最多 2 次重试机制，存储失败时会向上传递错误状态。
    */
   private async storeMemory(msg: InboundMessage, result: AgentLoopResult, sessionKey: string): Promise<void> {
     if (!this.memoryStore) {
@@ -291,32 +304,65 @@ export class AgentExecutor {
       return;
     }
 
-    try {
-      const entry: MemoryEntry = {
-        id: crypto.randomUUID(),
-        sessionId: sessionKey,
-        type: 'conversation',
-        content: `用户: ${msg.content}\n助手: ${result.content}`,
-        metadata: {
-          channel: msg.channel,
-          tags: ['conversation'],
-        },
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
+    const entry: MemoryEntry = {
+      id: crypto.randomUUID(),
+      sessionId: sessionKey,
+      type: 'conversation',
+      content: `用户: ${msg.content}\n助手: ${result.content}`,
+      metadata: {
+        channel: msg.channel,
+        tags: ['conversation'],
+      },
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
 
-      await this.memoryStore.store(entry);
-      
-      log.info('💾 记忆已存储', { 
-        id: entry.id, 
-        sessionKey,
-        type: entry.type,
-        userMsg: msg.content.slice(0, 50) + '...',
-        assistantMsg: result.content?.slice(0, 50) + '...'
-      });
-    } catch (error) {
-      log.warn('记忆存储失败', { error: this.safeErrorMsg(error) });
+    // 带重试的存储操作
+    const maxRetries = 2;
+    let lastError: Error | undefined;
+
+    for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
+      try {
+        await this.memoryStore.store(entry);
+        
+        log.info('💾 记忆已存储', { 
+          id: entry.id, 
+          sessionKey,
+          type: entry.type,
+          attempt: attempt > 1 ? attempt : undefined,
+          userMsg: msg.content.slice(0, 50) + '...',
+          assistantMsg: result.content?.slice(0, 50) + '...'
+        });
+        
+        this.storeMemoryResult = { success: true };
+        return;
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        log.warn('记忆存储失败', { 
+          attempt, 
+          maxRetries: maxRetries + 1, 
+          error: this.safeErrorMsg(error) 
+        });
+        
+        // 非最后一次尝试，等待后重试
+        if (attempt <= maxRetries) {
+          await new Promise(resolve => setTimeout(resolve, 100 * attempt));
+        }
+      }
     }
+
+    // 所有重试都失败，记录错误状态并向上传递
+    const errorMsg = lastError?.message ?? '未知错误';
+    this.storeMemoryResult = { success: false, error: errorMsg };
+    
+    log.error('❌ 记忆存储最终失败', { 
+      sessionKey, 
+      error: errorMsg,
+      retries: maxRetries 
+    });
+    
+    // 向上抛出错误，让调用方感知
+    throw new Error(`记忆存储失败（已重试 ${maxRetries} 次）: ${errorMsg}`);
   }
 
   /**

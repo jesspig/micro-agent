@@ -14,6 +14,17 @@ export type {
   MemoryStoreConfig,
   CleanupResult,
   EmbeddingService,
+  // 多嵌入模型相关类型
+  VectorColumnName,
+  EmbedModelInfo,
+  MigrationState,
+  MigrationStatus,
+  MigrationEvent,
+  MigrationResult,
+  RetryResult,
+  FailedRecord,
+  MultiEmbedConfig,
+  SearchMode,
 } from './types';
 
 // Embedding
@@ -21,6 +32,10 @@ export { OpenAIEmbedding, NoEmbedding, createEmbeddingService } from './embeddin
 
 // Store
 export { MemoryStore } from './store';
+
+// Migration
+export { EmbeddingMigration, AdaptiveInterval } from './migration';
+export type { AdaptiveIntervalConfig } from './migration';
 
 // Summarizer
 export { ConversationSummarizer, type SummarizerConfig } from './summarizer';

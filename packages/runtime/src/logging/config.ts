@@ -9,6 +9,7 @@ import { configure, getConsoleSink, reset, type LogRecord, type Sink } from '@lo
 import { mkdirSync, existsSync, statSync, readdirSync, createWriteStream, unlinkSync } from 'node:fs';
 import { join, basename } from 'node:path';
 import { homedir } from 'node:os';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import type { LoggingConfig } from './types';
 
 /** 默认日志配置 */
@@ -431,7 +432,14 @@ export async function initLogging(config: Partial<LoggingConfig> = {}): Promise<
     { category: ['tracer'], sinks: Object.keys(sinks), lowestLevel: fullConfig.traceEnabled ? 'debug' as const : 'info' as const },
   ];
 
-  await configure({ sinks, loggers, reset: true });
+  // 添加 contextLocalStorage 以支持隐式上下文（traceId, spanId）
+  // 参考：https://logtape.org/docs/manual/contexts
+  await configure({ 
+    sinks, 
+    loggers, 
+    reset: true,
+    contextLocalStorage: new AsyncLocalStorage(),
+  });
   initialized = true;
 }
 
