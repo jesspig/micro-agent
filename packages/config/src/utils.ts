@@ -149,6 +149,13 @@ export function getBuiltinDefaults(): Record<string, unknown> {
         idleTimeout: 300000,
         shortTermRetentionDays: 7,
         searchLimit: 10,
+        multiEmbed: {
+          enabled: true,
+          maxModels: 3,
+          autoMigrate: true,
+          batchSize: 50,
+          migrateInterval: 0,
+        },
       },
     },
     providers: {},

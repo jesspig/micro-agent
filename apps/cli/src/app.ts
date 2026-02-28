@@ -65,7 +65,8 @@ interface StartupInfo {
     intent?: string;
   };
   memory: {
-    mode: 'vector' | 'fulltext';
+    mode: 'vector' | 'fulltext' | 'hybrid';
+    embedModel?: string;
     storagePath?: string;
     autoSummarize?: boolean;
     summarizeThreshold?: number;
@@ -344,8 +345,15 @@ class AppImpl implements App {
     }
     
     // 记忆模式
-    const modeLabel = startupInfo.memory.mode === 'vector' ? '向量检索' : '全文检索';
-    console.log(`  \x1b[90m记忆:\x1b[0m ${modeLabel}`);
+    const modeLabel = startupInfo.memory.mode === 'vector' 
+      ? '向量检索' 
+      : startupInfo.memory.mode === 'hybrid' 
+        ? '混合检索' 
+        : '全文检索';
+    const embedModelInfo = startupInfo.memory.embedModel 
+      ? ` (${startupInfo.memory.embedModel})` 
+      : '';
+    console.log(`  \x1b[90m记忆:\x1b[0m ${modeLabel}${embedModelInfo}`);
     
     // 自动摘要
     if (startupInfo.memory.autoSummarize && startupInfo.memory.summarizeThreshold) {
@@ -555,6 +563,7 @@ ${skillsSummary}`);
             providerConfig.apiKey || ''
           );
           startupInfo.memory.mode = 'vector';
+          startupInfo.memory.embedModel = embedModel;
         } else {
           embeddingService = new NoEmbedding();
           startupInfo.memory.mode = 'fulltext';
@@ -573,13 +582,42 @@ ${skillsSummary}`);
       this.memoryStore = new MemoryStore({
         storagePath,
         embeddingService,
+        embedModel, // 传入当前嵌入模型 ID
         defaultSearchLimit: memoryConfig?.searchLimit ?? 10,
         shortTermRetentionDays: memoryConfig?.shortTermRetentionDays ?? 7,
       });
 
       await this.memoryStore.initialize();
       
-      log.debug('记忆存储已初始化', { path: storagePath });
+      // 检测模型变更并自动启动迁移
+      const modelChange = await this.memoryStore.detectModelChange();
+      if (modelChange.needMigration && modelChange.hasOldModelVectors) {
+        log.info('🔄 检测到嵌入模型变更，启动后台迁移', { 
+          oldModel: modelChange.oldModel, 
+          newModel: modelChange.newModel,
+        });
+        
+        // 自动启动后台迁移
+        try {
+          const result = await this.memoryStore.migrateToModel(modelChange.newModel, { autoStart: true });
+          if (result.success) {
+            startupInfo.warnings.push(`嵌入模型迁移已启动：${modelChange.oldModel || '未知'} → ${modelChange.newModel}`);
+          } else {
+            startupInfo.warnings.push(`嵌入模型迁移启动失败：${result.error}`);
+          }
+        } catch (error) {
+          log.error('嵌入模型迁移启动异常', { error: String(error) });
+          startupInfo.warnings.push(`嵌入模型已从 ${modelChange.oldModel || '未知'} 变更为 ${modelChange.newModel}，迁移启动失败`);
+        }
+      } else if (modelChange.needMigration) {
+        // 模型变更但无旧向量，无需迁移
+        log.info('嵌入模型已变更，无旧向量需要迁移', { 
+          oldModel: modelChange.oldModel, 
+          newModel: modelChange.newModel,
+        });
+      }
+      
+      log.debug('记忆存储已初始化', { path: storagePath, embedModel });
 
       // 初始化 Summarizer
       if (memoryConfig?.autoSummarize !== false && this.memoryStore) {
