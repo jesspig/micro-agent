@@ -85,6 +85,9 @@ export class MemoryStore {
       // 检测并迁移旧数据结构
       await this.migrateLegacySchema();
 
+      // 确保 documentId 列存在（用于文档分块精确删除）
+      await this.ensureDocumentIdColumn();
+
       // 检查当前嵌入模型的向量列是否存在，不存在则扩展 schema
       await this.ensureVectorColumn();
     } else {
@@ -112,11 +115,12 @@ export class MemoryStore {
         metadata: '{}',
         createdAt: Date.now(),
         updatedAt: Date.now(),
-        // 多嵌入模型支持字段
-        active_embed: embedModel ?? null,
-        embed_versions: embedModel ? JSON.stringify({ [embedModel]: Date.now() }) : null,
-      };
-      this.table = await this.db.createTable(tableName, [sampleRecord]);
+              // 多嵌入模型支持字段
+              active_embed: embedModel ?? null,
+              embed_versions: embedModel ? JSON.stringify({ [embedModel]: Date.now() }) : null,
+              // 文档分块 ID（用于精确删除）
+              documentId: '',
+              };      this.table = await this.db.createTable(tableName, [sampleRecord]);
       // 删除占位符
       await this.table.delete('id = "placeholder"');
       
@@ -169,10 +173,7 @@ export class MemoryStore {
   /**
    * 迁移旧数据结构
    * 
-   * 检测旧版 `vector` 列并迁移到多向量结构：
-   * - 重命名 `vector` → `vector_<current_model>`
-   * - 添加 `active_embed` 字段
-   * - 添加 `embed_versions` 字段
+   * 迁移策略：批量删除 + 批量添加，避免逐条操作
    */
   private async migrateLegacySchema(): Promise<void> {
     if (!this.table) return;
@@ -215,28 +216,37 @@ export class MemoryStore {
       // 读取所有旧记录
       const records = await this.table.query().toArray();
 
-      // 迁移每个记录
-      let migratedCount = 0;
+      // 准备迁移的记录
+      const toMigrate: Record<string, unknown>[] = [];
+      const idsToDelete: string[] = [];
+
       for (const record of records) {
         const oldVector = record.vector as number[] | undefined;
         if (!oldVector || oldVector.length === 0) continue;
 
-        // 创建新记录
-        const updated = {
+        toMigrate.push({
           ...record,
           [newVectorColumn]: oldVector,
           active_embed: embedModel,
           embed_versions: JSON.stringify({ [embedModel]: Date.now() }),
-        };
-
-        // 删除旧记录并添加新记录
-        await this.table.delete(`id = "${this.escapeValue(String(record.id))}"`);
-        await this.table.add([updated]);
-        migratedCount++;
+        });
+        idsToDelete.push(String(record.id));
       }
 
+      if (toMigrate.length === 0) {
+        log.debug('📐 [MemoryStore] 无需迁移的记录');
+        return;
+      }
+
+      // 批量删除旧记录
+      const deleteIds = idsToDelete.map(id => `"${this.escapeValue(id)}"`).join(', ');
+      await this.table.delete(`id IN (${deleteIds})`);
+
+      // 批量添加新记录
+      await this.table.add(toMigrate);
+
       log.info('✅ [MemoryStore] 旧数据结构迁移完成', { 
-        migratedCount,
+        migratedCount: toMigrate.length,
         newVectorColumn,
         embedModel,
       });
@@ -245,6 +255,118 @@ export class MemoryStore {
       log.error('🚨 [MemoryStore] 迁移旧数据结构失败', { error: String(error) });
       // 不抛出错误，允许继续使用
     }
+  }
+
+  /**
+   * 确保 documentId 列存在
+   * 
+   * documentId 列用于文档分块的精确删除，避免 LIKE 查询。
+   * 如果列不存在，需要重建表。
+   */
+  private async ensureDocumentIdColumn(): Promise<void> {
+    if (!this.table) return;
+
+    // 检查列是否已存在
+    const schema = await this.table.schema();
+    const columnExists = schema.fields.some(f => f.name === 'documentId');
+
+    if (columnExists) {
+      log.debug('📐 [MemoryStore] documentId 列已存在');
+      return;
+    }
+
+    log.info('📐 [MemoryStore] documentId 列不存在，需要重建表');
+
+    // 确保 db 已初始化
+    if (!this.db) {
+      throw new Error('Database not initialized');
+    }
+
+    // 保存现有数据
+    const existingRecords = await this.table.query().toArray();
+    const existingCount = existingRecords.length;
+
+    log.info('📐 [MemoryStore] 备份现有数据', { recordCount: existingCount });
+
+    // 收集所有现有向量列及其维度
+    const existingVectorColumns: { name: string; dimension: number }[] = [];
+    for (const field of schema.fields) {
+      if (field.name.startsWith('vector_')) {
+        const dim = await this.getVectorDimensionWithoutInit(field.name);
+        if (dim > 0) {
+          existingVectorColumns.push({ name: field.name, dimension: dim });
+        }
+      }
+    }
+
+    // 从实际数据中检测向量列
+    if (existingCount > 0 && existingRecords.length > 0) {
+      const firstRecord = existingRecords[0];
+      for (const [key, value] of Object.entries(firstRecord)) {
+        if (key.startsWith('vector_') && !existingVectorColumns.some(c => c.name === key)) {
+          let dim = 0;
+          if (Array.isArray(value)) {
+            dim = (value as number[]).length;
+          } else if (value && typeof value === 'object' && 'toArray' in value) {
+            const arr = (value as { toArray: () => number[] }).toArray();
+            dim = arr.length;
+          } else if (value && typeof value === 'object' && 'length' in value) {
+            dim = (value as { length: number }).length;
+          }
+          if (dim > 0) {
+            existingVectorColumns.push({ name: key, dimension: dim });
+          }
+        }
+      }
+    }
+
+    // 删除旧表
+    const tableName = 'memories';
+    await this.db.dropTable(tableName);
+
+    // 创建包含所有向量列和 documentId 的占位记录
+    const placeholderRecord: Record<string, unknown> = {
+      id: `__schema_placeholder__`,
+      sessionId: '__schema__',
+      type: '__schema__',
+      content: '__schema__',
+      // 保留所有现有向量列
+      ...Object.fromEntries(
+        existingVectorColumns.map(col => [col.name, new Array(col.dimension).fill(0)])
+      ),
+      metadata: '{}',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      active_embed: '',
+      embed_versions: '{}',
+      // 添加 documentId 列
+      documentId: '',
+    };
+
+    // 创建新表
+    this.table = await this.db.createTable(tableName, [placeholderRecord]);
+    
+    // 删除占位记录
+    await this.table.delete(`id = "__schema_placeholder__"`);
+
+    // 恢复旧数据（添加 documentId 字段）
+    if (existingCount > 0) {
+      const normalizedRecords = existingRecords.map(record => ({
+        ...record,
+        documentId: '',  // 添加空的 documentId
+        // 确保 active_embed 和 embed_versions 不为 null（LanceDB 类型推断要求）
+        active_embed: record.active_embed ?? '',
+        embed_versions: record.embed_versions ?? '{}',
+      }));
+      // 标准化向量列
+      const finalRecords = this.normalizeVectorColumns(normalizedRecords, existingVectorColumns);
+      await this.table.add(finalRecords);
+    }
+
+    log.info('✅ [MemoryStore] 表已重建，documentId 列已添加', { 
+      restoredRecords: existingCount,
+      preservedVectorColumns: existingVectorColumns.length,
+    });
   }
 
   /**
@@ -373,6 +495,8 @@ export class MemoryStore {
       updatedAt: Date.now(),
       active_embed: embedModel,
       embed_versions: JSON.stringify({ [embedModel]: Date.now() }),
+      // 文档分块 ID（用于精确删除）
+      documentId: '',
     };
 
     // 创建新表
@@ -385,7 +509,14 @@ export class MemoryStore {
     // 关键修复：将 FixedSizeList 向量转换为普通数组，避免 LanceDB 的 isValid 字段问题
     // 参考：https://github.com/lancedb/lancedb/issues/2134
     if (existingCount > 0) {
-      const normalizedRecords = this.normalizeVectorColumns(existingRecords, existingVectorColumns);
+      const normalizedRecords = this.normalizeVectorColumns(existingRecords, existingVectorColumns).map(record => ({
+        ...record,
+        // 确保 documentId 存在
+        documentId: record.documentId ?? '',
+        // 确保 active_embed 和 embed_versions 不为 null
+        active_embed: record.active_embed ?? '',
+        embed_versions: record.embed_versions ?? '{}',
+      }));
       await this.table.add(normalizedRecords);
     }
 
@@ -421,6 +552,9 @@ export class MemoryStore {
       ? MemoryStore.modelIdToVectorColumn(embedModel) 
       : 'vector';
 
+    // 提取 documentId（用于文档分块的精确删除）
+    const documentId = entry.metadata?.documentId ?? '';
+
     // 1. 存储到 LanceDB（主存储）
     const record: Record<string, unknown> = {
       id: entry.id,
@@ -434,6 +568,8 @@ export class MemoryStore {
       // 多嵌入模型支持
       active_embed: embedModel ?? null,
       embed_versions: embedModel ? JSON.stringify({ [embedModel]: Date.now() }) : null,
+      // 独立 documentId 列（用于精确删除文档分块）
+      documentId,
     };
 
     await this.table?.add([record]);
@@ -483,6 +619,9 @@ export class MemoryStore {
         validVectorCount++;
       }
       
+      // 提取 documentId（用于文档分块的精确删除）
+      const documentId = entry.metadata?.documentId ?? '';
+
       records.push({
         id: entry.id,
         sessionId: entry.sessionId,
@@ -495,6 +634,8 @@ export class MemoryStore {
         // 多嵌入模型支持
         active_embed: embedModel ?? null,
         embed_versions: embedModel ? JSON.stringify({ [embedModel]: Date.now() }) : null,
+        // 独立 documentId 列（用于精确删除文档分块）
+        documentId,
       });
     }
 
@@ -528,6 +669,15 @@ export class MemoryStore {
    * @param chunks 分块列表
    * @param metadata 文档元数据
    */
+  /**
+   * 存储文档分块（增量更新）
+   * 
+   * 使用增量更新策略：
+   * 1. 获取现有分块
+   * 2. 计算差异（基于分块 ID）
+   * 3. 只删除不再需要的分块
+   * 4. 只添加新增或变化的分块
+   */
   async storeDocumentChunks(
     docId: string,
     chunks: KnowledgeChunk[],
@@ -536,40 +686,61 @@ export class MemoryStore {
     await this.ensureInitialized();
 
     if (chunks.length === 0) {
-      log.warn('📄 [MemoryStore] 文档无分块，跳过存储', { docId });
+      // 新分块为空，删除所有旧分块
+      await this.deleteDocumentChunks(docId);
+      log.info('📄 [MemoryStore] 文档分块已清空', { docId });
       return;
     }
 
-    // 先删除旧的分块
-    await this.deleteDocumentChunks(docId);
+    // 获取现有分块
+    const existingChunks = await this.getDocumentChunks(docId);
+    const existingIds = new Set(existingChunks.map(c => c.id));
+    const newIds = new Set(chunks.map(c => c.id));
 
-    // 转换为 MemoryEntry
-    const entries: MemoryEntry[] = chunks.map((chunk, index) => ({
-      id: chunk.id,
-      sessionId: 'knowledge_base',
-      type: 'document' as const,
-      content: chunk.content,
-      vector: chunk.vector,
-      metadata: {
-        documentId: docId,
-        documentPath: metadata.originalName,
-        fileType: metadata.fileType,
-        documentTitle: metadata.title,
-        chunkIndex: index,
-        chunkStart: chunk.startPos,
-        chunkEnd: chunk.endPos,
-        tags: ['knowledge_base', metadata.fileType, ...(metadata.tags || [])],
-      },
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    }));
+    // 计算需要删除的分块
+    const toDelete = existingChunks.filter(c => !newIds.has(c.id));
+    
+    // 计算需要添加的分块（新增或变化）
+    const toAdd = chunks.filter(c => !existingIds.has(c.id));
 
-    // 批量存储
-    await this.storeBatch(entries);
+    // 删除不再需要的分块
+    if (toDelete.length > 0) {
+      const deleteIds = toDelete.map(c => `"${c.id}"`).join(', ');
+      await this.table?.delete(`id IN (${deleteIds})`);
+      log.debug('📄 [MemoryStore] 删除旧分块', { docId, count: toDelete.length });
+    }
 
-    log.info('📄 [MemoryStore] 文档分块已存储', {
+    // 添加新分块
+    if (toAdd.length > 0) {
+      const entries: MemoryEntry[] = toAdd.map((chunk, index) => ({
+        id: chunk.id,
+        sessionId: 'knowledge_base',
+        type: 'document' as const,
+        content: chunk.content,
+        vector: chunk.vector,
+        metadata: {
+          documentId: docId,
+          documentPath: metadata.originalName,
+          fileType: metadata.fileType,
+          documentTitle: metadata.title,
+          chunkIndex: chunks.indexOf(chunk), // 使用原始索引
+          chunkStart: chunk.startPos,
+          chunkEnd: chunk.endPos,
+          tags: ['knowledge_base', metadata.fileType, ...(metadata.tags || [])],
+        },
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }));
+
+      await this.storeBatch(entries);
+    }
+
+    log.info('📄 [MemoryStore] 文档分块已更新', {
       docId,
-      chunkCount: chunks.length,
+      total: chunks.length,
+      added: toAdd.length,
+      deleted: toDelete.length,
+      unchanged: chunks.length - toAdd.length,
       title: metadata.title || metadata.originalName,
     });
   }
@@ -577,41 +748,56 @@ export class MemoryStore {
   /**
    * 删除文档的所有分块
    * 
-   * @param docId 文档 ID
+   * 使用独立的 documentId 列进行精确匹配，避免 LIKE 查询。
    */
   async deleteDocumentChunks(docId: string): Promise<void> {
     await this.ensureInitialized();
 
     try {
-      // 使用 LanceDB 的 delete 方法
-      await this.table?.delete(`metadata LIKE '%"${docId}"%' OR metadata LIKE '%"documentId":"${docId}"%'`);
+      // 使用 documentId 列精确匹配
+      await this.table?.delete(`documentId = "${docId}"`);
       
       log.info('📄 [MemoryStore] 文档分块已删除', { docId });
     } catch (error) {
-      // 忽略删除错误（可能不存在）
-      log.debug('📄 [MemoryStore] 删除文档分块时无匹配记录', { docId });
+      // 兼容旧数据：documentId 列不存在时回退到 LIKE 查询
+      try {
+        await this.table?.delete(`type = 'document' AND metadata LIKE '%"documentId":"${docId}"%'`);
+        log.info('📄 [MemoryStore] 文档分块已删除（兼容模式）', { docId });
+      } catch {
+        log.debug('📄 [MemoryStore] 删除文档分块时无匹配记录', { docId });
+      }
     }
   }
 
   /**
    * 获取文档的所有分块
    * 
-   * @param docId 文档 ID
-   * @returns 文档分块列表（作为 MemoryEntry）
+   * 使用独立的 documentId 列进行精确匹配。
    */
   async getDocumentChunks(docId: string): Promise<MemoryEntry[]> {
     await this.ensureInitialized();
 
     try {
+      // 使用 documentId 列精确匹配
       const records = await this.table
         ?.query()
-        .where(`type = 'document' AND metadata LIKE '%"documentId":"${docId}"%'`)
+        .where(`documentId = "${docId}"`)
         .toArray() ?? [];
 
       return records.map(record => this.recordToEntry(record));
-    } catch (error) {
-      log.warn('📄 [MemoryStore] 获取文档分块失败', { docId, error: String(error) });
-      return [];
+    } catch {
+      // 兼容旧数据：documentId 列不存在时回退到 LIKE 查询
+      try {
+        const records = await this.table
+          ?.query()
+          .where(`type = 'document' AND metadata LIKE '%"documentId":"${docId}"%'`)
+          .toArray() ?? [];
+
+        return records.map(record => this.recordToEntry(record));
+      } catch (error) {
+        log.warn('📄 [MemoryStore] 获取文档分块失败', { docId, error: String(error) });
+        return [];
+      }
     }
   }
 

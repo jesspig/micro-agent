@@ -132,6 +132,19 @@ async function extractDocumentContent(filePath: string, fileType: KnowledgeDocTy
     return `[PowerPoint 演示文稿: ${basename(filePath)}]\n\n注意: PowerPoint 解析暂不支持。建议:\n1. 转换为 PDF 后上传\n2. 或使用 "另存为图片" 导出后通过图片方式查看`;
   }
 
+  // PDF 文档
+  if (fileType === 'pdf' || ext === '.pdf') {
+    try {
+      // @ts-ignore - 可选依赖，运行时动态加载
+      const pdfParse = await import('pdf-parse');
+      const dataBuffer = await readFile(filePath);
+      const data = await pdfParse.default(dataBuffer);
+      return `[PDF 文档: ${basename(filePath)}]\n\n${data.text}`;
+    } catch (error) {
+      return `[PDF 文档: ${basename(filePath)}]\n\n注意: PDF 解析失败。\n错误: ${error instanceof Error ? error.message : String(error)}`;
+    }
+  }
+
   // 其他类型 - 直接读取为文本
   return await readFile(filePath, 'utf-8');
 }
@@ -243,14 +256,24 @@ export class KnowledgeBaseManager {
     // 启动文件监测
     await this.startWatching();
 
-    // 启动后台构建
+    // 立即处理待索引文档（不等待后台构建）
+    await this.processPendingDocuments();
+
+    // 启动后台构建（用于后续新增文档）
     if (this.config.backgroundBuild.enabled) {
       this.startBackgroundBuild();
     }
 
     this.isInitialized = true;
+    
+    // 统计索引状态
+    const indexedCount = Array.from(this.documents.values()).filter(d => d.status === 'indexed').length;
+    const pendingCount = Array.from(this.documents.values()).filter(d => d.status === 'pending').length;
+    
     log.info('📚 [KnowledgeBase] 知识库已初始化', { 
       docCount: this.documents.size,
+      indexedCount,
+      pendingCount,
       memoryStore: !!this.memoryStore,
     });
   }
