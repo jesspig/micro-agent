@@ -39,12 +39,8 @@ export { hasImageMedia } from './complexity';
 
 // 提示词类型
 export {
-  type TaskTypeResult,
   type TaskType,
   type ModelInfo,
-  type IntentPromptBuilder,
-  type UserPromptBuilder,
-  // 新增：分阶段意图识别类型
   type PreflightResult,
   type RoutingResult,
   type IntentResult,

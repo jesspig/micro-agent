@@ -102,11 +102,12 @@ export type {
   GatewayConfig,
   ModelRouterConfig,
   RouteResult,
-  TaskTypeResult,
   TaskType,
   ModelInfo,
-  IntentPromptBuilder,
-  UserPromptBuilder,
+  PreflightResult,
+  RoutingResult,
+  IntentResult,
+  PreflightPromptBuilder,
 } from '@micro-agent/providers';
 
 // ============ Extension System - 扩展系统 ============

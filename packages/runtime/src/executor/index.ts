@@ -6,7 +6,7 @@
  */
 
 import type { InboundMessage, OutboundMessage, ToolContext, SessionKey } from '@micro-agent/types';
-import type { LLMGateway, LLMMessage, GenerationConfig, MessageContent, LLMToolDefinition, IntentPromptBuilder, UserPromptBuilder, IntentPipeline, IntentResult, PreflightPromptBuilder } from '@micro-agent/providers';
+import type { LLMGateway, LLMMessage, GenerationConfig, MessageContent, LLMToolDefinition, IntentPipeline, IntentResult, PreflightPromptBuilder } from '@micro-agent/providers';
 import type { MessageBus } from '../bus/queue';
 import type { ModelConfig, LoopDetectionConfig } from '@micro-agent/config';
 import type { AgentLoopResult, MemoryEntry, Citation, CitedResponse, MemoryEntryType } from '../types';
@@ -61,16 +61,10 @@ export interface AgentExecutorConfig {
   intentModel?: string;
   /** 可用模型列表 */
   availableModels?: Map<string, ModelConfig[]>;
-  /** 意图识别 System Prompt 构建函数（兼容旧版） */
-  buildIntentPrompt?: IntentPromptBuilder;
-  /** 用户 Prompt 构建函数（兼容旧版） */
-  buildUserPrompt?: UserPromptBuilder;
   /** 预处理阶段提示词构建函数 */
   buildPreflightPrompt?: PreflightPromptBuilder;
   /** 模型选择阶段提示词构建函数 */
   buildRoutingPrompt?: PreflightPromptBuilder;
-  /** 是否启用分阶段意图识别（默认 false，使用旧版） */
-  useIntentPipeline?: boolean;
   /** 循环检测配置 */
   loopDetection?: Partial<LoopDetectionConfig>;
   /** 最大历史消息数 */
@@ -134,13 +128,11 @@ export class AgentExecutor {
       coderModel: config.coderModel,
       intentModel: config.intentModel,
       models: config.availableModels ?? new Map(),
-      buildIntentPrompt: config.buildIntentPrompt,
-      buildUserPrompt: config.buildUserPrompt,
     });
     this.router.setProvider(gateway);
 
-    // 初始化意图识别管道（如果启用）
-    if (config.useIntentPipeline && config.buildPreflightPrompt && config.buildRoutingPrompt) {
+    // 初始化意图识别管道
+    if (config.buildPreflightPrompt && config.buildRoutingPrompt) {
       const { IntentPipeline } = require('@micro-agent/providers');
       this.intentPipeline = new IntentPipeline({
         provider: gateway,
@@ -342,7 +334,7 @@ export class AgentExecutor {
     // 先执行主流程
     let result: AgentLoopResult;
     try {
-      result = await this.runAgentLoop(messages, msg);
+      result = await this.runAgentLoop(messages, msg, intentResult);
     } catch (error) {
       log.error('❌ 处理消息异常', { error: this.safeErrorMsg(error) });
       return this.createErrorResponse(msg);
@@ -675,13 +667,13 @@ export class AgentExecutor {
   /**
    * 运行 Agent 循环 (Function Calling 模式)
    */
-  private async runAgentLoop(messages: LLMMessage[], msg: InboundMessage): Promise<AgentLoopResult> {
+  private async runAgentLoop(messages: LLMMessage[], msg: InboundMessage, intentResult: IntentResult | null): Promise<AgentLoopResult> {
     let iteration = 0;
     const llmTools = this.getLLMToolDefinitions();
-    
+
     // 重置循环检测器
     this.loopDetector.reset();
-    
+
     // 缓存第一次迭代选择的模型
     let cachedRouteResult: RouteResult | null = null;
 
@@ -691,12 +683,27 @@ export class AgentExecutor {
       // 消息历史裁剪
       const truncatedMessages = this.messageManager.truncate(messages);
 
-      const routeResult: RouteResult = cachedRouteResult ?? await this.selectModel(truncatedMessages, msg.media);
+      // 使用意图识别结果选择模型
+      let routeResult: RouteResult;
+      if (cachedRouteResult) {
+        routeResult = cachedRouteResult;
+      } else if (intentResult) {
+        // 使用分阶段意图识别结果
+        routeResult = this.router.selectByTaskType(intentResult.routing.type);
+        log.info('🎯 任务类型识别', { type: intentResult.routing.type, reason: intentResult.routing.reason });
+      } else {
+        // 兼容模式：使用图片检测
+        const hasImage = msg.media && msg.media.length > 0;
+        const taskType = hasImage ? 'vision' : 'chat';
+        routeResult = this.router.selectByTaskType(taskType);
+        log.info('🎯 任务类型识别（兼容模式）', { type: taskType });
+      }
+
       // 第一次迭代后缓存模型选择结果
       if (iteration === 1) {
         cachedRouteResult = routeResult;
       }
-      
+
       // 工具调用使用专用模型（如果配置）
       const toolModel = this.config.toolModel ?? routeResult.model;
       const generationConfig = this.mergeGenerationConfig(routeResult.config);
@@ -1000,19 +1007,6 @@ export class AgentExecutor {
     }
     
     log.debug('会话已清除', { sessionKey });
-  }
-
-  /**
-   * 选择模型（仅第一次迭代调用）
-   */
-  private async selectModel(
-    messages: LLMMessage[],
-    media: string[] | undefined
-  ): Promise<RouteResult> {
-    const plainMessages = convertToPlainText(messages) as Array<{ role: string; content: string }>;
-    const taskType = await this.router.analyzeTaskType(plainMessages, media);
-    log.info('🎯 任务类型识别', { type: taskType.type, reason: taskType.reason });
-    return this.router.selectByTaskType(taskType.type);
   }
 
   /**

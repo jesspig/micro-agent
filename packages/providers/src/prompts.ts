@@ -1,6 +1,6 @@
 /**
  * 意图识别类型定义
- * 
+ *
  * 支持分阶段意图识别：
  * 1. 预处理阶段：决定是否检索记忆
  * 2. 模型选择阶段：决定使用哪个模型
@@ -11,7 +11,7 @@
 // ============================================================================
 
 /** 记忆类型（字符串形式，避免循环依赖） */
-export type MemoryTypeString = 
+export type MemoryTypeString =
   | 'preference'
   | 'fact'
   | 'decision'
@@ -52,9 +52,6 @@ export interface RoutingResult {
   reason: string;
 }
 
-/** 任务类型识别结果（兼容旧版） */
-export type TaskTypeResult = RoutingResult;
-
 // ============================================================================
 // 管道整合
 // ============================================================================
@@ -66,8 +63,3 @@ export interface IntentResult {
   /** 模型选择结果 */
   routing: RoutingResult;
 }
-
-/** 提示词构建函数类型（兼容旧版） */
-export type IntentPromptBuilder = (models: ModelInfo[]) => string;
-export type UserPromptBuilder = (content: string, hasImage: boolean) => string;
-

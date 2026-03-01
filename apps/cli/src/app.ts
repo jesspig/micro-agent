@@ -34,12 +34,7 @@ import {
   MessageTool,
 } from '../../../extensions/tool';
 import { FeishuChannel } from '../../../extensions/channel';
-import {
-  buildIntentSystemPrompt,
-  buildIntentUserPrompt,
-  buildPreflightPrompt,
-  buildRoutingPrompt,
-} from '../../prompts';
+import { buildPreflightPrompt, buildRoutingPrompt } from '../../prompts';
 import type {
   App,
   Config,
@@ -279,7 +274,6 @@ class AppImpl implements App {
         coderModel: this.config.agents.models?.coder,
         intentModel: this.config.agents.models?.intent,
         availableModels: this.availableModels,
-        useIntentPipeline: true,
         buildPreflightPrompt,
         buildRoutingPrompt,
         memoryEnabled: this.config.agents.memory?.enabled,

@@ -26,10 +26,6 @@ function loadTemplate(name: string): string {
   return content;
 }
 
-// ============================================================================
-// 预处理阶段提示词
-// ============================================================================
-
 /**
  * 构建预处理阶段提示词
  */
@@ -44,10 +40,6 @@ export function buildPreflightPrompt(content: string, hasImage: boolean): string
 ${content}`;
 }
 
-// ============================================================================
-// 模型选择阶段提示词
-// ============================================================================
-
 /**
  * 构建模型选择阶段提示词
  */
@@ -60,24 +52,4 @@ export function buildRoutingPrompt(content: string, hasImage: boolean): string {
 请分析以下用户请求${hasImage ? '（包含图片）' : ''}：
 
 ${content}`;
-}
-
-// ============================================================================
-// 兼容旧版接口
-// ============================================================================
-
-/**
- * 构建意图识别系统提示词（兼容旧版）
- * @deprecated 使用 buildRoutingPrompt 代替
- */
-export function buildIntentSystemPrompt(_models: unknown[]): string {
-  return loadTemplate('routing');
-}
-
-/**
- * 构建意图识别用户提示词（兼容旧版）
- * @deprecated 使用 buildRoutingPrompt 代替
- */
-export function buildIntentUserPrompt(content: string, hasImage: boolean): string {
-  return buildRoutingPrompt(content, hasImage);
 }
