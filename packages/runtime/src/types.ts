@@ -243,8 +243,8 @@ export interface MessageManagerConfig {
 export interface MemoryFilter {
   /** 会话标识 */
   sessionId?: string;
-  /** 条目类型 */
-  type?: MemoryEntryType;
+  /** 条目类型（支持单个或多个） */
+  type?: MemoryEntryType | MemoryEntryType[];
   /** 标签 */
   tags?: string[];
   /** 日期范围 */

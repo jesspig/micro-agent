@@ -1049,7 +1049,10 @@ export class MemoryStore {
         conditions.push(`sessionId = "${filter.sessionId}"`);
       }
       if (filter?.type) {
-        conditions.push(`type = "${filter.type}"`);
+        // 支持单个类型或多个类型
+        const types = Array.isArray(filter.type) ? filter.type : [filter.type];
+        const typeConditions = types.map(t => `type = "${t}"`).join(' OR ');
+        conditions.push(`(${typeConditions})`);
       }
       
       if (conditions.length > 0) {
@@ -1137,7 +1140,10 @@ export class MemoryStore {
         conditions.push(`sessionId = "${this.escapeValue(filter.sessionId)}"`);
       }
       if (filter?.type) {
-        conditions.push(`type = "${this.escapeValue(filter.type)}"`);
+        // 支持单个类型或多个类型
+        const types = Array.isArray(filter.type) ? filter.type : [filter.type];
+        const typeConditions = types.map(t => `type = "${this.escapeValue(t)}"`).join(' OR ');
+        conditions.push(`(${typeConditions})`);
       }
       
       // 先获取 limit * 2 条结果，以便在过滤空向量后仍有足够结果

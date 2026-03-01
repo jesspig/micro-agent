@@ -6,10 +6,10 @@
  */
 
 import type { InboundMessage, OutboundMessage, ToolContext, SessionKey } from '@micro-agent/types';
-import type { LLMGateway, LLMMessage, GenerationConfig, MessageContent, LLMToolDefinition, IntentPromptBuilder, UserPromptBuilder } from '@micro-agent/providers';
+import type { LLMGateway, LLMMessage, GenerationConfig, MessageContent, LLMToolDefinition, IntentPromptBuilder, UserPromptBuilder, IntentPipeline, IntentResult, PreflightPromptBuilder } from '@micro-agent/providers';
 import type { MessageBus } from '../bus/queue';
 import type { ModelConfig, LoopDetectionConfig } from '@micro-agent/config';
-import type { AgentLoopResult, MemoryEntry, Citation, CitedResponse } from '../types';
+import type { AgentLoopResult, MemoryEntry, Citation, CitedResponse, MemoryEntryType } from '../types';
 import type { MemoryStore, ConversationSummarizer } from '../memory';
 import type { SessionStore } from '@micro-agent/storage';
 import { classifyMemory } from '../memory';
@@ -61,10 +61,16 @@ export interface AgentExecutorConfig {
   intentModel?: string;
   /** 可用模型列表 */
   availableModels?: Map<string, ModelConfig[]>;
-  /** 意图识别 System Prompt 构建函数 */
+  /** 意图识别 System Prompt 构建函数（兼容旧版） */
   buildIntentPrompt?: IntentPromptBuilder;
-  /** 用户 Prompt 构建函数 */
+  /** 用户 Prompt 构建函数（兼容旧版） */
   buildUserPrompt?: UserPromptBuilder;
+  /** 预处理阶段提示词构建函数 */
+  buildPreflightPrompt?: PreflightPromptBuilder;
+  /** 模型选择阶段提示词构建函数 */
+  buildRoutingPrompt?: PreflightPromptBuilder;
+  /** 是否启用分阶段意图识别（默认 false，使用旧版） */
+  useIntentPipeline?: boolean;
   /** 循环检测配置 */
   loopDetection?: Partial<LoopDetectionConfig>;
   /** 最大历史消息数 */
@@ -102,6 +108,7 @@ export class AgentExecutor {
   private sessionStore?: SessionStore;
   private conversationHistory = new Map<string, LLMMessage[]>(); // 兼容模式：内存存储
   private router: ModelRouter;
+  private intentPipeline?: IntentPipeline;
   private cachedToolDefinitions: Array<{ name: string; description: string; inputSchema: unknown }> | null = null;
   private cachedLLMTools: LLMToolDefinition[] | null = null;
   private loopDetector: LoopDetector;
@@ -131,6 +138,18 @@ export class AgentExecutor {
       buildUserPrompt: config.buildUserPrompt,
     });
     this.router.setProvider(gateway);
+
+    // 初始化意图识别管道（如果启用）
+    if (config.useIntentPipeline && config.buildPreflightPrompt && config.buildRoutingPrompt) {
+      const { IntentPipeline } = require('@micro-agent/providers');
+      this.intentPipeline = new IntentPipeline({
+        provider: gateway,
+        intentModel: config.intentModel ?? config.chatModel ?? '',
+        buildPreflightPrompt: config.buildPreflightPrompt,
+        buildRoutingPrompt: config.buildRoutingPrompt,
+      });
+      log.info('分阶段意图识别已启用');
+    }
 
     // 初始化循环检测器
     this.loopDetector = new LoopDetector({
@@ -252,43 +271,70 @@ export class AgentExecutor {
       persistent: !!this.sessionStore,
     });
 
-    // 检索相关记忆
-    log.info('🔍 开始检索记忆', { query: msg.content.slice(0, 100), sessionKey });
-    const relevantMemories = await this.retrieveMemories(msg.content);
-    if (relevantMemories.length > 0) {
-      // 统计各类型记忆数量
-      const typeStats = relevantMemories.reduce((acc, m) => {
-        acc[m.type] = (acc[m.type] || 0) + 1;
-        return acc;
-      }, {} as Record<string, number>);
+    // 意图识别（分阶段或旧版）
+    let intentResult: IntentResult | null = null;
+    let needMemory = true;
+    let memoryTypes: MemoryEntryType[] = [];
+
+    if (this.intentPipeline) {
+      // 使用新的分阶段意图识别
+      const hasImage = msg.media && msg.media.length > 0;
+      intentResult = await this.intentPipeline.analyze(msg.content, hasImage);
       
-      // 构建类型分布说明
-      const typeDistribution = Object.entries(typeStats)
-        .map(([type, count]) => {
-          const icons: Record<string, string> = {
-            preference: '❤️',
-            fact: '📋',
-            decision: '✅',
-            entity: '👤',
-            conversation: '💬',
-            summary: '📝',
-            other: '📦',
-          };
-          return `${icons[type] || '📄'} ${type}:${count}`;
-        })
-        .join(', ');
+      needMemory = intentResult.preflight.needMemory;
+      memoryTypes = intentResult.preflight.memoryTypes as MemoryEntryType[];
       
-      log.info('🧠 检索到相关记忆', { 
-        count: relevantMemories.length,
-        searchMode: this.memoryStore?.getLastSearchMode?.() ?? 'unknown',
-        typeDistribution,
-        types: relevantMemories.map(m => m.type),
-        previews: relevantMemories.map(m => m.content.slice(0, 50) + '...')
+      log.info('🎯 意图识别结果', {
+        needMemory,
+        memoryTypes,
+        modelType: intentResult.routing.type,
+        reason: intentResult.preflight.reason,
       });
+    }
+
+    // 根据意图决定是否检索记忆
+    let relevantMemories: MemoryEntry[] = [];
+    if (needMemory) {
+      log.info('🔍 开始检索记忆', { query: msg.content.slice(0, 100), memoryTypes });
+      relevantMemories = await this.retrieveMemories(msg.content, memoryTypes.length > 0 ? memoryTypes : undefined);
+      
+      if (relevantMemories.length > 0) {
+        // 统计各类型记忆数量
+        const typeStats = relevantMemories.reduce((acc, m) => {
+          acc[m.type] = (acc[m.type] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>);
+        
+        // 构建类型分布说明
+        const typeDistribution = Object.entries(typeStats)
+          .map(([type, count]) => {
+            const icons: Record<string, string> = {
+              preference: '❤️',
+              fact: '📋',
+              decision: '✅',
+              entity: '👤',
+              conversation: '💬',
+              summary: '📝',
+              other: '📦',
+            };
+            return `${icons[type] || '📄'} ${type}:${count}`;
+          })
+          .join(', ');
+        
+        log.info('🧠 检索到相关记忆', { 
+          count: relevantMemories.length,
+          searchMode: this.memoryStore?.getLastSearchMode?.() ?? 'unknown',
+          typeDistribution,
+          types: relevantMemories.map(m => m.type),
+          previews: relevantMemories.map(m => m.content.slice(0, 50) + '...')
+        });
+      } else {
+        log.info('🧠 未检索到相关记忆', {
+          searchMode: this.memoryStore?.getLastSearchMode?.() ?? 'unknown'
+        });
+      }
     } else {
-      log.info('🧠 未检索到相关记忆', {
-        searchMode: this.memoryStore?.getLastSearchMode?.() ?? 'unknown'
-      });
+      log.info('⏭️ 跳过记忆检索', { reason: intentResult?.preflight.reason ?? '意图识别决定' });
     }
 
     const messages = this.buildMessages(sessionHistory, msg, relevantMemories);
@@ -335,11 +381,16 @@ export class AgentExecutor {
       contentLength: result.content?.length ?? 0 
     });
 
-    // 生成带引用的响应
-    const citedResponse = this.generateCitedResponse(
-      result.content || '处理完成',
-      relevantMemories
+    // 生成带引用的响应（仅当有高置信度文档时）
+    const docMemories = relevantMemories.filter(m => 
+      m.type === 'document' && 
+      m.metadata.documentId &&
+      (m.metadata.score ?? 0) >= 0.7  // 只保留高置信度文档
     );
+    
+    const citedResponse = docMemories.length > 0
+      ? this.generateCitedResponse(result.content || '处理完成', docMemories)
+      : { content: result.content || '处理完成', citations: [] };
 
     return {
       channel: msg.channel,
@@ -357,17 +408,24 @@ export class AgentExecutor {
    * 检索相关记忆（包含知识库）
    * 
    * 使用双层检索架构统一检索对话记忆和知识库内容
+   * @param query 查询文本
+   * @param memoryTypes 可选的记忆类型过滤
    */
-  private async retrieveMemories(query: string): Promise<MemoryEntry[]> {
+  private async retrieveMemories(query: string, memoryTypes?: MemoryEntryType[]): Promise<MemoryEntry[]> {
     const results: MemoryEntry[] = [];
 
     // 使用 MemoryStore 的双层检索（统一检索记忆和知识库）
     if (this.memoryStore) {
       try {
-        // 使用 dualLayerSearch 统一检索所有类型内容
-        const memories = await this.memoryStore.dualLayerSearch(query, 8, 200);
+        // 构建过滤条件
+        const filter = memoryTypes && memoryTypes.length > 0
+          ? { type: memoryTypes }
+          : undefined;
+
+        // 使用 dualLayerSearch 统一检索
+        const memories = await this.memoryStore.dualLayerSearch(query, 8, 200, filter);
         results.push(...memories);
-        log.debug('记忆检索完成', { count: memories.length });
+        log.debug('记忆检索完成', { count: memories.length, filter });
       } catch (error) {
         log.warn('记忆检索失败', { error: this.safeErrorMsg(error) });
       }

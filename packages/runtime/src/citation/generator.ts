@@ -8,7 +8,7 @@ import type { MemoryEntry, Citation, CitedResponse, CitationGeneratorConfig } fr
 
 /** 默认配置 */
 const DEFAULT_CONFIG: CitationGeneratorConfig = {
-  minConfidence: 0.5,
+  minConfidence: 0.7,  // 提高阈值，避免低相关度引用
   maxCitations: 5,
   maxSnippetLength: 200,
   format: 'numbered',
