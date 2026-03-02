@@ -27,6 +27,9 @@ export type {
   SearchMode,
 } from './types';
 
+// Core Store
+export { MemoryStoreCore, type LanceDBRecord } from './core';
+
 // Embedding
 export { OpenAIEmbedding, NoEmbedding, createEmbeddingService } from './embedding';
 
@@ -48,3 +51,6 @@ export {
   getMemoryTypeIcon,
 } from './classifier';
 export type { ClassificationResult } from './classifier';
+
+// Vector Manager
+export { VectorManager } from './vector-manager';

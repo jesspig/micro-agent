@@ -15,7 +15,7 @@
  */
 
 import type { MemoryEntry, SearchOptions, MemoryFilter } from '../types';
-import type { MemoryStoreConfig, CleanupResult, VectorColumnName, EmbedModelInfo } from './types';
+import type { MemoryStoreConfig, VectorColumnName, EmbedModelInfo } from './types';
 import type { MigrationStatus, MigrationResult, RetryResult } from './types';
 import { MemoryStoreCore, type LanceDBRecord } from './core';
 import { SearchManager, type SearchMode } from './search';
@@ -172,10 +172,14 @@ export class MemoryStore extends MemoryStoreCore {
    */
   async storeDocumentChunks(
     docId: string,
-    chunks: any[],
-    metadata: any
+    chunks: unknown[],
+    metadata: unknown
   ): Promise<void> {
-    return this.documentManager.storeDocumentChunks(docId, chunks, metadata);
+    return this.documentManager.storeDocumentChunks(
+      docId,
+      chunks as Parameters<typeof this.documentManager.storeDocumentChunks>[1],
+      metadata as Parameters<typeof this.documentManager.storeDocumentChunks>[2]
+    );
   }
 
   /**

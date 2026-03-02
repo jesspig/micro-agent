@@ -9,5 +9,11 @@
 export * from './types';
 export { KnowledgeBaseManager, getKnowledgeBase, setKnowledgeBase } from './manager';
 
+// 导出子模块（供内部使用）
+export { extractDocumentContent, parseCSVContent } from './extractor';
+export { createDocumentScanner, type DocumentScanner } from './scanner';
+export { createDocumentIndexer, type DocumentIndexer, type IndexerConfig } from './indexer';
+export { createFileWatcher, type FileWatcher, type FileChangeEvent, type FileChangeType } from './watcher';
+
 // 默认导出
 export { getKnowledgeBase as default } from './manager';

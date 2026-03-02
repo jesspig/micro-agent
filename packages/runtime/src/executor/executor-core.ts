@@ -4,9 +4,9 @@
  * 实现 Function Calling 模式处理消息并协调工具调用
  */
 
-import type { 
-  InboundMessage, 
-  OutboundMessage, 
+import type {
+  InboundMessage,
+  OutboundMessage,
   SessionKey,
   LLMMessage,
   LLMResponse,
@@ -34,6 +34,16 @@ import { safeErrorMsg } from './utils';
 const log = getLogger(['executor']);
 
 /**
+ * 执行器依赖对象
+ */
+interface ExecutorDependencies {
+  memoryStore?: unknown;
+  summarizer?: unknown;
+  knowledgeBaseManager?: unknown;
+  sessionStore?: unknown;
+}
+
+/**
  * Agent 执行器核心
  */
 export class AgentExecutorCore {
@@ -52,10 +62,7 @@ export class AgentExecutorCore {
     private gateway: LLMGateway,
     private tools: ToolRegistryLike,
     private config: AgentExecutorConfig = DEFAULT_CONFIG,
-    memoryStore?: unknown,
-    summarizer?: unknown,
-    knowledgeBaseManager?: unknown,
-    sessionStore?: unknown
+    deps?: ExecutorDependencies
   ) {
     this.router = new ModelRouter({
       chatModel: config.chatModel || '',
@@ -82,8 +89,8 @@ export class AgentExecutorCore {
     this.toolExecutor = new ToolExecutor(tools);
     this.loopHandler = new LoopHandler(config.loopDetection);
     this.memoryManager = new MemoryManager(
-      memoryStore as any,
-      summarizer as any,
+      deps?.memoryStore as any,
+      deps?.summarizer as any,
       {
         memoryEnabled: config.memoryEnabled,
         summarizeThreshold: config.summarizeThreshold,
@@ -93,17 +100,17 @@ export class AgentExecutorCore {
       maxHistoryMessages: config.maxHistoryMessages,
     });
     this.contextManager = new ContextManager(
-      sessionStore as any,
+      deps?.sessionStore as any,
       { maxHistoryMessages: config.maxHistoryMessages }
     );
 
-    if (memoryStore) {
+    if (deps?.memoryStore) {
       log.info('记忆系统已启用');
     }
-    if (knowledgeBaseManager && config.knowledgeEnabled !== false) {
+    if (deps?.knowledgeBaseManager && config.knowledgeEnabled !== false) {
       log.info('知识库系统已启用');
     }
-    if (sessionStore) {
+    if (deps?.sessionStore) {
       log.info('会话持久化已启用');
     }
 

@@ -4,7 +4,7 @@
  * 负责初始化记忆系统的各个组件
  */
 
-import type { OpenAIEmbedding, NoEmbedding, MemoryStore, ConversationSummarizer, KnowledgeBaseManager } from '@micro-agent/sdk';
+import type { OpenAIEmbedding, NoEmbedding, MemoryStore, ConversationSummarizer, KnowledgeBaseManager, LLMGateway, Config } from '@micro-agent/sdk';
 import { OpenAIEmbedding as OpenAIEmbeddingImpl, NoEmbedding as NoEmbeddingImpl, MemoryStore as MemoryStoreImpl, ConversationSummarizer as ConversationSummarizerImpl, KnowledgeBaseManager as KnowledgeBaseManagerImpl } from '@micro-agent/sdk';
 import { expandPath, parseModelConfigs, type ModelConfig } from '@micro-agent/config';
 import { resolve } from 'path';
@@ -12,6 +12,25 @@ import { homedir } from 'os';
 import { getLogger } from '@logtape/logtape';
 
 const log = getLogger(['app', 'memory-init']);
+
+/** 启动信息收集器（用于打印启动信息） */
+export interface StartupInfoCollector {
+  models: {
+    chat?: string;
+    vision?: string;
+    embed?: string;
+    coder?: string;
+    intent?: string;
+  };
+  memory: {
+    mode: string;
+    embedModel?: string;
+    autoSummarize?: boolean;
+    summarizeThreshold?: number;
+  };
+  infoMessages: string[];
+  warningMessages: string[];
+}
 
 /** 记忆系统初始化结果 */
 export interface MemorySystemInitResult {
@@ -24,9 +43,9 @@ export interface MemorySystemInitResult {
  * 初始化记忆系统
  */
 export async function initMemorySystem(
-  config: any,
-  llmGateway: any,
-  startupInfo: any
+  config: Config,
+  llmGateway: LLMGateway,
+  startupInfo: StartupInfoCollector
 ): Promise<MemorySystemInitResult> {
   const memoryConfig = config.agents.memory;
 
@@ -55,9 +74,9 @@ export async function initMemorySystem(
  * 初始化记忆系统组件
  */
 async function initializeMemoryComponents(
-  config: any,
-  llmGateway: any,
-  startupInfo: any
+  config: Config,
+  llmGateway: LLMGateway,
+  startupInfo: StartupInfoCollector
 ): Promise<MemorySystemInitResult> {
   collectModelInfo(config, startupInfo);
   const embeddingService = await initEmbeddingService(config, startupInfo);
@@ -76,7 +95,7 @@ async function initializeMemoryComponents(
 /**
  * 处理记忆系统初始化错误
  */
-function handleMemoryInitError(error: unknown, startupInfo: any): void {
+function handleMemoryInitError(error: unknown, startupInfo: StartupInfoCollector): void {
   const errorMessage = error instanceof Error ? error.message : String(error);
   log.error('记忆系统初始化失败', { error: errorMessage });
   startupInfo.warningMessages.push('记忆系统初始化失败');
@@ -85,7 +104,7 @@ function handleMemoryInitError(error: unknown, startupInfo: any): void {
 /**
  * 收集模型信息
  */
-function collectModelInfo(config: any, startupInfo: any): void {
+function collectModelInfo(config: Config, startupInfo: StartupInfoCollector): void {
   startupInfo.models.chat = config.agents.models?.chat;
   startupInfo.models.vision = config.agents.models?.vision;
   startupInfo.models.embed = config.agents.models?.embed;
@@ -97,8 +116,8 @@ function collectModelInfo(config: any, startupInfo: any): void {
  * 初始化嵌入服务
  */
 async function initEmbeddingService(
-  config: any,
-  startupInfo: any
+  config: Config,
+  startupInfo: StartupInfoCollector
 ): Promise<OpenAIEmbedding | NoEmbedding> {
   const embedModel = config.agents.models?.embed;
 
@@ -127,7 +146,7 @@ async function initEmbeddingService(
  * 初始化记忆存储
  */
 async function initMemoryStore(
-  config: any,
+  config: Config,
   embeddingService: OpenAIEmbedding | NoEmbedding
 ): Promise<MemoryStore> {
   const memoryConfig = config.agents.memory;
@@ -153,7 +172,7 @@ async function initMemoryStore(
 /**
  * 检查并启动模型迁移
  */
-async function checkAndStartMigration(memoryStore: MemoryStore, startupInfo: any): Promise<void> {
+async function checkAndStartMigration(memoryStore: MemoryStore, startupInfo: StartupInfoCollector): Promise<void> {
   const modelChange = await memoryStore.detectModelChange();
 
   if (!modelChange.needMigration) return;
@@ -174,7 +193,7 @@ async function checkAndStartMigration(memoryStore: MemoryStore, startupInfo: any
 async function startMigration(
   memoryStore: MemoryStore,
   modelChange: { oldModel?: string; newModel?: string },
-  startupInfo: any
+  startupInfo: StartupInfoCollector
 ): Promise<void> {
   log.info('🔄 检测到嵌入模型变更，启动后台迁移', {
     oldModel: modelChange.oldModel,
@@ -198,10 +217,10 @@ async function startMigration(
  * 初始化摘要器
  */
 async function initSummarizer(
-  config: any,
-  llmGateway: any,
+  config: Config,
+  llmGateway: LLMGateway,
   memoryStore: MemoryStore | null,
-  startupInfo: any
+  startupInfo: StartupInfoCollector
 ): Promise<ConversationSummarizer | null> {
   const memoryConfig = config.agents.memory;
 
@@ -227,9 +246,9 @@ async function initSummarizer(
  * 初始化知识库
  */
 async function initKnowledgeBase(
-  config: any,
+  config: Config,
   memoryStore: MemoryStore | null,
-  startupInfo: any
+  startupInfo: StartupInfoCollector
 ): Promise<KnowledgeBaseManager | null> {
   if (!memoryStore) return null;
 

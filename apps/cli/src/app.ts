@@ -223,10 +223,12 @@ class AppImpl implements App {
         knowledgeEnabled: true,
         knowledgeLimit: 3,
       },
-      this.memoryStore ?? undefined,
-      this.summarizer ?? undefined,
-      this.knowledgeBaseManager ?? undefined,
-      this.sessionStore
+      {
+        memoryStore: this.memoryStore,
+        summarizer: this.summarizer,
+        knowledgeBaseManager: this.knowledgeBaseManager,
+        sessionStore: this.sessionStore,
+      }
     );
 
     this.channelGateway = new ChannelGatewayImpl({

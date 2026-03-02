@@ -4,6 +4,8 @@
  * 负责打印应用的启动信息
  */
 
+import type { Config } from '@micro-agent/types';
+
 /** 启动状态信息收集器 */
 export interface StartupInfo {
   tools: string[];
@@ -11,6 +13,7 @@ export interface StartupInfo {
   models: {
     chat?: string;
     vision?: string;
+    embed?: string;
     coder?: string;
     intent?: string;
   };
@@ -42,7 +45,7 @@ export function createDefaultStartupInfo(): StartupInfo {
 /**
  * 打印启动信息
  */
-export function printStartupInfo(startupInfo: StartupInfo, config: any): void {
+export function printStartupInfo(startupInfo: StartupInfo, config: Config): void {
   console.log('─'.repeat(50));
   printTools(startupInfo);
   printSkills(startupInfo);
@@ -75,7 +78,7 @@ function printSkills(startupInfo: StartupInfo): void {
 /**
  * 打印模型信息
  */
-function printModels(startupInfo: StartupInfo, config: any): void {
+function printModels(startupInfo: StartupInfo, config: Config): void {
   const chatModel = config.agents.models?.chat;
   const models = startupInfo.models;
 

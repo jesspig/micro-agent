@@ -10,12 +10,10 @@
  * 索引存储使用 SQLite（Bun 内置），位于 ~/.micro-agent/data/knowledge.db
  */
 
-import { mkdir, readdir, readFile, stat, watch } from 'fs/promises';
-import { join, basename, extname, relative } from 'path';
-import { createHash } from 'crypto';
+import { mkdir } from 'fs/promises';
+import { join, basename } from 'path';
 import { homedir } from 'os';
 import { Database } from 'bun:sqlite';
-import type { WatchEventType } from 'fs';
 import type {
   KnowledgeBaseConfig,
   KnowledgeDocument,
@@ -24,165 +22,15 @@ import type {
   KnowledgeChunk,
   KnowledgeBaseStats,
   BackgroundBuildStatus,
-  KnowledgeDocType,
-} from './types';
-import {
-  getKnowledgeDocType,
-  isKnowledgeFileSupported,
-  KNOWLEDGE_FILE_EXTENSIONS,
 } from './types';
 import { getLogger } from '@logtape/logtape';
 import type { MemoryStore } from '../memory/store';
+import { extractDocumentContent } from './extractor';
+import { createDocumentScanner, type DocumentScanner } from './scanner';
+import { createDocumentIndexer, type DocumentIndexer } from './indexer';
+import { createFileWatcher, type FileWatcher } from './watcher';
 
 const log = getLogger(['knowledge']);
-
-// 可选依赖的类型定义
-interface MammothModule {
-  extractRawText(input: { path: string }): Promise<{ value: string; messages: string[] }>;
-}
-
-interface XLSXModule {
-  readFile(path: string): {
-    SheetNames: string[];
-    Sheets: Record<string, unknown>;
-  };
-  utils: {
-    sheet_to_json<T>(worksheet: unknown, opts?: { header?: number }): T[];
-  };
-}
-
-/**
- * 提取文档内容
- * 根据文件类型使用不同的提取策略
- * 支持懒加载可选依赖
- */
-async function extractDocumentContent(filePath: string, fileType: KnowledgeDocType): Promise<string> {
-  const ext = extname(filePath).toLowerCase();
-
-  // CSV/TSV 文件 - 解析为表格文本
-  if (fileType === 'csv' || ext === '.csv' || ext === '.tsv') {
-    const rawContent = await readFile(filePath, 'utf-8');
-    return parseCSVContent(rawContent, ext === '.tsv' ? '\t' : ',');
-  }
-
-  // Word 文档 (.docx)
-  if (fileType === 'word' && ext === '.docx') {
-    try {
-      // @ts-ignore - 可选依赖，运行时动态加载
-      const mammoth = (await import('mammoth')) as MammothModule;
-      const result = await mammoth.extractRawText({ path: filePath });
-      return `[Word 文档: ${basename(filePath)}]\n\n${result.value}`;
-    } catch (error) {
-      return `[Word 文档: ${basename(filePath)}]\n\n注意: 解析失败。请安装解析库: bun add mammoth\n错误: ${error instanceof Error ? error.message : String(error)}`;
-    }
-  }
-
-  // Excel 表格 (.xlsx, .xls)
-  if (fileType === 'excel' && (ext === '.xlsx' || ext === '.xls')) {
-    try {
-      // @ts-ignore - 可选依赖，运行时动态加载
-      const xlsx = (await import('xlsx')) as XLSXModule;
-      const workbook = xlsx.readFile(filePath);
-
-      const result: string[] = [];
-      result.push(`[Excel 表格: ${basename(filePath)}]`);
-      result.push(`工作表数量: ${workbook.SheetNames.length}`);
-      result.push('');
-
-      // 解析每个工作表
-      for (const sheetName of workbook.SheetNames.slice(0, 3)) { // 最多3个工作表
-        const worksheet = workbook.Sheets[sheetName];
-        const data = xlsx.utils.sheet_to_json(worksheet, { header: 1 }) as unknown[][];
-
-        result.push(`--- 工作表: ${sheetName} ---`);
-        result.push(`行数: ${data.length}`);
-
-        // 前10行数据预览
-        const previewRows = Math.min(data.length, 10);
-        for (let i = 0; i < previewRows; i++) {
-          const row = data[i];
-          if (Array.isArray(row) && row.length > 0) {
-            result.push(`行 ${i + 1}: ${row.join(' | ')}`);
-          }
-        }
-
-        if (data.length > 10) {
-          result.push(`... (还有 ${data.length - 10} 行)`);
-        }
-        result.push('');
-      }
-
-      if (workbook.SheetNames.length > 3) {
-        result.push(`... (还有 ${workbook.SheetNames.length - 3} 个工作表)`);
-      }
-
-      return result.join('\n');
-    } catch (error) {
-      return `[Excel 表格: ${basename(filePath)}]\n\n注意: 解析失败。请安装解析库: bun add xlsx\n错误: ${error instanceof Error ? error.message : String(error)}`;
-    }
-  }
-
-  // 旧版 Word (.doc) 不支持，提示转换
-  if (fileType === 'word' && ext === '.doc') {
-    return `[Word 文档: ${basename(filePath)}]\n\n注意: .doc 格式需要额外工具。建议转换为 .docx 或 .txt 格式后重新上传。`;
-  }
-
-  // PowerPoint 演示文稿 - 暂不支持，提示转换
-  if (fileType === 'powerpoint' || ext === '.pptx' || ext === '.ppt') {
-    return `[PowerPoint 演示文稿: ${basename(filePath)}]\n\n注意: PowerPoint 解析暂不支持。建议:\n1. 转换为 PDF 后上传\n2. 或使用 "另存为图片" 导出后通过图片方式查看`;
-  }
-
-  // PDF 文档
-  if (fileType === 'pdf' || ext === '.pdf') {
-    try {
-      // 可选依赖，运行时动态加载
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const pdfParse: any = await import('pdf-parse');
-      const dataBuffer = await readFile(filePath);
-      // 支持 ESM 和 CommonJS 两种导出格式
-      const parse = pdfParse.default || pdfParse;
-      const data = await parse(dataBuffer);
-      return `[PDF 文档: ${basename(filePath)}]\n\n${data.text}`;
-    } catch (error) {
-      return `[PDF 文档: ${basename(filePath)}]\n\n注意: PDF 解析失败。\n错误: ${error instanceof Error ? error.message : String(error)}`;
-    }
-  }
-
-  // 其他类型 - 直接读取为文本
-  return await readFile(filePath, 'utf-8');
-}
-
-/**
- * 解析 CSV/TSV 内容为可读文本
- */
-function parseCSVContent(content: string, delimiter: string = ','): string {
-  const lines = content.split(/\r?\n/).filter(line => line.trim());
-  if (lines.length === 0) return '';
-
-  // 解析表头
-  const headers = lines[0].split(delimiter).map(h => h.trim().replace(/^["']|["']$/g, ''));
-
-  // 构建表格文本表示
-  const result: string[] = [];
-  result.push('表格数据:');
-  result.push('');
-  result.push(`列数: ${headers.length}, 行数: ${lines.length - 1}`);
-  result.push(`列名: ${headers.join(', ')}`);
-  result.push('');
-
-  // 前10行数据预览
-  const previewRows = Math.min(lines.length - 1, 10);
-  for (let i = 1; i <= previewRows; i++) {
-    const values = lines[i].split(delimiter).map(v => v.trim().replace(/^["']|["']$/g, ''));
-    result.push(`行 ${i}: ${values.join(' | ')}`);
-  }
-
-  if (lines.length > 11) {
-    result.push(`... (还有 ${lines.length - 11} 行)`);
-  }
-
-  return result.join('\n');
-}
 
 /** 默认配置 */
 const DEFAULT_CONFIG: KnowledgeBaseConfig = {
@@ -213,7 +61,12 @@ export class KnowledgeBaseManager {
   private documents: Map<string, KnowledgeDocument> = new Map();
   private isInitialized = false;
   private db?: Database;
-  
+
+  // 子模块
+  private scanner?: DocumentScanner;
+  private indexer?: DocumentIndexer;
+  private watcher?: FileWatcher;
+
   // 后台构建相关
   private buildStatus: BackgroundBuildStatus = {
     isRunning: false,
@@ -224,16 +77,39 @@ export class KnowledgeBaseManager {
   private buildTimer?: Timer;
   private buildAbortController?: AbortController;
 
-  // 文件监测相关
-  private watcher?: AsyncIterable<{ eventType: WatchEventType; filename: string | null }>;
-  private watcherAbortController?: AbortController;
-  private pendingChanges: Map<string, 'add' | 'change' | 'unlink'> = new Map();
-  private debounceTimer?: Timer;
+  // 文件变更回调
+  private handleFileChange = async (event: { filename: string; changeType: 'add' | 'change' | 'unlink' }): Promise<void> => {
+    const { filename, changeType } = event;
+    const docsDir = this.config.basePath;
+    const filePath = join(docsDir, filename);
+    const relativePath = filename;
 
-  constructor(
-    config?: Partial<KnowledgeBaseConfig>,
-    memoryStore?: MemoryStore
-  ) {
+    try {
+      if (changeType === 'unlink') {
+        await this.removeDocument(relativePath);
+      } else {
+        // 检查是否是新文件
+        const existingDoc = this.documents.get(relativePath);
+        if (existingDoc) {
+          await this.updateDocument(filePath, relativePath);
+        } else {
+          await this.addDocument(filePath, relativePath);
+        }
+      }
+    } catch (error) {
+      log.error('处理文件变更失败', { filename, error: String(error) });
+    }
+
+    // 如果有待处理的文档，立即触发构建
+    const hasPending = Array.from(this.documents.values()).some((d) => d.status === 'pending');
+    if (hasPending) {
+      this.processPendingDocuments().catch((err) => {
+        log.error('后台构建失败', { error: String(err) });
+      });
+    }
+  };
+
+  constructor(config?: Partial<KnowledgeBaseConfig>, memoryStore?: MemoryStore) {
     this.config = { ...DEFAULT_CONFIG, ...config };
     this.memoryStore = memoryStore;
   }
@@ -249,6 +125,9 @@ export class KnowledgeBaseManager {
 
     // 创建数据目录并初始化 SQLite 数据库
     await this.initDatabase();
+
+    // 初始化子模块
+    this.initModules();
 
     // 加载已有索引
     await this.loadIndex();
@@ -268,17 +147,62 @@ export class KnowledgeBaseManager {
     }
 
     this.isInitialized = true;
-    
+
     // 统计索引状态
-    const indexedCount = Array.from(this.documents.values()).filter(d => d.status === 'indexed').length;
-    const pendingCount = Array.from(this.documents.values()).filter(d => d.status === 'pending').length;
-    
-    log.info('📚 [KnowledgeBase] 知识库已初始化', { 
+    const indexedCount = Array.from(this.documents.values()).filter((d) => d.status === 'indexed').length;
+    const pendingCount = Array.from(this.documents.values()).filter((d) => d.status === 'pending').length;
+
+    log.info('📚 [KnowledgeBase] 知识库已初始化', {
       docCount: this.documents.size,
       indexedCount,
       pendingCount,
       memoryStore: !!this.memoryStore,
     });
+  }
+
+  /**
+   * 初始化子模块
+   */
+  private initModules(): void {
+    // 文档扫描器
+    this.scanner = createDocumentScanner(
+      this.documents,
+      this.config.basePath,
+      (type, doc) => {
+        // 文档变更时保存索引
+        this.saveDocumentIndex(doc);
+        if (type === 'add') {
+          this.buildStatus.queueLength++;
+        }
+      }
+    );
+
+    // 索引构建器
+    this.indexer = createDocumentIndexer(
+      {
+        chunkSize: this.config.chunkSize,
+        chunkOverlap: this.config.chunkOverlap,
+      },
+      this.memoryStore,
+      (doc, chunkCount) => {
+        // 索引完成后保存
+        this.saveDocumentIndex(doc);
+      },
+      (doc, error) => {
+        // 索引失败后保存
+        this.saveDocumentIndex(doc);
+      }
+    );
+
+    // 文件监控器
+    this.watcher = createFileWatcher(
+      {
+        basePath: this.config.basePath,
+        debounceDelay: 500,
+      },
+      () => this.documents,
+      this.handleFileChange
+    );
   }
 
   /**
@@ -293,132 +217,33 @@ export class KnowledgeBaseManager {
   }
 
   // ============================================================================
-  // 文档管理
+  // 文档管理（委托给 scanner）
   // ============================================================================
 
   /**
-   * 扫描文档目录，检测新增、修改和删除的文件
+   * 扫描文档目录
    */
   async scanDocuments(): Promise<void> {
-    const docsDir = this.config.basePath;
-    
-    try {
-      // 获取当前所有文件
-      const files = await this.listAllFiles(docsDir);
-      const currentPaths = new Set<string>();
-
-      for (const filePath of files) {
-        if (!isKnowledgeFileSupported(filePath)) continue;
-
-        const relativePath = relative(docsDir, filePath);
-        currentPaths.add(relativePath);
-
-        // 检查文件是否需要更新
-        const fileStat = await stat(filePath);
-        const existingDoc = this.documents.get(relativePath);
-
-        if (!existingDoc) {
-          // 新增文件
-          await this.addDocument(filePath, relativePath);
-        } else if (fileStat.mtimeMs > existingDoc.metadata.modifiedAt) {
-          // 文件已修改，重新索引
-          await this.updateDocument(filePath, relativePath);
-        }
-      }
-
-      // 检查被删除的文件
-      for (const [path, doc] of this.documents) {
-        if (!currentPaths.has(path)) {
-          await this.removeDocument(path);
-        }
-      }
-
-      log.info('文档扫描完成', { documentCount: this.documents.size });
-    } catch (error) {
-      log.error('文档扫描失败', { error: String(error) });
-    }
+    await this.scanner?.scanDocuments();
   }
 
   /**
    * 添加新文档
    */
-  private async addDocument(
-    filePath: string,
-    relativePath: string
-  ): Promise<KnowledgeDocument> {
-    const fileType = getKnowledgeDocType(filePath);
-    const content = await extractDocumentContent(filePath, fileType);
-    const fileStat = await stat(filePath);
-    const fileHash = this.computeHash(content);
-
-    const doc: KnowledgeDocument = {
-      id: this.generateDocId(),
-      path: relativePath,
-      content,
-      metadata: {
-        originalName: basename(filePath),
-        fileType: fileType,
-        fileSize: fileStat.size,
-        fileHash,
-        modifiedAt: fileStat.mtimeMs,
-        title: this.extractTitle(content, basename(filePath)),
-      },
-      status: 'pending',
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    };
-
-    this.documents.set(relativePath, doc);
-    this.buildStatus.queueLength++;
-    
-    // 保存到 SQLite
-    this.saveDocumentIndex(doc);
-    
-    log.info('新增文档', { path: relativePath });
-    return doc;
+  private async addDocument(filePath: string, relativePath: string): Promise<KnowledgeDocument> {
+    return await this.scanner!.addDocument(filePath, relativePath);
   }
 
   /**
    * 更新已有文档
    */
-  private async updateDocument(
-    filePath: string,
-    relativePath: string
-  ): Promise<void> {
-    const fileType = getKnowledgeDocType(filePath);
-    const content = await extractDocumentContent(filePath, fileType);
-    const fileStat = await stat(filePath);
-    const fileHash = this.computeHash(content);
-
-    const existingDoc = this.documents.get(relativePath);
-    if (!existingDoc) return;
-
-    // 检查内容是否真的变化
-    if (existingDoc.metadata.fileHash === fileHash) {
-      // 仅更新时间戳
-      existingDoc.metadata.modifiedAt = fileStat.mtimeMs;
-      existingDoc.updatedAt = Date.now();
-      this.saveDocumentIndex(existingDoc);
-      return;
+  private async updateDocument(filePath: string, relativePath: string): Promise<void> {
+    await this.scanner!.updateDocument(filePath, relativePath);
+    const doc = this.documents.get(relativePath);
+    if (doc) {
+      this.buildStatus.queueLength++;
+      this.saveDocumentIndex(doc);
     }
-
-    // 内容变化，重新索引
-    existingDoc.content = content;
-    existingDoc.metadata.fileHash = fileHash;
-    existingDoc.metadata.fileSize = fileStat.size;
-    existingDoc.metadata.modifiedAt = fileStat.mtimeMs;
-    existingDoc.metadata.title = this.extractTitle(content, basename(filePath));
-    existingDoc.status = 'pending';
-    existingDoc.chunks = undefined;
-    existingDoc.updatedAt = Date.now();
-    existingDoc.indexedAt = undefined;
-
-    this.buildStatus.queueLength++;
-    
-    // 更新 SQLite
-    this.saveDocumentIndex(existingDoc);
-    
-    log.info('更新文档', { path: relativePath });
   }
 
   /**
@@ -428,18 +253,18 @@ export class KnowledgeBaseManager {
     const doc = this.documents.get(relativePath);
     if (!doc) return;
 
-    this.documents.delete(relativePath);
-    
+    await this.scanner!.removeDocument(relativePath);
+
     // 从 SQLite 删除
     this.deleteDocumentIndex(relativePath);
-    
+
     // 从 MemoryStore 删除文档块
     if (this.memoryStore) {
       try {
         await this.memoryStore.deleteDocumentChunks(doc.id);
       } catch (error) {
-        log.warn('📄 [KnowledgeBase] 删除文档块失败', { 
-          docId: doc.id, 
+        log.warn('📄 [KnowledgeBase] 删除文档块失败', {
+          docId: doc.id,
           error: String(error),
         });
       }
@@ -449,125 +274,14 @@ export class KnowledgeBaseManager {
   }
 
   // ============================================================================
-  // 文档分块
-  // ============================================================================
-
-  /**
-   * 将文档分块
-   */
-  private chunkDocument(doc: KnowledgeDocument): KnowledgeChunk[] {
-    const chunks: KnowledgeChunk[] = [];
-    const { chunkSize, chunkOverlap } = this.config;
-    const content = doc.content;
-
-    // 按段落分割
-    const paragraphs = content.split(/\n\s*\n/);
-    let currentChunk = '';
-    let currentPos = 0;
-    let chunkStartPos = 0;
-
-    for (const paragraph of paragraphs) {
-      const trimmedParagraph = paragraph.trim();
-      if (!trimmedParagraph) continue;
-
-      // 如果当前块加上新段落超过限制，先保存当前块
-      if (currentChunk.length + trimmedParagraph.length > chunkSize && currentChunk.length > 0) {
-        chunks.push(this.createChunk(doc.id, currentChunk, chunkStartPos, currentPos));
-        
-        // 保留重叠部分
-        const overlapText = currentChunk.slice(-chunkOverlap);
-        currentChunk = overlapText + '\n\n' + trimmedParagraph;
-        chunkStartPos = currentPos - overlapText.length;
-      } else {
-        if (currentChunk.length > 0) {
-          currentChunk += '\n\n';
-          currentPos += 2;
-        }
-        currentChunk += trimmedParagraph;
-      }
-      
-      currentPos += trimmedParagraph.length;
-    }
-
-    // 保存最后一个块
-    if (currentChunk.length > 0) {
-      chunks.push(this.createChunk(doc.id, currentChunk, chunkStartPos, content.length));
-    }
-
-    return chunks;
-  }
-
-  /**
-   * 创建块
-   */
-  private createChunk(
-    docId: string,
-    content: string,
-    startPos: number,
-    endPos: number
-  ): KnowledgeChunk {
-    return {
-      id: `${docId}_chunk_${startPos}`,
-      docId,
-      content,
-      startPos,
-      endPos,
-    };
-  }
-
-  // ============================================================================
-  // 向量索引（存入 MemoryStore）
+  // 索引构建（委托给 indexer）
   // ============================================================================
 
   /**
    * 构建文档向量索引
-   * 
-   * 将文档分块存入 MemoryStore，向量检索通过 MemoryStore.dualLayerSearch() 实现
    */
   private async buildDocumentIndex(doc: KnowledgeDocument): Promise<void> {
-    if (!this.memoryStore) {
-      doc.status = 'error';
-      doc.error = 'MemoryStore 未注入';
-      this.saveDocumentIndex(doc);
-      log.error('📄 [KnowledgeBase] MemoryStore 未注入，无法构建索引');
-      return;
-    }
-
-    doc.status = 'processing';
-    this.saveDocumentIndex(doc);
-
-    try {
-      // 分块
-      const chunks = this.chunkDocument(doc);
-      
-      // 存储到 MemoryStore（向量由 MemoryStore 内部生成）
-      await this.memoryStore.storeDocumentChunks(
-        doc.id,
-        chunks,
-        doc.metadata
-      );
-
-      doc.chunks = chunks;
-      doc.status = 'indexed';
-      doc.indexedAt = Date.now();
-
-      // 更新 SQLite
-      this.saveDocumentIndex(doc);
-
-      log.info('📄 [KnowledgeBase] 文档索引完成', { 
-        path: doc.path, 
-        chunkCount: chunks.length,
-        docId: doc.id,
-      });
-    } catch (error) {
-      doc.status = 'error';
-      doc.error = String(error);
-      this.saveDocumentIndex(doc);
-      log.error('📄 [KnowledgeBase] 文档索引失败', { 
-        path: doc.path, 
-        error: String(error),
-      });
-    }
+    await this.indexer!.buildDocumentIndex(doc);
   }
 
   // ============================================================================
@@ -581,12 +295,12 @@ export class KnowledgeBaseManager {
     if (this.buildTimer) return;
 
     this.buildAbortController = new AbortController();
-    
+
     const runBuild = async () => {
       if (this.buildAbortController?.signal.aborted) return;
-      
+
       await this.processPendingDocuments();
-      
+
       this.buildTimer = setTimeout(runBuild, this.config.backgroundBuild.interval);
     };
 
@@ -608,168 +322,12 @@ export class KnowledgeBaseManager {
     log.info('后台构建已停止');
   }
 
-  // ============================================================================
-  // 文件监测
-  // ============================================================================
-
-  /**
-   * 启动文件监测
-   */
-  private async startWatching(): Promise<void> {
-    const docsDir = this.config.basePath;
-    
-    try {
-      // 确保目录存在
-      await mkdir(docsDir, { recursive: true });
-
-      this.watcherAbortController = new AbortController();
-      
-      // 使用 fs/promises 的 watch API
-      this.watcher = watch(docsDir, { 
-        recursive: true,
-        signal: this.watcherAbortController.signal,
-      });
-
-      // 启动监测循环
-      this.watchLoop();
-      
-      log.info('文件监测已启动');
-    } catch (error) {
-      log.error('启动文件监测失败', { error: String(error) });
-    }
-  }
-
-  /**
-   * 监测循环
-   */
-  private async watchLoop(): Promise<void> {
-    if (!this.watcher) return;
-
-    try {
-      for await (const event of this.watcher) {
-        if (this.watcherAbortController?.signal.aborted) break;
-        
-        const { eventType, filename } = event;
-        if (!filename) continue;
-
-        // 只处理支持的文件类型
-        if (!isKnowledgeFileSupported(filename)) continue;
-
-        // 记录变更事件
-        this.recordFileChange(eventType, filename);
-      }
-    } catch (error) {
-      // 忽略 abort 错误
-      if ((error as Error).name !== 'AbortError') {
-        log.error('文件监测错误', { error: String(error) });
-      }
-    }
-  }
-
-  /**
-   * 记录文件变更（带防抖）
-   */
-  private recordFileChange(eventType: WatchEventType, filename: string): void {
-    const changeType = eventType === 'rename' ? 'add' : 'change';
-    
-    // 检查文件是否实际存在
-    const fullPath = join(this.config.basePath, filename);
-    
-    // 使用 stat 检查文件是否存在
-    stat(fullPath)
-      .then(() => {
-        // 文件存在，记录为新增或修改
-        this.pendingChanges.set(filename, changeType);
-        this.scheduleDebounceProcess();
-      })
-      .catch(() => {
-        // 文件不存在，可能是删除事件
-        if (this.documents.has(filename)) {
-          this.pendingChanges.set(filename, 'unlink');
-          this.scheduleDebounceProcess();
-        }
-      });
-  }
-
-  /**
-   * 调度防抖处理
-   */
-  private scheduleDebounceProcess(): void {
-    if (this.debounceTimer) {
-      clearTimeout(this.debounceTimer);
-    }
-    
-    // 500ms 防抖
-    this.debounceTimer = setTimeout(() => {
-      this.processPendingChanges();
-    }, 500);
-  }
-
-  /**
-   * 处理累积的文件变更
-   */
-  private async processPendingChanges(): Promise<void> {
-    if (this.pendingChanges.size === 0) return;
-
-    const changes = new Map(this.pendingChanges);
-    this.pendingChanges.clear();
-
-    log.info('检测到文件变更', { changeCount: changes.size });
-
-    for (const [filename, changeType] of changes) {
-      const docsDir = this.config.basePath;
-      const filePath = join(docsDir, filename);
-      const relativePath = filename;
-
-      try {
-        if (changeType === 'unlink') {
-          await this.removeDocument(relativePath);
-        } else {
-          // 检查是否是新文件
-          const existingDoc = this.documents.get(relativePath);
-          if (existingDoc) {
-            await this.updateDocument(filePath, relativePath);
-          } else {
-            await this.addDocument(filePath, relativePath);
-          }
-        }
-      } catch (error) {
-        log.error('处理文件变更失败', { filename, error: String(error) });
-      }
-    }
-
-    // 如果有待处理的文档，立即触发构建
-    const hasPending = Array.from(this.documents.values()).some(d => d.status === 'pending');
-    if (hasPending) {
-      this.processPendingDocuments().catch(err => {
-        log.error('后台构建失败', { error: String(err) });
-      });
-    }
-  }
-
-  /**
-   * 停止文件监测
-   */
-  private stopWatching(): void {
-    if (this.debounceTimer) {
-      clearTimeout(this.debounceTimer);
-      this.debounceTimer = undefined;
-    }
-
-    this.watcherAbortController?.abort();
-    this.watcherAbortController = undefined;
-    this.watcher = undefined;
-    this.pendingChanges.clear();
-    
-    log.info('文件监测已停止');
-  }
-
   /**
    * 处理待处理的文档
    */
   private async processPendingDocuments(): Promise<void> {
     const pendingDocs = Array.from(this.documents.values())
-      .filter(doc => doc.status === 'pending')
+      .filter((doc) => doc.status === 'pending')
       .slice(0, this.config.backgroundBuild.batchSize);
 
     if (pendingDocs.length === 0) return;
@@ -779,7 +337,7 @@ export class KnowledgeBaseManager {
 
     for (const doc of pendingDocs) {
       if (this.buildAbortController?.signal.aborted) break;
-      
+
       this.buildStatus.currentDocId = doc.id;
       await this.buildDocumentIndex(doc);
       this.buildStatus.processedCount++;
@@ -792,8 +350,22 @@ export class KnowledgeBaseManager {
   }
 
   // ============================================================================
-  // 搜索检索
+  // 文件监测（委托给 watcher）
   // ============================================================================
+
+  /**
+   * 启动文件监测
+   */
+  private async startWatching(): Promise<void> {
+    await this.watcher?.startWatching();
+  }
+
+  /**
+   * 停止文件监测
+   */
+  private stopWatching(): void {
+    this.watcher?.stopWatching();
+  }
 
   // ============================================================================
   // 数据库管理
@@ -865,17 +437,18 @@ export class KnowledgeBaseManager {
     if (!this.db) return;
 
     try {
-      const rows = this.db.query<{
-        id: string;
-        path: string;
-        content_preview: string | null;
-        metadata_json: string;
-        status: string;
-        error: string | null;
-        created_at: number;
-        updated_at: number;
-        indexed_at: number | null;
-      }, []>(`
+      const rows = this.db
+        .query<{
+          id: string;
+          path: string;
+          content_preview: string | null;
+          metadata_json: string;
+          status: string;
+          error: string | null;
+          created_at: number;
+          updated_at: number;
+          indexed_at: number | null;
+        }>(`
         SELECT * FROM documents
       `).all();
 
@@ -908,22 +481,25 @@ export class KnowledgeBaseManager {
     if (!this.db) return;
 
     try {
-      this.db.run(`
+      this.db.run(
+        `
         INSERT OR REPLACE INTO documents (
           id, path, content_preview, metadata_json, status, error,
           created_at, updated_at, indexed_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `, [
-        doc.id,
-        doc.path,
-        doc.content.slice(0, 500),
-        JSON.stringify(doc.metadata),
-        doc.status,
-        doc.error ?? null,
-        doc.createdAt,
-        doc.updatedAt,
-        doc.indexedAt ?? null,
-      ]);
+      `,
+        [
+          doc.id,
+          doc.path,
+          doc.content.slice(0, 500),
+          JSON.stringify(doc.metadata),
+          doc.status,
+          doc.error ?? null,
+          doc.createdAt,
+          doc.updatedAt,
+          doc.indexedAt ?? null,
+        ]
+      );
     } catch (error) {
       log.error('[KnowledgeBase] 保存文档索引失败', { path: doc.path, error });
     }
@@ -943,63 +519,6 @@ export class KnowledgeBaseManager {
   }
 
   // ============================================================================
-  // 工具方法
-  // ============================================================================
-
-  /**
-   * 列出所有文件
-   */
-  private async listAllFiles(dir: string): Promise<string[]> {
-    const files: string[] = [];
-    
-    try {
-      const entries = await readdir(dir, { withFileTypes: true });
-      
-      for (const entry of entries) {
-        const fullPath = join(dir, entry.name);
-        if (entry.isDirectory()) {
-          const subFiles = await this.listAllFiles(fullPath);
-          files.push(...subFiles);
-        } else if (entry.isFile()) {
-          files.push(fullPath);
-        }
-      }
-    } catch {
-      // 忽略读取错误
-    }
-    
-    return files;
-  }
-
-  /**
-   * 计算文本哈希
-   */
-  private computeHash(content: string): string {
-    return createHash('sha256').update(content).digest('hex').slice(0, 16);
-  }
-
-  /**
-   * 生成文档ID
-   */
-  private generateDocId(): string {
-    return `doc_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-  }
-
-  /**
-   * 提取文档标题
-   */
-  private extractTitle(content: string, filename: string): string {
-    // 尝试从 Markdown 标题提取
-    const titleMatch = content.match(/^#\s+(.+)$/m);
-    if (titleMatch) {
-      return titleMatch[1].trim();
-    }
-    
-    // 使用文件名（去掉扩展名）
-    return filename.replace(extname(filename), '');
-  }
-
-  // ============================================================================
   // 公共 API
   // ============================================================================
 
@@ -1008,9 +527,9 @@ export class KnowledgeBaseManager {
    */
   getStats(): KnowledgeBaseStats {
     const docs = Array.from(this.documents.values());
-    const indexedDocs = docs.filter(d => d.status === 'indexed');
-    const pendingDocs = docs.filter(d => d.status === 'pending');
-    const errorDocs = docs.filter(d => d.status === 'error');
+    const indexedDocs = docs.filter((d) => d.status === 'indexed');
+    const pendingDocs = docs.filter((d) => d.status === 'pending');
+    const errorDocs = docs.filter((d) => d.status === 'error');
     const totalChunks = indexedDocs.reduce((sum, d) => sum + (d.chunks?.length ?? 0), 0);
     const totalSize = docs.reduce((sum, d) => sum + d.metadata.fileSize, 0);
 
@@ -1021,7 +540,7 @@ export class KnowledgeBaseManager {
       errorDocuments: errorDocs.length,
       totalChunks,
       totalSize,
-      lastUpdated: Math.max(...docs.map(d => d.updatedAt), 0),
+      lastUpdated: Math.max(...docs.map((d) => d.updatedAt), 0),
     };
   }
 
@@ -1037,7 +556,7 @@ export class KnowledgeBaseManager {
    */
   async rebuildIndex(): Promise<void> {
     log.info('开始重建索引');
-    
+
     // 重置所有文档状态
     for (const doc of this.documents.values()) {
       doc.status = 'pending';
@@ -1068,16 +587,16 @@ export class KnowledgeBaseManager {
 // 导出单例
 let globalKnowledgeBase: KnowledgeBaseManager | null = null;
 
-export function getKnowledgeBase(
-  config?: Partial<KnowledgeBaseConfig>,
-  memoryStore?: MemoryStore
-): KnowledgeBaseManager {
-  if (!globalKnowledgeBase) {
-    globalKnowledgeBase = new KnowledgeBaseManager(config, memoryStore);
-  }
+/**
+ * 获取全局知识库实例
+ */
+export function getKnowledgeBase(): KnowledgeBaseManager | null {
   return globalKnowledgeBase;
 }
 
-export function setKnowledgeBase(kb: KnowledgeBaseManager): void {
-  globalKnowledgeBase = kb;
+/**
+ * 设置全局知识库实例
+ */
+export function setKnowledgeBase(manager: KnowledgeBaseManager): void {
+  globalKnowledgeBase = manager;
 }

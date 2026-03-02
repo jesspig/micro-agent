@@ -5,6 +5,7 @@
  * @see https://modelcontextprotocol.io
  */
 
+import { getLogger } from '@logtape/logtape';
 import type {
   MCPClientCapabilities,
   MCPClientConfig,
@@ -24,6 +25,8 @@ import type {
   MCPLogLevel,
 } from './types'
 import { MCP_VERSION } from './types'
+
+const logger = getLogger(['mcp-client']);
 
 /** MCP 客户端状态 */
 type MCPClientState = 'disconnected' | 'connecting' | 'connected' | 'error'
@@ -272,7 +275,9 @@ export class MCPClient {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: json,
-          }).catch(() => {})
+          }).catch((error) => {
+            logger.warn('SSE 请求失败', { error: String(error) });
+          })
         }
         break
     }
@@ -350,12 +355,10 @@ export class MCPClient {
       }
     }
 
-    readLoop().catch(() => {})
+    readLoop().catch((error) => {
+      logger.warn('SSE 读取循环结束', { error: String(error) });
+    })
   }
-
-  /**
-   * 连接 WebSocket 传输
-   */
   private async connectWebSocket(): Promise<void> {
     const { url } = this.config.transport
     if (!url) {
@@ -422,7 +425,9 @@ export class MCPClient {
       }
     }
 
-    readLoop().catch(() => {})
+    readLoop().catch((error) => {
+      logger.warn('STDIO 读取循环结束', { error: String(error) });
+    })
   }
 }
 

@@ -4,7 +4,7 @@
  * 负责初始化 LLM Provider
  */
 
-import type { OpenAICompatibleProvider, LLMGateway } from '@micro-agent/sdk';
+import type { OpenAICompatibleProvider, LLMGateway, Config, ModelConfig as SDKModelConfig } from '@micro-agent/sdk';
 import { OpenAICompatibleProvider as OpenAICompatibleProviderImpl } from '@micro-agent/sdk';
 import { parseModelConfigs, type ModelConfig } from '@micro-agent/config';
 import type { ProviderEntry } from '@micro-agent/types';
@@ -13,12 +13,12 @@ import type { ProviderEntry } from '@micro-agent/types';
  * 初始化所有 Provider
  */
 export function initProviders(
-  config: any,
+  config: Config,
   llmGateway: LLMGateway
-): Map<string, ModelConfig[]> {
+): Map<string, SDKModelConfig[]> {
   const providers = config.providers as Record<string, ProviderEntry | undefined>;
   const { defaultProviderName, defaultModelId } = parseDefaultModelInfo(config);
-  const availableModels = new Map<string, ModelConfig[]>();
+  const availableModels = new Map<string, SDKModelConfig[]>();
 
   for (const [name, providerConfig] of Object.entries(providers)) {
     if (!providerConfig) continue;
@@ -32,7 +32,7 @@ export function initProviders(
 /**
  * 解析默认模型信息
  */
-function parseDefaultModelInfo(config: any): { defaultProviderName: string | null; defaultModelId: string } {
+function parseDefaultModelInfo(config: Config): { defaultProviderName: string | null; defaultModelId: string } {
   const chatModel = config.agents.models?.chat || '';
   const slashIndex = chatModel.indexOf('/');
 
