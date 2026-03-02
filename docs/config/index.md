@@ -23,17 +23,21 @@ MicroAgent 采用三级配置系统，优先级从低到高：
 agents:
   # 工作区路径
   workspace: ~/.micro-agent/workspace
-  
+
   # 模型配置（格式：<provider>/<model>）
   models:
-    chat: deepseek/deepseek-chat      # 对话模型（必填）
-    embed: text-embedding-3-small     # 嵌入模型（可选，用于记忆系统）
-    vision: deepseek/deepseek-chat    # 视觉模型（可选）
-    coder: deepseek/deepseek-chat     # 编程模型（可选）
-  
+    chat: ollama/qwen3         # 对话模型（必填）
+    intent: ollama/qwen3       # 意图识别模型（可选）
+    embed: openai/text-embedding-3-small  # 嵌入模型（可选，用于记忆系统）
+    vision: ollama/qwen3-vl     # 视觉模型（可选）
+    coder: ollama/qwen3        # 编程模型（可选）
+
   # 生成参数
   maxTokens: 512
   temperature: 0.7
+  topK: 50
+  topP: 0.7
+  frequencyPenalty: 0.5
 
 # LLM 提供商
 providers:
@@ -78,6 +82,7 @@ providers:
 | chat | 常规对话、问答 | `agents.models.chat` |
 | vision | 图片识别、图像理解 | `agents.models.vision` |
 | coder | 代码编写、程序开发 | `agents.models.coder` |
+| intent | 意图识别、预处理 | `agents.models.intent` |
 | embed | 向量嵌入、语义检索 | `agents.models.embed` |
 
 未配置专用模型时，默认使用 chat 模型。embed 模型未配置时，记忆系统将使用全文检索。
@@ -125,9 +130,49 @@ agents:
 ```yaml
 agents:
   executor:
-    maxIterations: 20  # 工具调用最大迭代次数
+    maxIterations: 20    # 工具调用最大迭代次数
+    loopDetection:       # 循环检测配置
+      enabled: true
+      repeat: 3         # 连续相同调用次数阈值
+      pingPong: 3       # 来回调用阈值
+      global: 10        # 全局累计调用阈值
 ```
 
 | 参数 | 范围 | 默认值 | 说明 |
 |------|------|--------|------|
 | maxIterations | - | 20 | 工具调用最大迭代次数 |
+| loopDetection.enabled | - | true | 是否启用循环检测 |
+| loopDetection.repeat | - | 3 | 连续相同调用次数阈值 |
+| loopDetection.pingPong | - | 3 | 来回调用阈值 |
+| loopDetection.global | - | 10 | 全局累计调用阈值 |
+
+## 知识库配置
+
+```yaml
+knowledgeBase:
+  enabled: true
+  storagePath: ~/.micro-agent/memory/knowledge
+  chunkSize: 1000
+  chunkOverlap: 200
+```
+
+| 参数 | 范围 | 默认值 | 说明 |
+|------|------|--------|------|
+| enabled | - | false | 是否启用知识库 |
+| storagePath | - | ~/.micro-agent/memory/knowledge | 知识库存储路径 |
+| chunkSize | - | 1000 | 文档分块大小 |
+| chunkOverlap | - | 200 | 文档分块重叠大小 |
+
+## 多嵌入模型配置
+
+```yaml
+agents:
+  memory:
+    multiEmbed:
+      default: openai/text-embedding-3-small
+      models:
+        - openai/text-embedding-3-small
+        - openai/text-embedding-ada-002
+```
+
+支持配置多个嵌入模型，系统会自动进行向量数据迁移。

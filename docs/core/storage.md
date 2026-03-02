@@ -3,7 +3,7 @@
 ## 概述
 
 存储层提供两种存储服务：
-- **SessionStore**：短期会话存储，JSONL 格式
+- **SessionStore**：短期会话存储，SQLite 数据库
 - **KVMemoryStore**：通用键值内存缓存，支持 TTL 和 LRU
 
 > **注意**：长期记忆存储（向量检索）位于 `@micro-agent/runtime` 包，详见 [Memory 文档](./memory.md)。
@@ -12,14 +12,15 @@
 
 ## SessionStore
 
-会话存储基于 JSONL 格式，用于保存对话历史。
+会话存储基于 SQLite 数据库（性能比 JSONL 提升 10-100 倍），用于保存对话历史。
 
 ### 功能特性
 
+- SQLite 高性能存储
 - 会话超时自动创建新会话
-- 消息追加写入，高性能
 - 内存缓存加速读取
 - 元数据跟踪
+- 消息裁剪和自动清理
 
 ### 使用示例
 
@@ -27,35 +28,55 @@
 import { SessionStore } from '@micro-agent/storage';
 
 const store = new SessionStore({
-  sessionsDir: '~/.micro-agent/sessions',
+  dbPath: '~/.micro-agent/data/sessions.db',
   maxMessages: 500,
   sessionTimeout: 30 * 60 * 1000, // 30 分钟
 });
 
-// 添加消息
-store.addMessage('feishu:chat_123', 'user', '你好');
-store.addMessage('feishu:chat_123', 'assistant', '你好！有什么可以帮助你？');
+// 获取或创建会话
+const session = await store.getOrCreate('feishu:chat_123');
 
-// 获取会话
-const session = store.get('feishu:chat_123');
+// 添加消息
+await store.appendMessage('feishu:chat_123', {
+  role: 'user',
+  content: '你好',
+  timestamp: Date.now(),
+});
 
 // 获取消息历史（LLM 格式）
-const history = store.getHistory('feishu:chat_123', 100);
+const history = await store.getHistory('feishu:chat_123', 100);
+
+// 裁剪旧消息
+await store.trimOldMessages('feishu:chat_123', 50);
+
+// 清理过期会话
+await store.cleanup(7 * 24 * 60 * 60 * 1000); // 7 天
 ```
 
-### 存储格式
+### 存储结构
 
-```
-~/.micro-agent/sessions/
-├── feishu_chat_123.jsonl
-└── feishu_chat_456.jsonl
-```
+数据库路径：`~/.micro-agent/data/sessions.db`
 
-每个文件格式：
-```jsonl
-{"_type":"metadata","channel":"feishu","chatId":"chat_123","createdAt":"...","updatedAt":"..."}
-{"role":"user","content":"你好","timestamp":1700000000000}
-{"role":"assistant","content":"你好！","timestamp":1700000001000}
+```sql
+-- sessions 表
+CREATE TABLE sessions (
+  key TEXT PRIMARY KEY,
+  channel TEXT NOT NULL,
+  chat_id TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  last_consolidated INTEGER
+);
+
+-- messages 表
+CREATE TABLE messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  session_key TEXT NOT NULL,
+  seq_num INTEGER NOT NULL,
+  message_json TEXT NOT NULL,
+  timestamp INTEGER NOT NULL,
+  FOREIGN KEY (session_key) REFERENCES sessions(key)
+);
 ```
 
 ---

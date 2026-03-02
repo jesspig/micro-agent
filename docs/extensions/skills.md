@@ -4,6 +4,20 @@
 
 技能扩展位于 `extensions/skills/`，每个技能是一个包含 SKILL.md 的目录。
 
+## 三级渐进式披露
+
+技能系统采用三级渐进式披露架构，根据上下文动态加载技能内容：
+
+| 级别 | 加载条件 | 内容 | Token 限制 |
+|------|----------|------|------------|
+| Level 1 | 默认 | 摘要（name, description, location） | ~100 |
+| Level 2 | 需要时 | SKILL.md 正文 | 500-2000 |
+| Level 3 | 执行时 | scripts/ 脚本 | 按需 |
+
+**优先级**：builtin < user < workspace
+
+**always 属性**：设置为 true 时，Level 2 内容直接注入上下文
+
 ## SKILL.md 格式
 
 ```yaml

@@ -1,28 +1,64 @@
-# MicroAgent
+# 🐈 MicroAgent — 超轻量级个人 AI 助手
 
-[![Version](https://img.shields.io/badge/Version-0.2.1-blue.svg)](https://github.com/jesspig/micro-agent)
-[![Bun](https://img.shields.io/badge/Bun-1.3.9-black?logo=bun)](https://bun.sh/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.9.3-blue?logo=typescript)](https://www.typescriptlang.org/)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+<div align="center">
+  <img src="./assets/micro-agent-logo-text.png" alt="MicroAgent" width="600" />
+</div>
 
-基于 **Bun + TypeScript** 的超轻量级个人 AI 助手框架。
+<p align="center">
+  <a href="https://github.com/jesspig/micro-agent"><img src="https://img.shields.io/badge/Version-0.2.2-blue.svg" alt="Version"></a>
+  <a href="https://bun.sh/"><img src="https://img.shields.io/badge/Bun-1.3.9-black?logo=bun" alt="Bun"></a>
+  <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-5.9.3-blue?logo=typescript" alt="TypeScript"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License"></a>
+  <a href="https://github.com/jesspig/micro-agent/stargazers"><img src="https://img.shields.io/github/stars/jesspig/micro-agent?style=flat" alt="GitHub Stars"></a>
+  <a href="https://www.npmjs.com/package/@micro-agent/core"><img src="https://img.shields.io/npm/dt/@micro-agent/core" alt="npm Downloads"></a>
+</p>
 
-**[📖 在线文档](https://jesspig.github.io/micro-agent/)** | **[📦 更新日志](https://jesspig.github.io/micro-agent/guide/changelog/)**
+<p align="center">基于 <strong>Bun + TypeScript</strong> 的超轻量级个人 AI 助手框架，核心代码简洁高效。</p>
+
+<p align="center"><a href="https://jesspig.github.io/micro-agent/">📖 在线文档</a> · <a href="https://jesspig.github.io/micro-agent/guide/changelog/">📦 更新日志</a> · <a href="https://github.com/jesspig/micro-agent/discussions">💬 讨论区</a></p>
 
 ## 特性
 
-| 特性 | 说明 |
-|------|------|
-| 轻量高效 | Bun 原生性能，核心代码简洁 |
-| 8层 Monorepo | Types → Runtime/Config/Storage → SDK/Providers/Extension-System → Server → CLI |
-| 智能路由 | 根据任务类型自动选择合适模型 |
-| 🧠 长期记忆 | LanceDB 向量存储、语义检索、自动摘要、跨会话上下文保持 |
-| Channel Gateway | 消息处理枢纽，多通道聚合、响应广播、自动重连 |
-| 多通道支持 | CLI、飞书（更多通道开发中） |
-| 本地优先 LLM | Ollama / LM Studio / OpenAI Compatible |
-| MCP 兼容 | Model Context Protocol 工具接口 |
-| 热重载 | 扩展开发时支持文件变更自动重载 |
-| 多协议支持 | ACP（IDE集成）、A2A（Agent通信）、MCP（工具接入） |
+🪶 **轻量高效**：Bun 原生性能，核心代码简洁，8 层 Monorepo 架构
+
+🧠 **长期记忆**：LanceDB 向量存储、语义检索、自动摘要、跨会话上下文保持
+
+🎯 **意图识别**：分阶段意图识别管道，支持上下文重试
+
+📚 **知识库**：PDF/Word/Excel 文档解析，向量存储，RAG 检索
+
+🔗 **引用溯源**：RAG 级别引用溯源，支持多格式引用展示
+
+💬 **多通道**：CLI、飞书（更多通道开发中），消息聚合与响应广播
+
+🔌 **MCP 兼容**：Model Context Protocol 工具接口，热重载支持
+
+📊 **结构化日志**：调用链追踪，LLM/工具/记忆检索日志可观测
+
+## 📢 最新更新
+
+- **2026-03-02** 🚀 发布 **v0.2.2** — 意图识别管道、知识库系统、引用溯源
+  - 🎯 意图识别管道，分阶段识别 + 上下文重试
+  - 📚 知识库系统，PDF/Word/Excel 文档解析
+  - 🔗 RAG 级别引用溯源
+
+- **2026-02-27** 📦 发布 **v0.2.1** — 项目重命名与代码清理
+  - 🏷️ microbot → micro-agent 命名空间变更
+  - 🔧 类型系统统一，新增 LLMMessage/ContentPart 类型
+  - 🗑️ 移除 A2A 客户端和 ReAct 提示词
+
+- **2026-02-24** 🏗️ 发布 **v0.2.0** — 架构重构 + 多协议支持
+  - 📦 8 层 Monorepo 拆分
+  - 🧠 全新记忆系统，LanceDB 向量存储
+  - 🔌 MCP/ACP 协议支持
+
+<details>
+<summary>更多更新</summary>
+
+- **2026-02-20** v0.1.1 — 优化版本，精简代码
+- **2026-02-19** v0.1.0 — 首个内测版本
+
+</details>
 
 ## 运行环境要求
 
@@ -40,37 +76,35 @@
 
 ## 安装
 
-### 方式一：克隆运行（推荐）
+> [!TIP]
+> 确保已安装 [Bun](https://bun.sh/) 运行时（>= 1.0.0）
 
 ```bash
+# 克隆项目
 git clone https://github.com/jesspig/micro-agent.git
 cd micro-agent
+
+# 安装依赖
 bun install
+
+# 启动服务
 bun start
-```
-
-### 方式二：直接运行
-
-```bash
-bunx jesspig/micro-agent start
 ```
 
 ## 快速开始
 
-### 配置 LLM
-
-**本地 Ollama（推荐）**
+> [!TIP]
+> 推荐使用本地 [Ollama](https://ollama.com/) 运行 qwen3 模型
 
 ```bash
+# 1. 拉取模型
 ollama pull qwen3
-```
 
-**云服务**
+# 2. 启动 MicroAgent
+bun start
 
-```bash
-export DEEPSEEK_API_KEY=your-api-key
-# 或
-export OPENAI_API_KEY=your-api-key
+# 3. 开始对话
+# 发送消息到已配置的通道（CLI/飞书）
 ```
 
 ### 启动
@@ -133,7 +167,7 @@ Options:
 | @micro-agent/types | `packages/types/` | 核心类型定义（MCP 兼容） |
 | @micro-agent/runtime | `packages/runtime/` | 运行时引擎（Container、EventBus、HookSystem、Gateway） |
 | @micro-agent/config | `packages/config/` | 三级配置系统（user < project < directory） |
-| @micro-agent/storage | `packages/storage/` | 会话存储（JSONL） |
+| @micro-agent/storage | `packages/storage/` | 会话存储（SQLite） |
 | @micro-agent/providers | `packages/providers/` | LLM Provider 抽象、Gateway、路由 |
 | @micro-agent/extension-system | `packages/extension-system/` | 扩展发现、加载、热重载 |
 | @micro-agent/sdk | `packages/sdk/` | 聚合 SDK，统一开发接口 |
@@ -153,10 +187,10 @@ Options:
 |------|------|
 | `read_file` | 读取文件 |
 | `write_file` | 写入文件 |
-| `list_directory` | 列出目录 |
+| `list_dir` | 列出目录 |
 | `exec` | 执行 Shell 命令 |
 | `web_fetch` | 获取网页内容 |
-| `send_message` | 发送消息 |
+| `message` | 发送消息 |
 
 ## 内置技能
 
@@ -252,11 +286,14 @@ providers:
 ```
 ~/.micro-agent/
 ├── settings.yaml          # 用户配置
-├── sessions/              # 会话存储（JSONL）
+├── data/                  # 数据存储
+│   ├── sessions.db        # 会话存储（SQLite）
+│   └── vector.db          # 向量存储（SQLite）
 └── memory/                # 记忆系统数据
     ├── lancedb/           # LanceDB 向量存储
     ├── sessions/          # 会话记忆（Markdown）
-    └── summaries/         # 摘要归档
+    ├── summaries/         # 摘要归档
+    └── knowledge/         # 知识库文档
 ```
 
 ## 开发
@@ -291,6 +328,10 @@ micro-agent/
 ├── templates/              # 模板文件
 └── workspace/              # 工作空间配置
 ```
+
+## Stars History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=jesspig/micro-agent&type=date&legend=top-left)](https://www.star-history.com/#jesspig/micro-agent&type=date&legend=top-left)
 
 ## License
 

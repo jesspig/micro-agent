@@ -17,7 +17,7 @@ export default defineConfig({
     },
   },
   themeConfig: {
-    logo: '/logo.svg',
+    logo: '/micro-agent-logo.png',
     siteTitle: 'MicroAgent',
     nav: [
       { text: '指南', link: '/guide/' },
@@ -33,7 +33,8 @@ export default defineConfig({
           text: '更新日志',
           items: [
             { text: '版本列表', link: '/guide/changelog/' },
-            { text: 'v0.2.1 (最新)', link: '/guide/changelog/v0.2.1' },
+            { text: 'v0.2.2 (最新)', link: '/guide/changelog/v0.2.2' },
+            { text: 'v0.2.1', link: '/guide/changelog/v0.2.1' },
             { text: 'v0.2.0', link: '/guide/changelog/v0.2.0' },
             { text: 'v0.1.1', link: '/guide/changelog/v0.1.1' },
             { text: 'v0.1.0', link: '/guide/changelog/v0.1.0' },

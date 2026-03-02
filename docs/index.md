@@ -5,6 +5,9 @@ hero:
   name: MicroAgent
   text: 超轻量级个人 AI 助手框架
   tagline: 基于 TypeScript + Bun 构建的现代化 AI 助手框架
+  image:
+    src: /micro-agent-logo.png
+    alt: MicroAgent
   actions:
     - theme: brand
       text: 快速开始

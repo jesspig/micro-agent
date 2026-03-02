@@ -8,23 +8,38 @@
 
 ### 文件系统工具
 
-- `read_file`: 读取文件
-- `write_file`: 写入文件
-- `list_directory`: 列出目录
-- `glob`: 文件搜索
-- `search_file_content`: 内容搜索
+| 工具 | 说明 | 安全限制 |
+|------|------|----------|
+| `read_file` | 读取文件 | 仅允许工作区和 ~/.micro-agent 目录 |
+| `write_file` | 写入文件 | 仅允许工作区和 ~/.micro-agent 目录 |
+| `list_dir` | 列出目录 | 禁止访问 node_modules |
 
 ### Shell 工具
 
-- `run_shell_command`: 执行 Shell 命令
+| 工具 | 说明 | 安全限制 |
+|------|------|----------|
+| `exec` | 执行 Shell 命令 | 危险命令黑名单、模式检测、环境变量过滤 |
+
+**危险命令黑名单**：
+- 系统命令：shutdown, useradd, sudo, mkfs, mke2fs
+- 破坏性命令：rm -rf /, Fork bomb
+
+**环境变量白名单**：PATH, HOME, USER, LANG, TMPDIR
 
 ### Web 工具
 
-- `web_fetch`: 获取网页内容
+| 工具 | 说明 | 安全限制 |
+|------|------|----------|
+| `web_fetch` | 获取网页内容 | 内网 IP 禁止、SSRF 防护、协议限制 |
+
+**内网 IP 禁止**：
+- 127.x, 10.x, 172.16-31.x, 192.168.x
 
 ### 消息工具
 
-- `send_message`: 发送消息
+| 工具 | 说明 |
+|------|------|
+| `message` | 发送消息 |
 
 ## 创建自定义工具
 

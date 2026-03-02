@@ -204,8 +204,31 @@ agents:
 | 协议 | 用途 | 说明 |
 |------|------|------|
 | ACP | IDE 集成 | 支持 Cursor、Claude Desktop 等 IDE 集成 |
-| A2A | Agent 通信 | Agent 间通信协议 |
 | MCP | 工具接入 | Model Context Protocol，外部工具/资源接入 |
+
+## 意图识别管道
+
+项目实现了分阶段意图识别管道（IntentPipeline），用于：
+
+1. **预处理阶段（Preflight）**：判断是否需要检索记忆
+2. **路由阶段（Routing）**：选择合适的任务类型和模型
+
+```typescript
+// 预处理结果
+interface PreflightResult {
+  needMemory: boolean;           // 是否需要记忆检索
+  memoryTypes: MemoryTypeString[];  // 记忆类型
+  reason: string;               // 判断理由
+}
+
+// 路由结果
+interface RoutingResult {
+  type: 'vision' | 'coder' | 'chat';  // 任务类型
+  reason: string;                       // 选择理由
+}
+```
+
+意图识别支持上下文重试机制，当识别结果置信度较低时会进行二次确认。
 
 ## 源码位置
 
