@@ -26,7 +26,7 @@
   ],
   "dependencies": {
     "@micro-agent/types": "workspace:*",
-    "@logtape/logtape": "^2.0.2"
+    "@logtape/logtape": "^2.0.4"
   },
   "devDependencies": {
     "@types/bun": "latest",

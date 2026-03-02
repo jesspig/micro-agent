@@ -27,8 +27,8 @@
   "dependencies": {
     "@micro-agent/types": "workspace:*",
     "@micro-agent/config": "workspace:*",
-    "@logtape/logtape": "^2.0.2",
-    "ai": "^6.0.92"
+    "@logtape/logtape": "^2.0.4",
+    "ai": "^6.0.105"
   },
   "devDependencies": {
     "@types/bun": "latest",

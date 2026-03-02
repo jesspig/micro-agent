@@ -31,8 +31,8 @@
     "@micro-agent/config": "workspace:*",
     "@micro-agent/extension-system": "workspace:*",
     "@larksuiteoapi/node-sdk": "^1.59.0",
-    "@logtape/logtape": "^2.0.2",
-    "@logtape/pretty": "^2.0.2",
+    "@logtape/logtape": "^2.0.4",
+    "@logtape/pretty": "^2.0.4",
     "js-yaml": "^4.1.1",
     "zod": "^4.3.6"
   },
