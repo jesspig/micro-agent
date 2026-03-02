@@ -76,7 +76,7 @@
     "@logtape/logtape": "^2.0.4",
     "@logtape/pretty": "^2.0.4",
     "@micro-agent/sdk": "workspace:*",
-    "ai": "^6.0.105",
+    "ai": "^6.0.106",
     "gray-matter": "^4.0.3",
     "js-yaml": "^4.1.1",
     "marked": "^17.0.3",

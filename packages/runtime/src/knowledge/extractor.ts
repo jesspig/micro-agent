@@ -27,6 +27,25 @@ export interface XLSXModule {
   };
 }
 
+// pdf-parse v2 API 类型定义
+export interface PDFParseResult {
+  text: string;
+  total: number;
+  pages?: unknown[];
+}
+
+export interface PDFParseClass {
+  new (params: { data: Buffer }): PDFParseClass;
+  getText(): Promise<PDFParseResult>;
+  destroy(): Promise<void>;
+}
+
+// 兼容类型（用于动态导入时的类型断言）
+interface MammothResult {
+  value: string;
+  messages: Array<{ type: string; message: string }>;
+}
+
 /**
  * 提取文档内容
  * 根据文件类型使用不同的提取策略
@@ -47,8 +66,7 @@ export async function extractDocumentContent(
   // Word 文档 (.docx)
   if (fileType === 'word' && ext === '.docx') {
     try {
-      // @ts-ignore - 可选依赖，运行时动态加载
-      const mammoth = (await import('mammoth')) as MammothModule;
+      const mammoth = (await import('mammoth')) as unknown as MammothModule;
       const result = await mammoth.extractRawText({ path: filePath });
       return `[Word 文档: ${basename(filePath)}]\n\n${result.value}`;
     } catch (error) {
@@ -59,8 +77,7 @@ export async function extractDocumentContent(
   // Excel 表格 (.xlsx, .xls)
   if (fileType === 'excel' && (ext === '.xlsx' || ext === '.xls')) {
     try {
-      // @ts-ignore - 可选依赖，运行时动态加载
-      const xlsx = (await import('xlsx')) as XLSXModule;
+      const xlsx = (await import('xlsx')) as unknown as XLSXModule;
       const workbook = xlsx.readFile(filePath);
 
       const result: string[] = [];
@@ -115,15 +132,18 @@ export async function extractDocumentContent(
   // PDF 文档
   if (fileType === 'pdf' || ext === '.pdf') {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const pdfParseModule: any = await import('pdf-parse');
+      // pdf-parse v2 API: new PDFParse({ data: buffer }) + getText()
+      const { PDFParse } = await import('pdf-parse');
       const dataBuffer = await readFile(filePath);
-      // 支持 ESM 和 CommonJS 两种导出格式
-      const parse = pdfParseModule.default || pdfParseModule;
-      const data = await parse(dataBuffer);
-      return `[PDF 文档: ${basename(filePath)}]\n\n${data.text}`;
+      const parser = new PDFParse({ data: dataBuffer });
+      const result = await parser.getText();
+      await parser.destroy();
+      log.info('PDF 解析成功', { file: basename(filePath), pages: result.total, textLength: result.text.length });
+      return `[PDF 文档: ${basename(filePath)}]\n\n${result.text}`;
     } catch (error) {
-      return `[PDF 文档: ${basename(filePath)}]\n\n注意: PDF 解析失败。\n错误: ${error instanceof Error ? error.message : String(error)}`;
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      log.error('PDF 解析失败', { file: basename(filePath), error: errorMsg });
+      return `[PDF 文档: ${basename(filePath)}]\n\n注意: PDF 解析失败。\n错误: ${errorMsg}`;
     }
   }
 
