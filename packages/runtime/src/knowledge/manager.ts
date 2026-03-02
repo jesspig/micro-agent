@@ -448,7 +448,7 @@ export class KnowledgeBaseManager {
           created_at: number;
           updated_at: number;
           indexed_at: number | null;
-        }>(`
+        }, []>(`
         SELECT * FROM documents
       `).all();
 
