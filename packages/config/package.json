@@ -1,6 +1,6 @@
 {
   "name": "@micro-agent/config",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "MicroAgent 配置层（三级配置加载、合并）",
   "type": "module",
   "author": "jesspig",

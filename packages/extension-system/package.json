@@ -1,6 +1,6 @@
 {
   "name": "@micro-agent/extension-system",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "MicroAgent 扩展系统（自动发现、热插拔）",
   "type": "module",
   "author": "jesspig",

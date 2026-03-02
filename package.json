@@ -1,6 +1,6 @@
 {
   "name": "@micro-agent/core",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "超轻量级个人 AI 助手框架 - LLM/Agent 双向网关 + 可扩展 Agent 运行时",
   "type": "module",
   "author": "jesspig",

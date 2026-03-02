@@ -63,13 +63,37 @@ flowchart TB
 
 ### 循环检测
 
-AgentExecutor 内置三种循环检测模式：
+AgentExecutor 内置循环检测机制，防止 Agent 陷入无限循环：
 
-| 模式 | 说明 | 配置 |
-|------|------|------|
-| 重复检测 | 检测连续相同调用 | `repeat` |
-| Ping-Pong 检测 | 检测来回调用同一工具 | `pingPong` |
-| 全局熔断 | 累计调用次数超限 | `global` |
+| 配置项 | 默认值 | 说明 |
+|--------|--------|------|
+| `warningThreshold` | 3 | 警告阈值，相同调用次数达到此值时发出警告 |
+| `criticalThreshold` | 5 | 临界阈值，达到此值时中断执行 |
+| `globalCircuitBreaker` | 30 | 全局熔断，累计调用次数上限 |
+
+```yaml
+agents:
+  executor:
+    loopDetection:
+      enabled: true
+      warningThreshold: 3
+      criticalThreshold: 5
+```
+
+### 引用溯源
+
+启用引用溯源后，Agent 响应会包含来源文档的引用：
+
+```yaml
+agents:
+  executor:
+    citationEnabled: true
+```
+
+引用格式支持：
+- `numbered` - 编号格式 [1], [2]
+- `bracket` - 括号格式
+- `footnote` - 脚注格式
 
 ## 配置
 
@@ -88,7 +112,11 @@ interface AgentConfig {
   memoryEnabled?: boolean;      // 启用记忆系统
   knowledgeEnabled?: boolean;   // 启用知识库
   citationEnabled?: boolean;    // 启用引用溯源
-  loopDetection?: Partial<LoopDetectionConfig>;  // 循环检测配置
+  loopDetection?: {
+    enabled: boolean;
+    warningThreshold: number;   // 警告阈值（默认 3）
+    criticalThreshold: number;  // 临界阈值（默认 5）
+  };
 }
 ```
 

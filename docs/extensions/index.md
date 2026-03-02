@@ -20,8 +20,8 @@ extensions/               # 实现
 | agent | - | Agent 扩展 |
 | workflow | - | 工作流扩展 |
 | command | - | 命令扩展 |
-| mcp-client | - | MCP 客户端 |
-| mcp-server | - | MCP 服务端 |
+| mcp-client | - | MCP 客户端，连接外部 MCP 服务器 |
+| mcp-server | - | MCP 服务端，提供 MCP 协议支持 |
 
 ## 扩展机制
 
@@ -29,6 +29,18 @@ extensions/               # 实现
 - **事件系统**: 通过 EventBus 解耦
 - **依赖注入**: 通过 Container 获取实例
 - **热重载**: 开发模式下支持文件变更自动重载
+
+### 热重载配置
+
+```typescript
+interface HotReloadConfig {
+  enabled: boolean;        // 是否启用（默认 true）
+  debounceMs: number;      // 防抖延迟（默认 1000ms）
+  gracefulTimeout: number; // 优雅等待超时（默认 30000ms）
+}
+```
+
+热重载会等待当前活动调用完成后再重载，超时后强制重载。
 
 ## 清单文件
 
@@ -50,4 +62,19 @@ dependencies:
 - `extension.yaml`
 - `extension.yml`
 - `extension.json`
-- `package.json`（需包含 `micro-agent` 字段）
+- `package.json`（需包含 `microAgent` 字段）
+
+### package.json 扩展字段
+
+```json
+{
+  "name": "my-extension",
+  "version": "1.0.0",
+  "displayName": "My Extension",
+  "description": "扩展描述",
+  "main": "index.ts",
+  "microAgent": {
+    "type": "tool"
+  }
+}
+```

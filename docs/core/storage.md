@@ -28,7 +28,7 @@
 import { SessionStore } from '@micro-agent/storage';
 
 const store = new SessionStore({
-  dbPath: '~/.micro-agent/data/sessions.db',
+  sessionsDir: '~/.micro-agent/data',
   maxMessages: 500,
   sessionTimeout: 30 * 60 * 1000, // 30 分钟
 });
@@ -55,7 +55,7 @@ await store.cleanup(7 * 24 * 60 * 60 * 1000); // 7 天
 
 ### 存储结构
 
-数据库路径：`~/.micro-agent/data/sessions.db`
+数据库路径：`{sessionsDir}/sessions.db`（默认 `~/.micro-agent/data/sessions.db`）
 
 ```sql
 -- sessions 表

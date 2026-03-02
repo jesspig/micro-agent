@@ -22,20 +22,39 @@
 
 ```yaml
 ---
-name: skill-name
-description: 技能描述
-dependencies:        # 可选，依赖列表
+name: skill-name           # 必填：技能名称（小写字母、数字、连字符）
+description: 技能描述       # 必填：触发描述
+dependencies:              # 可选：依赖列表
   - bun>=1.0
-compatibility: bun   # 可选，运行环境
-always: false        # 可选，是否始终加载
-allowed-tools:       # 可选，允许使用的工具
+compatibility: bun         # 可选：运行环境要求
+always: false              # 可选：是否自动加载完整内容（默认 false）
+allowed-tools:             # 可选：预批准工具列表
   - read_file
+  - exec
+license: MIT               # 可选：许可证
+metadata:                  # 可选：元数据
+  emoji: ⏰
+  requires:
+    - bun
 ---
 
 # 技能内容
 
 技能的详细说明和使用方法...
 ```
+
+### Frontmatter 字段说明
+
+| 字段 | 必填 | 类型 | 说明 |
+|------|------|------|------|
+| name | 是 | string | 技能名称，格式：`^[a-z0-9]+(-[a-z0-9]+)*$` |
+| description | 是 | string | 技能描述，用于触发匹配 |
+| dependencies | 否 | string[] | 依赖包列表 |
+| compatibility | 否 | string | 环境兼容性要求 |
+| always | 否 | boolean | 是否自动加载完整内容 |
+| allowed-tools | 否 | string[] | 预批准工具列表，无需用户确认 |
+| license | 否 | string | 许可证 |
+| metadata | 否 | object | 自定义元数据 |
 
 ## 内置技能
 

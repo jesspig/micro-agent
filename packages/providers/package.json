@@ -1,6 +1,6 @@
 {
   "name": "@micro-agent/providers",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "MicroAgent Provider 层（LLM Gateway, ACP）",
   "type": "module",
   "author": "jesspig",

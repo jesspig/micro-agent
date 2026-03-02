@@ -92,13 +92,24 @@ graph TB
     subgraph 支撑层
         Storage[Storage<br/>存储层]
         Skills[Skill<br/>技能系统]
+        Memory[Memory<br/>记忆系统]
+        Knowledge[Knowledge<br/>知识库]
+    end
+    
+    subgraph 协议层
+        MCP[MCP<br/>模型上下文协议]
+        ACP[ACP<br/>Agent客户端协议]
     end
     
     Agent --> Providers
     Agent --> Tools
     Agent --> Storage
     Agent --> Skills
+    Agent --> Memory
+    Agent --> Knowledge
     Channels --> Agent
+    MCP --> Agent
+    ACP --> Agent
 ```
 
 ### 运行时架构
@@ -170,7 +181,19 @@ packages/
 |------|------|------|
 | ChannelGateway | `packages/runtime/src/gateway/` | 消息聚合处理、响应广播、自动重连 |
 | AgentExecutor | `packages/runtime/src/executor/` | Agent 执行引擎、工具调用编排 |
-| MessageBus | `packages/runtime/src/message/` | 消息队列、入站/出站消息分发 |
+| MessageBus | `packages/runtime/src/bus/` | 消息队列、入站/出站消息分发 |
+| MemoryStore | `packages/runtime/src/memory/` | 记忆存储、向量检索、自动摘要 |
+| KnowledgeBase | `packages/runtime/src/knowledge/` | 知识库管理、文档索引、语义检索 |
+| CitationGenerator | `packages/runtime/src/citation/` | 引用溯源、置信度计算 |
+| MCPServer | `packages/server/src/mcp/` | MCP 协议服务器，支持 IDE 集成 |
+| ACPServer | `packages/server/src/acp/` | ACP 协议服务器，Agent 能力暴露 |
+
+### 协议支持
+
+| 协议 | 版本 | 用途 | 传输方式 |
+|------|------|------|----------|
+| MCP | 2024-11-05 | 模型上下文协议，外部工具/资源接入 | stdio, WebSocket, SSE |
+| ACP | 1.0 | Agent 客户端协议，IDE 集成 | stdio |
 
 ## 扩展机制
 

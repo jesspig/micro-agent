@@ -1,6 +1,6 @@
 {
   "name": "@micro-agent/storage",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "MicroAgent 存储层（SessionStore, KVMemoryStore）",
   "type": "module",
   "author": "jesspig",

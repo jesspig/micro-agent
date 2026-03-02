@@ -128,6 +128,7 @@ Commands:
 Options:
   -c, --config <path>   配置文件路径
   -v, --verbose         详细日志模式
+  -q, --quiet           静默模式（仅显示警告和错误）
   -h, --help            显示帮助
   --version             显示版本
 ```
@@ -178,7 +179,7 @@ Options:
 | 模块 | 路径 | 说明 |
 |------|------|------|
 | 工具 | `extensions/tool/` | 文件、Shell、Web、消息工具 |
-| 技能 | `extensions/skills/` | time、sysinfo |
+| 技能 | `extensions/skills/` | time、sysinfo、skill-creator |
 | 通道 | `extensions/channel/` | 飞书 |
 
 ## 内置工具
@@ -198,6 +199,7 @@ Options:
 |------|------|------|
 | `time` | 时间查询、格式转换、时区处理 | - |
 | `sysinfo` | CPU、内存、磁盘、网络、进程状态 | bun>=1.0 |
+| `skill-creator` | 创建或更新 Agent Skills | - |
 
 ## 通道配置
 
@@ -288,12 +290,15 @@ providers:
 ├── settings.yaml          # 用户配置
 ├── data/                  # 数据存储
 │   ├── sessions.db        # 会话存储（SQLite）
-│   └── vector.db          # 向量存储（SQLite）
-└── memory/                # 记忆系统数据
-    ├── lancedb/           # LanceDB 向量存储
-    ├── sessions/          # 会话记忆（Markdown）
-    ├── summaries/         # 摘要归档
-    └── knowledge/         # 知识库文档
+│   └── knowledge.db       # 知识库索引（SQLite）
+├── memory/                # 记忆系统数据
+│   ├── lancedb/           # LanceDB 向量存储
+│   ├── sessions/          # 会话记忆（Markdown）
+│   └── summaries/         # 摘要归档
+├── knowledge/             # 知识库文档
+├── logs/                  # 日志文件
+├── skills/                # 用户技能
+└── workspace/             # 工作空间
 ```
 
 ## 开发

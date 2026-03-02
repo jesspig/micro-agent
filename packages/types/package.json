@@ -1,6 +1,6 @@
 {
   "name": "@micro-agent/types",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "MicroAgent 核心类型定义（零依赖）",
   "type": "module",
   "author": "jesspig",

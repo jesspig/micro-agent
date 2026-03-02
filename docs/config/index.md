@@ -133,35 +133,39 @@ agents:
     maxIterations: 20    # 工具调用最大迭代次数
     loopDetection:       # 循环检测配置
       enabled: true
-      repeat: 3         # 连续相同调用次数阈值
-      pingPong: 3       # 来回调用阈值
-      global: 10        # 全局累计调用阈值
+      warningThreshold: 3   # 警告阈值
+      criticalThreshold: 5  # 临界阈值
 ```
 
 | 参数 | 范围 | 默认值 | 说明 |
 |------|------|--------|------|
 | maxIterations | - | 20 | 工具调用最大迭代次数 |
 | loopDetection.enabled | - | true | 是否启用循环检测 |
-| loopDetection.repeat | - | 3 | 连续相同调用次数阈值 |
-| loopDetection.pingPong | - | 3 | 来回调用阈值 |
-| loopDetection.global | - | 10 | 全局累计调用阈值 |
+| loopDetection.warningThreshold | - | 3 | 连续相同调用警告阈值 |
+| loopDetection.criticalThreshold | - | 5 | 连续相同调用临界阈值 |
 
 ## 知识库配置
 
 ```yaml
 knowledgeBase:
   enabled: true
-  storagePath: ~/.micro-agent/memory/knowledge
+  basePath: ~/.micro-agent/knowledge
   chunkSize: 1000
   chunkOverlap: 200
+  maxSearchResults: 5
+  minSimilarityScore: 0.5
 ```
 
 | 参数 | 范围 | 默认值 | 说明 |
 |------|------|--------|------|
-| enabled | - | false | 是否启用知识库 |
-| storagePath | - | ~/.micro-agent/memory/knowledge | 知识库存储路径 |
-| chunkSize | - | 1000 | 文档分块大小 |
-| chunkOverlap | - | 200 | 文档分块重叠大小 |
+| enabled | - | true | 是否启用知识库 |
+| basePath | - | ~/.micro-agent/knowledge | 知识库基础路径 |
+| chunkSize | 100-8000 | 1000 | 文档分块大小 |
+| chunkOverlap | 0-1000 | 200 | 文档分块重叠大小 |
+| maxSearchResults | 1-50 | 5 | 最大搜索结果数 |
+| minSimilarityScore | 0-1 | 0.5 | 最小相似度阈值 |
+| buildInterval | ≥1000 | 5000 | 后台构建间隔（毫秒） |
+| embedModel | - | - | 嵌入模型 ID（可选） |
 
 ## 多嵌入模型配置
 
@@ -169,10 +173,19 @@ knowledgeBase:
 agents:
   memory:
     multiEmbed:
-      default: openai/text-embedding-3-small
-      models:
-        - openai/text-embedding-3-small
-        - openai/text-embedding-ada-002
+      enabled: true           # 启用多嵌入模型
+      maxModels: 3            # 最大模型数量
+      autoMigrate: true       # 自动迁移向量数据
+      batchSize: 50           # 迁移批次大小
+      migrateInterval: 0      # 迁移间隔（毫秒）
 ```
 
-支持配置多个嵌入模型，系统会自动进行向量数据迁移。
+| 参数 | 范围 | 默认值 | 说明 |
+|------|------|--------|------|
+| enabled | - | true | 是否启用多嵌入模型 |
+| maxModels | 1-10 | 3 | 最大支持的嵌入模型数量 |
+| autoMigrate | - | true | 是否自动迁移向量数据 |
+| batchSize | 1-100 | 50 | 迁移批次大小 |
+| migrateInterval | - | 0 | 迁移间隔时间 |
+
+多嵌入模型支持向量数据自动迁移，切换嵌入模型时无需重新索引。

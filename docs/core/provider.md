@@ -201,10 +201,58 @@ agents:
 
 ## 协议支持
 
-| 协议 | 用途 | 说明 |
-|------|------|------|
-| ACP | IDE 集成 | 支持 Cursor、Claude Desktop 等 IDE 集成 |
-| MCP | 工具接入 | Model Context Protocol，外部工具/资源接入 |
+### MCP (Model Context Protocol)
+
+MCP 是 Anthropic 提出的模型上下文协议，用于外部工具和资源接入。
+
+**协议版本**: `2024-11-05`
+
+**传输方式**:
+- `stdio` - 标准输入输出（推荐用于 IDE 集成）
+- `websocket` - WebSocket 连接
+- `sse` - Server-Sent Events
+
+**功能**:
+- 工具发现与调用
+- 资源读取
+- 提示词获取
+
+```typescript
+import { createMCPClient } from '@micro-agent/sdk';
+
+const client = createMCPClient({
+  name: 'my-client',
+  version: '1.0.0',
+  transport: {
+    type: 'stdio',
+    command: 'node',
+    args: ['mcp-server.js'],
+  },
+});
+
+// 连接并初始化
+await client.connect();
+
+// 列出工具
+const tools = await client.listTools();
+
+// 调用工具
+const result = await client.callTool('my_tool', { param: 'value' });
+```
+
+### ACP (Agent Client Protocol)
+
+ACP 是用于 IDE 与 Agent 通信的协议，支持完整的 Agent 交互。
+
+**功能**:
+- 会话管理（创建、恢复、分支）
+- 多模态支持（文本、图片、资源）
+- 工具调用流式反馈
+
+```bash
+# 启动 ACP 服务器
+micro-agent acp
+```
 
 ## 意图识别管道
 
