@@ -14,8 +14,19 @@ import { createApp } from './app';
 import { loadConfig, getConfigStatus } from '@micro-agent/config';
 import { initLogging, getLogFilePath } from '@micro-agent/runtime';
 import type { App } from '@micro-agent/types';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 
-const VERSION = '0.2.1';
+// 从 package.json 动态读取版本号
+const VERSION = (() => {
+  try {
+    const pkgPath = join(import.meta.dir, '..', 'package.json');
+    const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
+    return pkg.version || '0.0.0';
+  } catch {
+    return '0.0.0';
+  }
+})();
 
 /** 初始化日志系统 */
 async function initLoggingSystem(level: 'debug' | 'info' | 'warn' = 'info'): Promise<void> {
@@ -214,7 +225,11 @@ export async function runCli(argv: string[] = process.argv.slice(2)): Promise<vo
 
     case 'status': {
       const app = await createApp(configPath);
-      showStatus(app);
+      try {
+        showStatus(app);
+      } finally {
+        await app.stop();
+      }
       break;
     }
 

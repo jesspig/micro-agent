@@ -158,9 +158,11 @@ export class FeishuChannel implements Channel {
       if (this.processedMessageIds.has(messageId)) return;
       this.processedMessageIds.add(messageId);
 
+      // 清理最旧的 ID，保留最近的
       if (this.processedMessageIds.size > this.MAX_PROCESSED_IDS) {
         const ids = Array.from(this.processedMessageIds);
-        this.processedMessageIds = new Set(ids.slice(-this.MAX_PROCESSED_IDS / 2));
+        // 保留最新的 MAX_PROCESSED_IDS 个
+        this.processedMessageIds = new Set(ids.slice(-this.MAX_PROCESSED_IDS));
       }
 
       if (sender?.sender_type === 'bot') return;
