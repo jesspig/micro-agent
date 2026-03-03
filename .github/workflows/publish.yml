@@ -24,14 +24,6 @@ jobs:
         with:
           bun-version: latest
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: '20'
-          registry-url: 'https://registry.npmjs.org'
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
       - name: Install dependencies
         run: bun install
 
@@ -41,17 +33,21 @@ jobs:
       - name: Run tests
         run: bun test
 
-      - name: Configure npm provenance
-        run: npm config set provenance true
+      - name: Configure npm auth
+        run: |
+          bun config set registry https://registry.npmjs.org
+          echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" >> ~/.npmrc
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Check if version changed
         id: check-version
         run: |
-          # 获取本地版本
-          LOCAL_VERSION=$(node -p "require('./package.json').version")
+          # 使用 bun 获取本地版本
+          LOCAL_VERSION=$(bun -e "console.log(require('./package.json').version)")
           
-          # 检查 npm 上是否已存在该版本
-          NPM_VERSION=$(npm view micro-agent version 2>/dev/null || echo "0.0.0")
+          # 使用 bun 检查 npm 上是否已存在该版本
+          NPM_VERSION=$(bun x npm-view @micro-agent/cli version 2>/dev/null || echo "0.0.0")
           
           echo "local_version=$LOCAL_VERSION" >> $GITHUB_OUTPUT
           echo "npm_version=$NPM_VERSION" >> $GITHUB_OUTPUT
@@ -67,38 +63,40 @@ jobs:
       - name: Publish packages
         if: steps.check-version.outputs.should_publish == 'true'
         run: |
-          # 按依赖顺序发布
+          # 按依赖顺序发布 (bun publish 会自动将 workspace:* 转换为实际版本)
           echo "📦 发布 @micro-agent/types"
-          npm publish --workspace=@micro-agent/types --access public
+          bun publish --cwd packages/types --access public --no-git-checks
           
           echo "📦 发布 @micro-agent/config"
-          npm publish --workspace=@micro-agent/config --access public
+          bun publish --cwd packages/config --access public --no-git-checks
           
           echo "📦 发布 @micro-agent/storage"
-          npm publish --workspace=@micro-agent/storage --access public
+          bun publish --cwd packages/storage --access public --no-git-checks
           
           echo "📦 发布 @micro-agent/extension-system"
-          npm publish --workspace=@micro-agent/extension-system --access public
+          bun publish --cwd packages/extension-system --access public --no-git-checks
           
           echo "📦 发布 @micro-agent/providers"
-          npm publish --workspace=@micro-agent/providers --access public
+          bun publish --cwd packages/providers --access public --no-git-checks
           
           echo "📦 发布 @micro-agent/runtime"
-          npm publish --workspace=@micro-agent/runtime --access public
+          bun publish --cwd packages/runtime --access public --no-git-checks
           
           echo "📦 发布 @micro-agent/sdk"
-          npm publish --workspace=@micro-agent/sdk --access public
+          bun publish --cwd packages/sdk --access public --no-git-checks
           
           echo "📦 发布 @micro-agent/server"
-          npm publish --workspace=@micro-agent/server --access public
+          bun publish --cwd packages/server --access public --no-git-checks
           
           echo "📦 发布 @micro-agent/cli"
-          npm publish --workspace=@micro-agent/cli --access public
+          bun publish --cwd apps/cli --access public --no-git-checks
           
           echo "📦 发布 @micro-agent/core"
-          npm publish --access public
+          bun publish --access public --no-git-checks
           
           echo "✅ 发布完成！"
+        env:
+          BUN_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Create Git Tag
         if: steps.check-version.outputs.should_publish == 'true'
