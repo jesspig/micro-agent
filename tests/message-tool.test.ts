@@ -41,15 +41,16 @@ describe('MessageTool', () => {
       });
     });
 
-    it('should send message without chatId (uses undefined)', async () => {
+    it('should validate missing chatId', async () => {
       const result = await registry.execute('message', {
         channel: 'feishu',
-        // 缺少 chatId，工具不会验证参数
+        // 缺少 chatId，应该返回验证错误
         content: 'Hello',
       }, ctx);
 
-      // 工具会执行但 chatId 为 undefined
-      expect(result).toContain('消息已发送');
+      // 工具应该返回验证失败错误
+      expect(result).toContain('参数验证失败');
+      expect(result).toContain('expected string, received undefined');
     });
   });
 });

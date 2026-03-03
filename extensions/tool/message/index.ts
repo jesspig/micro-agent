@@ -6,6 +6,14 @@
 
 import { defineTool } from '@micro-agent/sdk';
 import type { Tool, JSONSchema, ToolContext } from '@micro-agent/types';
+import { z } from 'zod';
+
+/** 消息输入验证 Schema */
+const MessageInputSchema = z.object({
+  channel: z.string().min(1, '通道名称不能为空'),
+  chatId: z.string().min(1, '聊天 ID 不能为空'),
+  content: z.string().min(1, '消息内容不能为空'),
+});
 
 /** 消息工具 */
 export const MessageTool = defineTool({
@@ -20,14 +28,22 @@ export const MessageTool = defineTool({
     },
     required: ['channel', 'chatId', 'content'],
   } satisfies JSONSchema,
-  execute: async (input: { channel: string; chatId: string; content: string }, ctx: ToolContext) => {
+  execute: async (input: unknown, ctx: ToolContext) => {
+    // 验证输入参数
+    const result = MessageInputSchema.safeParse(input);
+    if (!result.success) {
+      return `参数验证失败: ${result.error.issues.map(i => i.message).join(', ')}`;
+    }
+
+    const { channel, chatId, content } = result.data;
+    
     await ctx.sendToBus({
-      channel: input.channel,
-      chatId: input.chatId,
-      content: input.content,
+      channel,
+      chatId,
+      content,
     });
 
-    return `消息已发送到 ${input.channel}:${input.chatId}`;
+    return `消息已发送到 ${channel}:${chatId}`;
   },
 });
 
