@@ -65,6 +65,48 @@ function isBlockedHostname(hostname: string): boolean {
 }
 
 /**
+ * 通过 DNS 解析获取实际 IP 地址并进行安全检查
+ * 注意：这是异步操作，需要在实际请求前完成
+ */
+async function resolveAndValidateIP(hostname: string): Promise<{ safe: boolean; error?: string }> {
+  // 如果是 IP 地址，直接检查
+  if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname)) {
+    if (isBlockedIP(hostname)) {
+      return { safe: false, error: '禁止访问内网地址' };
+    }
+    return { safe: true };
+  }
+
+  // IPv6 地址检查
+  if (hostname.startsWith('[') && hostname.endsWith(']')) {
+    const ipv6 = hostname.slice(1, -1);
+    if (ipv6 === '::1' || ipv6 === '0:0:0:0:0:0:0:1') {
+      return { safe: false, error: '禁止访问本地主机' };
+    }
+    return { safe: true };
+  }
+
+  // DNS 解析并检查解析后的 IP
+  try {
+    // 使用 Bun 的 DNS 解析功能
+    const { lookup } = await import('dns').then(m => m.promises);
+    const addresses = await lookup(hostname, { all: true });
+    
+    for (const addr of addresses) {
+      const ip = addr.address;
+      if (isBlockedIP(ip)) {
+        return { safe: false, error: `DNS 解析返回禁止访问的 IP: ${ip}` };
+      }
+    }
+    
+    return { safe: true };
+  } catch {
+    // DNS 解析失败时，允许请求继续（由后续网络请求处理错误）
+    return { safe: true };
+  }
+}
+
+/**
  * 验证 URL 是否安全
  * @returns 安全检查结果，不安全时返回错误信息
  */
@@ -134,6 +176,12 @@ export const WebFetchTool = defineTool({
     const validation = validateUrl(url);
     if (!validation.safe) {
       return `错误: ${validation.error}`;
+    }
+
+    // DNS 解析后的 IP 地址验证（防止 DNS 重绑定攻击）
+    const dnsValidation = await resolveAndValidateIP(validation.url!.hostname);
+    if (!dnsValidation.safe) {
+      return `错误: ${dnsValidation.error}`;
     }
     
     try {
