@@ -223,6 +223,10 @@ class AppImpl implements App {
         idleTimeout: this.config.agents.memory?.idleTimeout,
         knowledgeEnabled: true,
         knowledgeLimit: 3,
+        // 引用溯源配置
+        citationEnabled: this.config.agents.citation?.enabled,
+        citationMinConfidence: this.config.agents.citation?.minConfidence,
+        citationMaxCount: this.config.agents.citation?.maxCitations,
       },
       {
         memoryStore: this.memoryStore ?? undefined,

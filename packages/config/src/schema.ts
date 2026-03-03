@@ -51,6 +51,20 @@ export const MemoryConfigSchema = z.object({
   }).optional(),
 });
 
+/** 引用溯源配置 Schema */
+export const CitationConfigSchema = z.object({
+  /** 是否启用引用溯源 */
+  enabled: z.boolean().default(true),
+  /** 最小置信度阈值 (0-1) */
+  minConfidence: z.number().min(0).max(1).default(0.5),
+  /** 最大引用数 */
+  maxCitations: z.number().min(1).max(10).default(5),
+  /** 引用格式 */
+  format: z.enum(['numbered', 'bracket', 'footnote']).default('numbered'),
+  /** 片段最大长度 */
+  maxSnippetLength: z.number().min(50).max(500).default(200),
+});
+
 /** 循环检测配置 Schema */
 export const LoopDetectionConfigSchema = z.object({
   /** 是否启用循环检测 */
@@ -112,6 +126,8 @@ export const AgentConfigSchema = z.object({
   memory: MemoryConfigSchema.optional(),
   /** 执行器配置 */
   executor: ExecutorConfigSchema.optional(),
+  /** 引用溯源配置 */
+  citation: CitationConfigSchema.optional(),
   /** 生成的最大 token 数量 (1-8192) */
   maxTokens: z.number().min(1).max(8192).default(512),
   /** 控制响应的随机性 (0-1.5)，值越低越确定，值越高越随机 */
@@ -192,6 +208,7 @@ export type ExecutorConfig = z.infer<typeof ExecutorConfigSchema>;
 export type LoopDetectionConfig = z.infer<typeof LoopDetectionConfigSchema>;
 export type ProviderConfig = z.infer<typeof ProviderConfigSchema>;
 export type KnowledgeBaseConfig = z.infer<typeof KnowledgeBaseConfigSchema>;
+export type CitationConfig = z.infer<typeof CitationConfigSchema>;
 
 /**
  * 解析模型ID列表为配置对象

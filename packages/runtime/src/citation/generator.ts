@@ -8,9 +8,9 @@ import type { MemoryEntry, Citation, CitedResponse, CitationGeneratorConfig } fr
 
 /** 默认配置 */
 const DEFAULT_CONFIG: CitationGeneratorConfig = {
-  minConfidence: 0.7,  // 提高阈值，避免低相关度引用
-  maxCitations: 5,
-  maxSnippetLength: 200,
+  minConfidence: 0.5,  // 默认阈值，可通过配置调整
+  maxCitations: 10,    // 增加最大引用数
+  maxSnippetLength: 150,
   format: 'numbered',
 };
 
@@ -81,9 +81,10 @@ export class CitationGenerator {
 
     // 标题
     if (citation.documentTitle) {
-      parts.push(citation.documentTitle);
+      parts.push(`**${citation.documentTitle}**`);
     } else {
-      parts.push(citation.documentPath.split('/').pop() ?? citation.documentPath);
+      const filename = citation.documentPath.split('/').pop() ?? citation.documentPath;
+      parts.push(`**${filename}**`);
     }
 
     // 页码
@@ -93,21 +94,20 @@ export class CitationGenerator {
 
     // 章节
     if (citation.section) {
-      parts.push(`§${citation.section}`);
+      parts.push(`"${citation.section}"`);
     }
 
-    // 置信度
-    parts.push(`(${(citation.confidence * 100).toFixed(0)}%)`);
+    const sourceInfo = parts.join(', ');
 
     switch (this.config.format) {
       case 'numbered':
-        return `[${index + 1}] ${parts.join(', ')}`;
+        return `[${index + 1}] ${sourceInfo}`;
       case 'bracket':
-        return `【${index + 1}】${parts.join(', ')}`;
+        return `【${index + 1}】${sourceInfo}`;
       case 'footnote':
-        return `${parts.join(', ')}`;
+        return `${index + 1}. ${sourceInfo}`;
       default:
-        return `[${index + 1}] ${parts.join(', ')}`;
+        return `[${index + 1}] ${sourceInfo}`;
     }
   }
 
@@ -122,7 +122,7 @@ export class CitationGenerator {
     }
 
     const lines = citations.map((c, i) => this.formatCitation(c, i));
-    return `参考资料：\n${lines.join('\n')}`;
+    return `📚 **参考资料**\n${lines.join('\n')}`;
   }
 
   /**

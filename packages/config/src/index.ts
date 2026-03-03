@@ -14,6 +14,7 @@ export {
   MemoryConfigSchema,
   ExecutorConfigSchema,
   LoopDetectionConfigSchema,
+  CitationConfigSchema,
   parseModelConfigs,
   parseWorkspaces,
 } from './schema';
@@ -29,6 +30,7 @@ export type {
   MemoryConfig,
   ExecutorConfig,
   LoopDetectionConfig,
+  CitationConfig,
 } from './schema';
 
 // Loader

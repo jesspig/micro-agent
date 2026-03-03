@@ -84,7 +84,12 @@ export {
 // 注意：ModelConfig 从 @micro-agent/config 导出（有必填字段）
 // 而 @micro-agent/types 中的 ModelConfig 有可选字段
 // SDK 优先使用 @micro-agent/config 的版本
-export type { ModelConfig } from '@micro-agent/config';
+export type {
+  ModelConfig,
+  Config,
+  AgentConfig,
+  CitationConfig,
+} from '@micro-agent/config';
 
 // ============ Providers - LLM 提供商层 ============
 export {

@@ -84,23 +84,74 @@ export class MessageBuilder {
     
     const lines: string[] = [];
     
-    // 文档记忆（知识库）- 需要引用
+    // 文档记忆（知识库）- 使用交叉引用格式
     if (documentMemories.length > 0) {
+      // 按文档 ID 分组统计
+      const docGroups = this.groupDocumentsById(documentMemories);
+      const docCount = docGroups.size;
+      const chunkCount = documentMemories.length;
+      
       lines.push('<knowledge-documents>');
-      lines.push('以下是知识库中检索到的相关文档内容。**回答时必须标注来源**，格式：`(来源: 文档名称, 页码X)`');
+      lines.push(`知识库检索结果：共 **${docCount}** 个文档，**${chunkCount}** 个相关片段。`);
+      lines.push('');
+      lines.push('### 📖 引用说明');
+      lines.push('每个片段前标注了引用编号 [1], [2], [3]...');
+      lines.push('**回答时请在相关语句末尾标注引用编号**，例如：');
+      lines.push('- 「该产品支持多模态交互[1]」');
+      lines.push('- 「根据白皮书第三章的描述[3]，系统架构包含三个核心模块」');
       lines.push('');
       
-      for (let i = 0; i < documentMemories.length; i++) {
-        const m = documentMemories[i];
-        const sourceInfo = this.buildDocumentSourceInfo(m);
-        const preview = m.content.length > 500 ? m.content.slice(0, 500) + '...' : m.content;
+      // 文档概览（带引用编号映射）
+      lines.push('### 📚 文档概览');
+      let refIndex = 1;
+      const refMapping: string[] = []; // 记录每个引用编号对应的文档
+      for (const [docId, chunks] of docGroups) {
+        const docTitle = chunks[0].metadata.documentTitle || '未知文档';
+        const avgScore = chunks.reduce((sum, c) => sum + (c.metadata.score ?? 0), 0) / chunks.length;
+        const refRange = chunks.length > 1 
+          ? `[${refIndex}-${refIndex + chunks.length - 1}]`
+          : `[${refIndex}]`;
+        lines.push(`- **${docTitle}** ${refRange} - ${chunks.length} 个片段，平均相似度 ${(avgScore * 100).toFixed(1)}%`);
+        for (let i = 0; i < chunks.length; i++) {
+          refMapping.push(docTitle);
+        }
+        refIndex += chunks.length;
+      }
+      lines.push('');
+      
+      // 片段内容（全局编号，便于引用）
+      lines.push('### 📄 检索片段');
+      refIndex = 1;
+      for (const [docId, chunks] of docGroups) {
+        const docTitle = chunks[0].metadata.documentTitle || '未知文档';
         
-        lines.push(`---`);
-        lines.push(`【文档 ${i + 1}】${sourceInfo}`);
-        lines.push(preview);
+        // 按 chunkIndex 或 score 排序
+        const sortedChunks = [...chunks].sort((a, b) => {
+          const aIdx = a.metadata.chunkIndex ?? 0;
+          const bIdx = b.metadata.chunkIndex ?? 0;
+          return aIdx - bIdx;
+        });
+        
+        for (const chunk of sortedChunks) {
+          // 构建来源信息
+          const sourceParts: string[] = [docTitle];
+          if (chunk.metadata.pageNumber) {
+            sourceParts.push(`p.${chunk.metadata.pageNumber}`);
+          }
+          if (chunk.metadata.section) {
+            sourceParts.push(chunk.metadata.section);
+          }
+          const sourceInfo = sourceParts.join(' | ');
+          const scoreInfo = chunk.metadata.score ? ` (相似度 ${(chunk.metadata.score * 100).toFixed(0)}%)` : '';
+          
+          const preview = chunk.content.length > 350 ? chunk.content.slice(0, 350) + '...' : chunk.content;
+          lines.push(`**[${refIndex}]** ${sourceInfo}${scoreInfo}`);
+          lines.push(preview);
+          lines.push('');
+          refIndex++;
+        }
       }
       
-      lines.push('');
       lines.push('</knowledge-documents>');
     }
     
@@ -126,6 +177,25 @@ export class MessageBuilder {
     });
     
     return lines.join('\n');
+  }
+
+  /**
+   * 按文档 ID 分组
+   */
+  private groupDocumentsById(memories: MemoryEntry[]): Map<string, MemoryEntry[]> {
+    const groups = new Map<string, MemoryEntry[]>();
+    
+    for (const m of memories) {
+      // 使用 documentId 作为分组键，如果没有则使用 documentTitle
+      const key = m.metadata.documentId || m.metadata.documentTitle || `unknown-${m.id}`;
+      
+      if (!groups.has(key)) {
+        groups.set(key, []);
+      }
+      groups.get(key)!.push(m);
+    }
+    
+    return groups;
   }
 
   /**

@@ -47,54 +47,170 @@ export interface ProviderEntry {
   models?: string[];
 }
 
+/** 模型配置 */
+export interface ModelsConfig {
+  /** 对话模型 */
+  chat?: string;
+  /** 工具调用模型 */
+  tool?: string;
+  /** 嵌入模型 */
+  embed?: string;
+  /** 视觉模型 */
+  vision?: string;
+  /** 编程模型 */
+  coder?: string;
+  /** 意图识别模型 */
+  intent?: string;
+}
+
+/** 多嵌入模型配置 */
+export interface MultiEmbedConfig {
+  /** 是否启用多嵌入模型支持 */
+  enabled: boolean;
+  /** 最大保留模型数 */
+  maxModels: number;
+  /** 是否自动迁移 */
+  autoMigrate: boolean;
+  /** 迁移批次大小 */
+  batchSize: number;
+  /** 迁移间隔（毫秒） */
+  migrateInterval: number;
+}
+
+/** 记忆配置 */
+export interface MemoryConfig {
+  /** 是否启用记忆系统 */
+  enabled: boolean;
+  /** 记忆存储路径 */
+  storagePath: string;
+  /** 是否启用自动摘要 */
+  autoSummarize: boolean;
+  /** 触发摘要的消息阈值 */
+  summarizeThreshold: number;
+  /** 空闲超时时间（毫秒） */
+  idleTimeout: number;
+  /** 短期记忆保留天数 */
+  shortTermRetentionDays: number;
+  /** 检索结果数量限制 */
+  searchLimit: number;
+  /** 多嵌入模型配置 */
+  multiEmbed?: MultiEmbedConfig;
+}
+
+/** 引用溯源配置 */
+export interface CitationConfig {
+  /** 是否启用引用溯源 */
+  enabled: boolean;
+  /** 最小置信度阈值 (0-1) */
+  minConfidence: number;
+  /** 最大引用数 */
+  maxCitations: number;
+  /** 引用格式 */
+  format: 'numbered' | 'bracket' | 'footnote';
+  /** 片段最大长度 */
+  maxSnippetLength: number;
+}
+
+/** 循环检测配置 */
+export interface LoopDetectionConfig {
+  /** 是否启用循环检测 */
+  enabled: boolean;
+  /** 警告阈值 */
+  warningThreshold: number;
+  /** 临界阈值 */
+  criticalThreshold: number;
+}
+
+/** 执行器配置 */
+export interface ExecutorConfig {
+  /** 最大迭代次数 */
+  maxIterations: number;
+  /** 循环检测配置 */
+  loopDetection?: LoopDetectionConfig;
+}
+
+/** 知识库配置 */
+export interface KnowledgeBaseConfig {
+  /** 是否启用知识库 */
+  enabled: boolean;
+  /** 知识库基础路径 */
+  basePath: string;
+  /** 文档分块大小 */
+  chunkSize: number;
+  /** 分块重叠大小 */
+  chunkOverlap: number;
+  /** 最大搜索结果数 */
+  maxSearchResults: number;
+  /** 最小相似度阈值 */
+  minSimilarityScore: number;
+  /** 后台构建间隔（毫秒） */
+  buildInterval: number;
+  /** 嵌入模型 ID */
+  embedModel?: string;
+}
+
+/** 工作区配置 */
+export interface WorkspaceConfig {
+  /** 工作区路径 */
+  path: string;
+  /** 工作区名称 */
+  name?: string;
+  /** 工作区描述 */
+  description?: string;
+}
+
+/** Agent 配置（完整配置） */
+export interface AgentFullConfig {
+  /** 默认工作区路径 */
+  workspace: string;
+  /** 模型配置 */
+  models?: ModelsConfig;
+  /** 记忆系统配置 */
+  memory?: MemoryConfig;
+  /** 执行器配置 */
+  executor?: ExecutorConfig;
+  /** 引用溯源配置 */
+  citation?: CitationConfig;
+  /** 生成的最大 token 数量 */
+  maxTokens: number;
+  /** 控制响应的随机性 */
+  temperature: number;
+  /** 限制 token 选择范围为前 k 个候选 */
+  topK: number;
+  /** 核采样参数 */
+  topP: number;
+  /** 频率惩罚 */
+  frequencyPenalty: number;
+}
+
+/** 飞书通道配置 */
+export interface FeishuChannelConfig {
+  /** 是否启用 */
+  enabled: boolean;
+  /** 应用 ID */
+  appId?: string;
+  /** 应用密钥 */
+  appSecret?: string;
+  /** 允许的来源 */
+  allowFrom: string[];
+}
+
+/** 通道配置 */
+export interface ChannelConfig {
+  /** 飞书通道配置 */
+  feishu?: FeishuChannelConfig;
+}
+
 /** 完整配置 */
 export interface Config {
   /** Agent 配置 */
-  agents: {
-    workspace: string;
-    models?: {
-      chat?: string;
-      tool?: string;
-      embed?: string;
-      vision?: string;
-      coder?: string;
-      intent?: string;
-    };
-    memory?: {
-      enabled?: boolean;
-      storagePath?: string;
-      autoSummarize?: boolean;
-      summarizeThreshold?: number;
-      idleTimeout?: number;
-      shortTermRetentionDays?: number;
-      searchLimit?: number;
-    };
-    maxTokens?: number;
-    temperature?: number;
-    topK?: number;
-    topP?: number;
-    frequencyPenalty?: number;
-    /** 执行器配置 */
-    executor?: {
-      /** 最大迭代次数 */
-      maxIterations?: number;
-      /** 循环检测配置 */
-      loopDetection?: {
-        enabled?: boolean;
-        warningThreshold?: number;
-        criticalThreshold?: number;
-      };
-    };
-  };
+  agents: AgentFullConfig;
+  /** 工作区列表 */
+  workspaces: Array<string | WorkspaceConfig>;
   /** Provider 配置 */
   providers: Record<string, ProviderEntry>;
   /** 通道配置 */
-  channels: {
-    feishu?: {
-      enabled?: boolean;
-      appId?: string;
-      appSecret?: string;
-      allowFrom?: string[];
-    };
-  };
+  channels: ChannelConfig;
+  /** 知识库配置 */
+  knowledgeBase?: KnowledgeBaseConfig;
 }

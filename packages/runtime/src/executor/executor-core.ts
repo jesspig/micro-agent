@@ -322,10 +322,11 @@ export class AgentExecutorCore {
     });
 
     // 生成带引用的响应（仅当有高置信度文档时）
+    const minConfidence = this.config.citationMinConfidence ?? 0.5;
     const docMemories = relevantMemories.filter(m => 
       m.type === 'document' && 
       m.metadata.documentId &&
-      (m.metadata.score ?? 0) >= 0.7  // 只保留高置信度文档
+      (m.metadata.score ?? 0) >= minConfidence
     );
     
     const citedResponse = docMemories.length > 0
