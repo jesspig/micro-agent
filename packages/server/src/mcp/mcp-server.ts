@@ -9,6 +9,9 @@ import type { MCPServerCapabilities, MCPImplementation, MCPToolDefinition, MCPTo
 import { MCP_VERSION } from '@micro-agent/providers/mcp'
 import { MCPHandlers } from './handlers'
 import type { MCPServerConfig, ToolHandler, ResourceHandler, PromptHandler, MCPServerLike } from './types'
+import { getLogger } from '@logtape/logtape'
+
+const log = getLogger(['mcp', 'server'])
 
 /** 默认服务器能力 */
 const DEFAULT_CAPABILITIES: MCPServerCapabilities = {
@@ -269,7 +272,7 @@ export class MCPServer implements MCPServerLike {
           const request = JSON.parse(line)
           const response = await this.handleRequest(request)
           if (process.env.NODE_ENV === 'development') {
-            console.log(JSON.stringify(response))
+            log.debug('MCP response', { response })
           }
         } catch {
           // 忽略解析错误
