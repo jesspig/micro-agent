@@ -1,0 +1,42 @@
+{
+  "name": "@micro-agent/client-sdk",
+  "version": "0.3.0",
+  "description": "MicroAgent 开发者 SDK - 客户端 API 和工具定义",
+  "type": "module",
+  "author": "jesspig",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jesspig/micro-agent.git",
+    "directory": "sdk"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
+  "main": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./tool": {
+      "types": "./src/tool/index.ts",
+      "default": "./src/tool/index.ts"
+    },
+    "./define": {
+      "types": "./src/define/index.ts",
+      "default": "./src/define/index.ts"
+    }
+  },
+  "files": [
+    "src"
+  ],
+  "dependencies": {
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.9.3"
+  }
+}
