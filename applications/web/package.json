@@ -1,0 +1,26 @@
+{
+  "name": "@micro-agent/web",
+  "version": "0.3.0",
+  "description": "MicroAgent Web 应用",
+  "type": "module",
+  "author": "jesspig",
+  "license": "MIT",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jesspig/micro-agent.git",
+    "directory": "applications/web"
+  },
+  "main": "./src/server.ts",
+  "scripts": {
+    "dev": "bun run src/server.ts",
+    "start": "bun run src/server.ts"
+  },
+  "dependencies": {
+    "@micro-agent/sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.9.3"
+  }
+}

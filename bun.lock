@@ -25,9 +25,36 @@
         "typescript": "^5.9.3",
       },
     },
+    "agent-service": {
+      "name": "@micro-agent/agent-service",
+      "version": "0.3.0",
+      "dependencies": {
+        "@lancedb/lancedb": "^0.26.2",
+        "@logtape/logtape": "^2.0.4",
+        "@logtape/pretty": "^2.0.4",
+        "ai": "^6.0.106",
+        "mitt": "^3.0.1",
+        "zod": "^4.3.6",
+      },
+      "devDependencies": {
+        "@types/bun": "latest",
+        "typescript": "^5.9.3",
+      },
+    },
+    "applications/web": {
+      "name": "@micro-agent/web",
+      "version": "0.3.0",
+      "dependencies": {
+        "@micro-agent/sdk": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/bun": "latest",
+        "typescript": "^5.9.3",
+      },
+    },
     "apps/cli": {
       "name": "@micro-agent/cli",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "bin": {
         "micro-agent": "./src/cli.ts",
       },
@@ -54,7 +81,7 @@
     },
     "packages/config": {
       "name": "@micro-agent/config",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "dependencies": {
         "@logtape/logtape": "^2.0.4",
         "@logtape/pretty": "^2.0.4",
@@ -71,7 +98,7 @@
     },
     "packages/extension-system": {
       "name": "@micro-agent/extension-system",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "dependencies": {
         "@logtape/logtape": "^2.0.4",
         "@micro-agent/types": "workspace:*",
@@ -84,7 +111,7 @@
     },
     "packages/providers": {
       "name": "@micro-agent/providers",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "dependencies": {
         "@logtape/logtape": "^2.0.4",
         "@micro-agent/config": "workspace:*",
@@ -98,7 +125,7 @@
     },
     "packages/runtime": {
       "name": "@micro-agent/runtime",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "dependencies": {
         "@logtape/file": "^2.0.4",
         "@logtape/logtape": "^2.0.4",
@@ -117,7 +144,7 @@
     },
     "packages/sdk": {
       "name": "@micro-agent/sdk",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "dependencies": {
         "@logtape/logtape": "^2.0.4",
         "@micro-agent/config": "workspace:*",
@@ -136,7 +163,7 @@
     },
     "packages/server": {
       "name": "@micro-agent/server",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "dependencies": {
         "@logtape/logtape": "^2.0.4",
         "@micro-agent/providers": "workspace:*",
@@ -151,7 +178,7 @@
     },
     "packages/storage": {
       "name": "@micro-agent/storage",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "dependencies": {
         "@logtape/logtape": "^2.0.4",
         "@micro-agent/types": "workspace:*",
@@ -163,7 +190,18 @@
     },
     "packages/types": {
       "name": "@micro-agent/types",
-      "version": "0.2.1",
+      "version": "0.2.2",
+      "devDependencies": {
+        "@types/bun": "latest",
+        "typescript": "^5.9.3",
+      },
+    },
+    "sdk": {
+      "name": "@micro-agent/client-sdk",
+      "version": "0.3.0",
+      "dependencies": {
+        "zod": "^4.3.6",
+      },
       "devDependencies": {
         "@types/bun": "latest",
         "typescript": "^5.9.3",
@@ -204,7 +242,11 @@
 
     "@logtape/pretty": ["@logtape/pretty@2.0.4", "", { "peerDependencies": { "@logtape/logtape": "^2.0.4" } }, "sha512-y1nubV70avD9Gx8Q3gcWBlVUsVwpaBdHUntrkkpXIrC/UPRoHuWnBo+FNrtyvgjCEHSbKuxIaOgsE8rxTPEhzg=="],
 
+    "@micro-agent/agent-service": ["@micro-agent/agent-service@workspace:agent-service"],
+
     "@micro-agent/cli": ["@micro-agent/cli@workspace:apps/cli"],
+
+    "@micro-agent/client-sdk": ["@micro-agent/client-sdk@workspace:sdk"],
 
     "@micro-agent/config": ["@micro-agent/config@workspace:packages/config"],
 
@@ -221,6 +263,8 @@
     "@micro-agent/storage": ["@micro-agent/storage@workspace:packages/storage"],
 
     "@micro-agent/types": ["@micro-agent/types@workspace:packages/types"],
+
+    "@micro-agent/web": ["@micro-agent/web@workspace:applications/web"],
 
     "@napi-rs/canvas": ["@napi-rs/canvas@0.1.80", "", { "optionalDependencies": { "@napi-rs/canvas-android-arm64": "0.1.80", "@napi-rs/canvas-darwin-arm64": "0.1.80", "@napi-rs/canvas-darwin-x64": "0.1.80", "@napi-rs/canvas-linux-arm-gnueabihf": "0.1.80", "@napi-rs/canvas-linux-arm64-gnu": "0.1.80", "@napi-rs/canvas-linux-arm64-musl": "0.1.80", "@napi-rs/canvas-linux-riscv64-gnu": "0.1.80", "@napi-rs/canvas-linux-x64-gnu": "0.1.80", "@napi-rs/canvas-linux-x64-musl": "0.1.80", "@napi-rs/canvas-win32-x64-msvc": "0.1.80" } }, "sha512-DxuT1ClnIPts1kQx8FBmkk4BQDTfI5kIzywAaMjQSXfNnra5UFU9PwurXrl+Je3bJ6BGsp/zmshVVFbCmyI+ww=="],
 
@@ -502,6 +546,26 @@
 
     "zod": ["zod@4.3.6", "", {}, "sha512-rftlrkhHZOcjDwkGlnUtZZkvaPHCsDATp4pGpuOOMDaTdDDXF91wuVDJoWoPsKX/3YPQ5fHuF3STjcYyKr+Qhg=="],
 
+    "@micro-agent/agent-service/@types/bun": ["@types/bun@1.3.10", "", { "dependencies": { "bun-types": "1.3.10" } }, "sha512-0+rlrUrOrTSskibryHbvQkDOWRJwJZqZlxrUs1u4oOoTln8+WIXBPmAuCF35SWB2z4Zl3E84Nl/D0P7803nigQ=="],
+
+    "@micro-agent/client-sdk/@types/bun": ["@types/bun@1.3.10", "", { "dependencies": { "bun-types": "1.3.10" } }, "sha512-0+rlrUrOrTSskibryHbvQkDOWRJwJZqZlxrUs1u4oOoTln8+WIXBPmAuCF35SWB2z4Zl3E84Nl/D0P7803nigQ=="],
+
+    "@micro-agent/config/@types/bun": ["@types/bun@1.3.10", "", { "dependencies": { "bun-types": "1.3.10" } }, "sha512-0+rlrUrOrTSskibryHbvQkDOWRJwJZqZlxrUs1u4oOoTln8+WIXBPmAuCF35SWB2z4Zl3E84Nl/D0P7803nigQ=="],
+
+    "@micro-agent/extension-system/@types/bun": ["@types/bun@1.3.10", "", { "dependencies": { "bun-types": "1.3.10" } }, "sha512-0+rlrUrOrTSskibryHbvQkDOWRJwJZqZlxrUs1u4oOoTln8+WIXBPmAuCF35SWB2z4Zl3E84Nl/D0P7803nigQ=="],
+
+    "@micro-agent/providers/@types/bun": ["@types/bun@1.3.10", "", { "dependencies": { "bun-types": "1.3.10" } }, "sha512-0+rlrUrOrTSskibryHbvQkDOWRJwJZqZlxrUs1u4oOoTln8+WIXBPmAuCF35SWB2z4Zl3E84Nl/D0P7803nigQ=="],
+
+    "@micro-agent/runtime/@types/bun": ["@types/bun@1.3.10", "", { "dependencies": { "bun-types": "1.3.10" } }, "sha512-0+rlrUrOrTSskibryHbvQkDOWRJwJZqZlxrUs1u4oOoTln8+WIXBPmAuCF35SWB2z4Zl3E84Nl/D0P7803nigQ=="],
+
+    "@micro-agent/sdk/@types/bun": ["@types/bun@1.3.10", "", { "dependencies": { "bun-types": "1.3.10" } }, "sha512-0+rlrUrOrTSskibryHbvQkDOWRJwJZqZlxrUs1u4oOoTln8+WIXBPmAuCF35SWB2z4Zl3E84Nl/D0P7803nigQ=="],
+
+    "@micro-agent/storage/@types/bun": ["@types/bun@1.3.10", "", { "dependencies": { "bun-types": "1.3.10" } }, "sha512-0+rlrUrOrTSskibryHbvQkDOWRJwJZqZlxrUs1u4oOoTln8+WIXBPmAuCF35SWB2z4Zl3E84Nl/D0P7803nigQ=="],
+
+    "@micro-agent/types/@types/bun": ["@types/bun@1.3.10", "", { "dependencies": { "bun-types": "1.3.10" } }, "sha512-0+rlrUrOrTSskibryHbvQkDOWRJwJZqZlxrUs1u4oOoTln8+WIXBPmAuCF35SWB2z4Zl3E84Nl/D0P7803nigQ=="],
+
+    "@micro-agent/web/@types/bun": ["@types/bun@1.3.10", "", { "dependencies": { "bun-types": "1.3.10" } }, "sha512-0+rlrUrOrTSskibryHbvQkDOWRJwJZqZlxrUs1u4oOoTln8+WIXBPmAuCF35SWB2z4Zl3E84Nl/D0P7803nigQ=="],
+
     "apache-arrow/@types/node": ["@types/node@20.19.35", "", { "dependencies": { "undici-types": "~6.21.0" } }, "sha512-Uarfe6J91b9HAUXxjvSOdiO2UPOKLm07Q1oh0JHxoZ1y8HoqxDAu3gVrsrOHeiio0kSsoVBt4wFrKOm0dKxVPQ=="],
 
     "command-line-usage/array-back": ["array-back@6.2.2", "", {}, "sha512-gUAZ7HPyb4SJczXAMUXMGAvI976JoK3qEx9v1FTmeYuJj0IBiaKttG1ydtGKdkfqWkIkouke7nG8ufGy77+Cvw=="],
@@ -513,6 +577,26 @@
     "mammoth/argparse": ["argparse@1.0.10", "", { "dependencies": { "sprintf-js": "~1.0.2" } }, "sha512-o5Roy6tNG4SL/FOkCAN6RzjiakZS25RLYFrcMttJqbdd8BWrnA+fGz57iN5Pb06pvBGvl5gQ0B48dJlslXvoTg=="],
 
     "table-layout/array-back": ["array-back@6.2.2", "", {}, "sha512-gUAZ7HPyb4SJczXAMUXMGAvI976JoK3qEx9v1FTmeYuJj0IBiaKttG1ydtGKdkfqWkIkouke7nG8ufGy77+Cvw=="],
+
+    "@micro-agent/agent-service/@types/bun/bun-types": ["bun-types@1.3.10", "", { "dependencies": { "@types/node": "*" } }, "sha512-tcpfCCl6XWo6nCVnpcVrxQ+9AYN1iqMIzgrSKYMB/fjLtV2eyAVEg7AxQJuCq/26R6HpKWykQXuSOq/21RYcbg=="],
+
+    "@micro-agent/client-sdk/@types/bun/bun-types": ["bun-types@1.3.10", "", { "dependencies": { "@types/node": "*" } }, "sha512-tcpfCCl6XWo6nCVnpcVrxQ+9AYN1iqMIzgrSKYMB/fjLtV2eyAVEg7AxQJuCq/26R6HpKWykQXuSOq/21RYcbg=="],
+
+    "@micro-agent/config/@types/bun/bun-types": ["bun-types@1.3.10", "", { "dependencies": { "@types/node": "*" } }, "sha512-tcpfCCl6XWo6nCVnpcVrxQ+9AYN1iqMIzgrSKYMB/fjLtV2eyAVEg7AxQJuCq/26R6HpKWykQXuSOq/21RYcbg=="],
+
+    "@micro-agent/extension-system/@types/bun/bun-types": ["bun-types@1.3.10", "", { "dependencies": { "@types/node": "*" } }, "sha512-tcpfCCl6XWo6nCVnpcVrxQ+9AYN1iqMIzgrSKYMB/fjLtV2eyAVEg7AxQJuCq/26R6HpKWykQXuSOq/21RYcbg=="],
+
+    "@micro-agent/providers/@types/bun/bun-types": ["bun-types@1.3.10", "", { "dependencies": { "@types/node": "*" } }, "sha512-tcpfCCl6XWo6nCVnpcVrxQ+9AYN1iqMIzgrSKYMB/fjLtV2eyAVEg7AxQJuCq/26R6HpKWykQXuSOq/21RYcbg=="],
+
+    "@micro-agent/runtime/@types/bun/bun-types": ["bun-types@1.3.10", "", { "dependencies": { "@types/node": "*" } }, "sha512-tcpfCCl6XWo6nCVnpcVrxQ+9AYN1iqMIzgrSKYMB/fjLtV2eyAVEg7AxQJuCq/26R6HpKWykQXuSOq/21RYcbg=="],
+
+    "@micro-agent/sdk/@types/bun/bun-types": ["bun-types@1.3.10", "", { "dependencies": { "@types/node": "*" } }, "sha512-tcpfCCl6XWo6nCVnpcVrxQ+9AYN1iqMIzgrSKYMB/fjLtV2eyAVEg7AxQJuCq/26R6HpKWykQXuSOq/21RYcbg=="],
+
+    "@micro-agent/storage/@types/bun/bun-types": ["bun-types@1.3.10", "", { "dependencies": { "@types/node": "*" } }, "sha512-tcpfCCl6XWo6nCVnpcVrxQ+9AYN1iqMIzgrSKYMB/fjLtV2eyAVEg7AxQJuCq/26R6HpKWykQXuSOq/21RYcbg=="],
+
+    "@micro-agent/types/@types/bun/bun-types": ["bun-types@1.3.10", "", { "dependencies": { "@types/node": "*" } }, "sha512-tcpfCCl6XWo6nCVnpcVrxQ+9AYN1iqMIzgrSKYMB/fjLtV2eyAVEg7AxQJuCq/26R6HpKWykQXuSOq/21RYcbg=="],
+
+    "@micro-agent/web/@types/bun/bun-types": ["bun-types@1.3.10", "", { "dependencies": { "@types/node": "*" } }, "sha512-tcpfCCl6XWo6nCVnpcVrxQ+9AYN1iqMIzgrSKYMB/fjLtV2eyAVEg7AxQJuCq/26R6HpKWykQXuSOq/21RYcbg=="],
 
     "apache-arrow/@types/node/undici-types": ["undici-types@6.21.0", "", {}, "sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ=="],
 

@@ -11,7 +11,10 @@
   },
   "workspaces": [
     "packages/*",
-    "apps/*"
+    "apps/*",
+    "agent-service",
+    "sdk",
+    "applications/*"
   ],
   "trustedDependencies": [
     "@larksuiteoapi/node-sdk"
