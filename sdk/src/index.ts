@@ -24,7 +24,8 @@ export { IPCTransport } from './transport/ipc';
 // 客户端核心
 export { RequestBuilder } from './client/request-builder';
 export { ResponseParser } from './client/response-parser';
-export { ErrorHandler, SDKError, SDKErrorCode } from './client/error-handler';
+export { ErrorHandler, SDKError } from './client/error-handler';
+export type { SDKErrorCode } from './client/error-handler';
 export type { SDKRequest, SDKResponse, StreamChunk } from './client/types';
 
 // 工具定义
