@@ -134,20 +134,97 @@ function toOpenAIMessages(messages: LLMMessage[]): OpenAIMessage[] {
 }
 
 /** 解析 OpenAI 格式响应 */
-function parseOpenAIResponse(data: OpenAIResponse): LLMResponse {
-  const choice = data.choices[0];
-  if (!choice) {
+function parseOpenAIResponse(data: unknown): LLMResponse {
+  // 调试日志
+  console.log('[LLM] 解析响应, 数据类型:', typeof data, '数据:', JSON.stringify(data).slice(0, 500));
+  
+  // 类型检查
+  if (!data || typeof data !== 'object') {
+    console.error('[LLM] 响应数据无效:', data);
     return { content: '', hasToolCalls: false };
   }
 
-  const toolCalls = choice.message.tool_calls?.map(tc => ({
+  const responseData = data as Record<string, unknown>;
+  
+  // 检查是否有 choices 字段
+  if (!('choices' in responseData)) {
+    console.error('[LLM] 响应没有 choices 字段, 可用字段:', Object.keys(responseData));
+    // 尝试其他常见格式
+    
+    // 某些 API 可能直接返回 content
+    if ('content' in responseData && typeof responseData.content === 'string') {
+      return { content: responseData.content, hasToolCalls: false };
+    }
+    
+    // 某些 API 可能返回 result
+    if ('result' in responseData) {
+      const result = responseData.result;
+      if (typeof result === 'string') {
+        return { content: result, hasToolCalls: false };
+      }
+      if (result && typeof result === 'object' && 'content' in result) {
+        return { content: String((result as Record<string, unknown>).content), hasToolCalls: false };
+      }
+    }
+    
+    // 某些 API 可能返回 data.content
+    if ('data' in responseData) {
+      const innerData = (responseData as Record<string, unknown>).data;
+      if (innerData && typeof innerData === 'object') {
+        const inner = innerData as Record<string, unknown>;
+        if ('content' in inner && typeof inner.content === 'string') {
+          return { content: inner.content, hasToolCalls: false };
+        }
+        if ('choices' in inner && Array.isArray(inner.choices)) {
+          // data.choices 格式
+          const choice = inner.choices[0] as Record<string, unknown> | undefined;
+          if (choice && 'message' in choice) {
+            const message = (choice as Record<string, unknown>).message as Record<string, unknown>;
+            return { content: String(message?.content ?? ''), hasToolCalls: false };
+          }
+        }
+      }
+    }
+    
+    // 某些 API 可能返回 output 或 text
+    if ('output' in responseData && typeof responseData.output === 'string') {
+      return { content: responseData.output, hasToolCalls: false };
+    }
+    if ('text' in responseData && typeof responseData.text === 'string') {
+      return { content: responseData.text, hasToolCalls: false };
+    }
+    
+    // 无法解析，返回原始 JSON 作为内容
+    return { content: JSON.stringify(responseData), hasToolCalls: false };
+  }
+
+  const choices = responseData.choices as Array<Record<string, unknown>>;
+  const choice = choices?.[0];
+  
+  if (!choice) {
+    console.error('[LLM] choices 数组为空');
+    return { content: '', hasToolCalls: false };
+  }
+
+  const message = (choice as Record<string, unknown>).message as Record<string, unknown> | undefined;
+  if (!message) {
+    console.error('[LLM] choice 没有 message 字段');
+    return { content: '', hasToolCalls: false };
+  }
+
+  const content = typeof message.content === 'string' ? message.content : '';
+  
+  const toolCalls = (message.tool_calls as Array<{
+    id: string;
+    function: { name: string; arguments: string };
+  }>)?.map(tc => ({
     id: tc.id,
     name: tc.function.name,
     arguments: JSON.parse(tc.function.arguments),
   }));
 
   return {
-    content: choice.message.content || '',
+    content: content || '',
     toolCalls,
     hasToolCalls: !!toolCalls?.length,
   };
@@ -224,8 +301,36 @@ export class OpenAICompatibleProvider implements LLMProvider {
       throw new Error(`API 错误 (${response.status}): ${errorText}`);
     }
 
-    const data = await response.json() as OpenAIResponse;
-    return parseOpenAIResponse(data);
+    const data = await response.json();
+    
+    // 调试日志：捕获原始响应
+    console.log('[LLM] API 原始响应:', JSON.stringify(data, null, 2));
+    
+    // 检查是否为错误响应（某些 API 返回 HTTP 200 但包含错误信息）
+    if (data && typeof data === 'object') {
+      const responseData = data as Record<string, unknown>;
+      
+      // 检查常见的错误响应格式
+      if ('status' in responseData && responseData.status !== 200 && responseData.status !== '200') {
+        const errorMsg = String(responseData.msg || responseData.message || '未知错误');
+        throw new Error(`API 错误 (status: ${responseData.status}): ${errorMsg}`);
+      }
+      
+      if ('error' in responseData) {
+        const error = responseData.error;
+        if (typeof error === 'object' && error !== null) {
+          const errorObj = error as Record<string, unknown>;
+          throw new Error(`API 错误: ${errorObj.message || JSON.stringify(error)}`);
+        }
+        throw new Error(`API 错误: ${error}`);
+      }
+      
+      if ('code' in responseData && 'message' in responseData && responseData.code !== 0) {
+        throw new Error(`API 错误 (code: ${responseData.code}): ${responseData.message}`);
+      }
+    }
+    
+    return parseOpenAIResponse(data as OpenAIResponse);
   }
 
   getDefaultModel(): string {

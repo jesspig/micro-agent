@@ -158,16 +158,12 @@ export class MessageRouter {
   /**
    * 处理入站消息
    */
-  private async handleInboundMessage(msg: InboundMessage): Promise<void> {
-    console.log('[MessageRouter] 处理入站消息:', msg.id, msg.content.text?.slice(0, 50));
-    
+  private async handleInboundMessage(msg: InboundMessage): Promise<void> {    
     // 获取或创建会话
     const sessionId = this.getOrCreateSession(msg);
-    console.log('[MessageRouter] 会话 ID:', sessionId);
 
     try {
       // 发送到 Agent 并流式处理响应
-      console.log('[MessageRouter] 发送到 Agent...');
       const stream = this.agentClient.chat(sessionId, msg.content, {
         channelType: msg.channelType,
         chatId: msg.chatId,
@@ -177,12 +173,10 @@ export class MessageRouter {
       let fullContent = '';
 
       for await (const chunk of stream) {
-        console.log('[MessageRouter] 收到 chunk:', chunk.type, chunk.content?.slice(0, 30));
         if (chunk.type === 'text') {
           fullContent += chunk.content;
         } else if (chunk.type === 'done') {
           // 发送完整响应
-          console.log('[MessageRouter] 响应完成:', fullContent.slice(0, 100));
           await this.sendToChannel(msg.channelType, msg.chatId, {
             type: 'text',
             text: fullContent,

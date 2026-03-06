@@ -70,22 +70,14 @@ export class AgentClientImpl implements AgentClient {
     }
 
     const text = content.type === 'text' ? content.text : JSON.stringify(content);
-    console.log('[AgentClient] 发送聊天请求:', sessionId, text.slice(0, 50));
 
     // 使用 SDK 的流式接口
-    try {
-      for await (const chunk of this.client.chatStream({
-        sessionId,
-        content: { type: 'text', text },
-        metadata,
-      })) {
-        console.log('[AgentClient] 收到 chunk:', chunk.type);
-        yield chunk;
-      }
-      console.log('[AgentClient] 流式响应结束');
-    } catch (error) {
-      console.error('[AgentClient] 流式请求失败:', error);
-      throw error;
+    for await (const chunk of this.client.chatStream({
+      sessionId,
+      content: { type: 'text', text },
+      metadata,
+    })) {
+      yield chunk;
     }
   }
 

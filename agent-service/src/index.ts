@@ -8,11 +8,17 @@
  * 2. 独立模式：作为独立服务运行，通过 TCP/Unix Socket 通信
  */
 
+import { loadConfig, type Config } from '@micro-agent/config';
+import { OpenAICompatibleProvider, type LLMProvider } from '../runtime/provider/llm/openai';
+import { ToolRegistry, type ToolContext } from '../runtime/capability/tool-system/registry';
+
 const log = {
   info: (msg: string, data?: Record<string, unknown>) =>
     console.log(`[AgentService] ${msg}`, data ? JSON.stringify(data) : ''),
   error: (msg: string, error?: Error) =>
     console.error(`[AgentService] ${msg}`, error?.message ?? ''),
+  debug: (msg: string, data?: Record<string, unknown>) =>
+    process.env.LOG_LEVEL === 'debug' && console.log(`[AgentService] ${msg}`, data ? JSON.stringify(data) : ''),
 };
 
 /** Agent Service 配置 */
@@ -32,9 +38,16 @@ const DEFAULT_CONFIG: AgentServiceConfig = {
  */
 class AgentServiceImpl {
   private config: AgentServiceConfig;
+  private appConfig: Config | null = null;
   private running = false;
   private sessions = new Map<string, { messages: Array<{ role: string; content: string }> }>();
   private isIPCMode = false;
+  
+  // 核心组件
+  private llmProvider: LLMProvider | null = null;
+  private toolRegistry: ToolRegistry | null = null;
+  private defaultModel: string = 'gpt-4';
+  private systemPrompt: string = '你是一个有帮助的 AI 助手。';
 
   constructor(config: Partial<AgentServiceConfig> = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
@@ -52,6 +65,12 @@ class AgentServiceImpl {
       mode: this.isIPCMode ? 'IPC' : '独立'
     });
 
+    // 加载配置
+    await this.loadAppConfig();
+
+    // 初始化组件
+    this.initializeComponents();
+
     if (this.isIPCMode) {
       this.startIPCMode();
     } else {
@@ -60,6 +79,170 @@ class AgentServiceImpl {
 
     this.running = true;
     log.info('Agent Service 已启动');
+  }
+
+  /**
+   * 加载应用配置
+   */
+  private async loadAppConfig(): Promise<void> {
+    try {
+      this.appConfig = loadConfig({
+        workspace: this.config.workspace,
+      });
+      log.info('配置加载成功');
+    } catch (error) {
+      log.error('配置加载失败，使用默认配置', error as Error);
+      // 使用默认配置
+      this.appConfig = {
+        agents: {
+          workspace: this.config.workspace ?? '~/.micro-agent/workspace',
+          maxTokens: 512,
+          temperature: 0.7,
+          topK: 50,
+          topP: 0.7,
+          frequencyPenalty: 0.5,
+        },
+        providers: {},
+        channels: {},
+        workspaces: [],
+      };
+    }
+  }
+
+  /**
+   * 初始化组件
+   */
+  private initializeComponents(): void {
+    if (!this.appConfig) return;
+
+    // 初始化 LLM Provider
+    this.initializeLLMProvider();
+
+    // 初始化 Tool Registry
+    this.initializeToolRegistry();
+
+    // 设置系统提示词
+    this.systemPrompt = this.buildSystemPrompt();
+  }
+
+  /**
+   * 初始化 LLM Provider
+   */
+  private initializeLLMProvider(): void {
+    const providers = this.appConfig?.providers || {};
+    const agentConfig = this.appConfig?.agents;
+
+    // 解析默认模型信息
+    const chatModelConfig = agentConfig?.models?.chat || '';
+    const slashIndex = chatModelConfig.indexOf('/');
+    const defaultProviderName = slashIndex > 0 ? chatModelConfig.slice(0, slashIndex) : null;
+    const defaultModelId = slashIndex > 0 ? chatModelConfig.slice(slashIndex + 1) : chatModelConfig;
+
+    // 如果指定了 provider 名称，优先使用该 provider
+    if (defaultProviderName) {
+      const providerConfig = providers[defaultProviderName];
+      if (providerConfig?.baseUrl) {
+        this.defaultModel = defaultModelId;
+        
+        this.llmProvider = new OpenAICompatibleProvider({
+          baseUrl: providerConfig.baseUrl,
+          apiKey: providerConfig.apiKey,  // 可选，Ollama 等本地 provider 不需要
+          defaultModel: defaultModelId,
+          defaultGenerationConfig: {
+            maxTokens: agentConfig?.maxTokens ?? 512,
+            temperature: agentConfig?.temperature ?? 0.7,
+            topK: agentConfig?.topK ?? 50,
+            topP: agentConfig?.topP ?? 0.7,
+            frequencyPenalty: agentConfig?.frequencyPenalty ?? 0.5,
+          },
+        }, defaultProviderName);
+
+        log.info(`LLM Provider 已初始化: ${defaultProviderName}, 默认模型: ${defaultModelId}`);
+        return;
+      } else {
+        log.info(`配置的 provider "${defaultProviderName}" 未找到或缺少 baseUrl`);
+      }
+    }
+
+    // 回退：查找第一个可用的 provider
+    for (const [name, providerConfig] of Object.entries(providers)) {
+      if (providerConfig.baseUrl) {
+        // 获取模型列表
+        const models = providerConfig.models || [];
+        
+        // 确定要使用的模型 ID
+        let modelId: string;
+        if (models.length > 0) {
+          const firstModel = models[0];
+          const modelSlashIndex = firstModel.indexOf('/');
+          modelId = modelSlashIndex > 0 ? firstModel.slice(modelSlashIndex + 1) : firstModel;
+        } else {
+          modelId = defaultModelId || 'gpt-4';
+        }
+        
+        this.defaultModel = modelId;
+
+        this.llmProvider = new OpenAICompatibleProvider({
+          baseUrl: providerConfig.baseUrl,
+          apiKey: providerConfig.apiKey,
+          defaultModel: modelId,
+          defaultGenerationConfig: {
+            maxTokens: agentConfig?.maxTokens ?? 512,
+            temperature: agentConfig?.temperature ?? 0.7,
+            topK: agentConfig?.topK ?? 50,
+            topP: agentConfig?.topP ?? 0.7,
+            frequencyPenalty: agentConfig?.frequencyPenalty ?? 0.5,
+          },
+        }, name);
+
+        log.info(`LLM Provider 已初始化（回退）: ${name}, 默认模型: ${modelId}`);
+        return;
+      }
+    }
+
+    // 没有配置 provider，使用模拟模式
+    log.info('未配置 LLM Provider，使用模拟响应模式');
+  }
+
+  /**
+   * 初始化 Tool Registry
+   */
+  private initializeToolRegistry(): void {
+    this.toolRegistry = new ToolRegistry({
+      workspace: this.config.workspace,
+    });
+
+    // 注册内置工具
+    this.registerBuiltinTools();
+
+    log.info(`Tool Registry 已初始化，已注册 ${this.toolRegistry.size} 个工具`);
+  }
+
+  /**
+   * 注册内置工具
+   */
+  private registerBuiltinTools(): void {
+    if (!this.toolRegistry) return;
+
+    // TODO: 注册更多内置工具
+    // 当前只有基础框架，后续可以注册文件操作、搜索等工具
+  }
+
+  /**
+   * 构建系统提示词
+   */
+  private buildSystemPrompt(): string {
+    return `你是一个有帮助的 AI 助手。请用中文回复用户的问题。
+
+当前工作目录: ${this.config.workspace}
+
+你可以帮助用户：
+- 回答问题
+- 编写代码
+- 分析问题
+- 提供建议
+
+请用简洁、清晰的方式回复。`;
   }
 
   /**
@@ -183,6 +366,11 @@ class AgentServiceImpl {
       version: '1.0.0',
       uptime: Math.floor(process.uptime()),
       activeSessions: this.sessions.size,
+      provider: this.llmProvider ? {
+        name: this.llmProvider.name,
+        model: this.defaultModel,
+      } : null,
+      tools: this.toolRegistry?.size ?? 0,
     };
   }
 
@@ -195,6 +383,22 @@ class AgentServiceImpl {
       content: { type: string; text: string };
     };
 
+    // 如果有 LLM Provider，调用真实 LLM
+    if (this.llmProvider) {
+      const messages = [
+        { role: 'system' as const, content: this.systemPrompt },
+        { role: 'user' as const, content: content.text },
+      ];
+
+      const response = await this.llmProvider.chat(messages);
+      return {
+        sessionId,
+        content: response.content,
+        done: true,
+      };
+    }
+
+    // 模拟响应
     return {
       sessionId,
       content: `执行结果: ${content.text}`,
@@ -218,8 +422,147 @@ class AgentServiceImpl {
     const session = this.sessions.get(sessionId)!;
     session.messages.push({ role: 'user', content: content.text });
 
+    // 如果有 LLM Provider，调用真实 LLM
+    if (this.llmProvider) {
+      try {
+        await this.streamFromLLM(session, content.text, requestId);
+        return;
+      } catch (error) {
+        log.error('LLM 调用失败', error as Error);
+        // 回退到模拟响应
+      }
+    }
+
     // 模拟流式响应
-    const response = `收到消息: "${content.text}"。Agent Service 正在运行。`;
+    await this.streamMockResponse(content.text, requestId);
+  }
+
+  /**
+   * 从 LLM 获取流式响应
+   */
+  private async streamFromLLM(
+    session: { messages: Array<{ role: string; content: string }> },
+    userMessage: string,
+    requestId: string
+  ): Promise<void> {
+    if (!this.llmProvider) return;
+
+    // 构建消息历史
+    const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
+      { role: 'system', content: this.systemPrompt },
+    ];
+
+    // 添加历史消息（最近 10 条）
+    const recentMessages = session.messages.slice(-10);
+    for (const msg of recentMessages) {
+      messages.push({
+        role: msg.role as 'user' | 'assistant',
+        content: msg.content,
+      });
+    }
+
+    // 获取工具定义
+    const tools = this.toolRegistry?.getDefinitions() || [];
+
+    // 调用 LLM（非流式，因为我们自己的流式层在 IPC 上）
+    const response = await this.llmProvider.chat(messages, tools.length > 0 ? tools : undefined);
+
+    // 检查是否有工具调用
+    if (response.hasToolCalls && response.toolCalls && this.toolRegistry) {
+      // 处理工具调用
+      await this.handleToolCalls(response.toolCalls, messages, requestId);
+      return;
+    }
+
+    // 流式发送响应
+    const fullContent = response.content || '';
+    for (let i = 0; i < fullContent.length; i += 20) {
+      const chunk = fullContent.slice(i, i + 20);
+      process.send?.({
+        jsonrpc: '2.0',
+        id: requestId,
+        method: 'stream',
+        params: { delta: chunk, done: false },
+      });
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+
+    process.send?.({
+      jsonrpc: '2.0',
+      id: requestId,
+      method: 'stream',
+      params: { done: true },
+    });
+
+    session.messages.push({ role: 'assistant', content: fullContent });
+  }
+
+  /**
+   * 处理工具调用
+   */
+  private async handleToolCalls(
+    toolCalls: Array<{ id: string; name: string; arguments: Record<string, unknown> }>,
+    messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
+    requestId: string
+  ): Promise<void> {
+    if (!this.toolRegistry || !this.llmProvider) return;
+
+    // 添加助手消息（带工具调用）
+    messages.push({
+      role: 'assistant',
+      content: '',
+    });
+
+    // 执行工具
+    for (const tc of toolCalls) {
+      const toolContext: ToolContext = {
+        channel: 'ipc',
+        chatId: requestId,
+        workspace: this.config.workspace ?? process.cwd(),
+        currentDir: this.config.workspace ?? process.cwd(),
+        sendToBus: async () => {},
+      };
+
+      const result = await this.toolRegistry.execute(tc.name, tc.arguments, toolContext);
+      const resultContent = typeof result.content === 'string' 
+        ? result.content 
+        : JSON.stringify(result.content);
+
+      messages.push({
+        role: 'user' as const,
+        content: `工具 ${tc.name} 结果: ${resultContent}`,
+      });
+    }
+
+    // 再次调用 LLM 获取最终响应
+    const finalResponse = await this.llmProvider.chat(messages);
+    const fullContent = finalResponse.content || '';
+
+    // 流式发送响应
+    for (let i = 0; i < fullContent.length; i += 20) {
+      const chunk = fullContent.slice(i, i + 20);
+      process.send?.({
+        jsonrpc: '2.0',
+        id: requestId,
+        method: 'stream',
+        params: { delta: chunk, done: false },
+      });
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+
+    process.send?.({
+      jsonrpc: '2.0',
+      id: requestId,
+      method: 'stream',
+      params: { done: true },
+    });
+  }
+
+  /**
+   * 模拟流式响应
+   */
+  private async streamMockResponse(userMessage: string, requestId: string): Promise<void> {
+    const response = `收到消息: "${userMessage}"。Agent Service 正在运行。`;
 
     for (let i = 0; i < response.length; i += 10) {
       const chunk = response.slice(i, i + 10);
@@ -238,8 +581,6 @@ class AgentServiceImpl {
       method: 'stream',
       params: { done: true },
     });
-
-    session.messages.push({ role: 'assistant', content: response });
   }
 
   /**
@@ -260,14 +601,27 @@ class AgentServiceImpl {
     const session = this.sessions.get(sessionId)!;
     session.messages.push({ role: 'user', content: content.text });
 
-    const response = `收到消息: "${content.text}"。Agent Service 正在运行。`;
-
-    for (let i = 0; i < response.length; i += 10) {
-      const chunk = response.slice(i, i + 10);
-      sendChunk({ delta: chunk, done: false });
-      await new Promise((resolve) => setTimeout(resolve, 20));
+    // 如果有 LLM Provider
+    if (this.llmProvider) {
+      try {
+        const messages = [
+          { role: 'system' as const, content: this.systemPrompt },
+          { role: 'user' as const, content: content.text },
+        ];
+        const response = await this.llmProvider.chat(messages);
+        
+        sendChunk({ delta: response.content || '', done: false });
+        sendChunk({ done: true });
+        session.messages.push({ role: 'assistant', content: response.content || '' });
+        return;
+      } catch (error) {
+        log.error('LLM 调用失败', error as Error);
+      }
     }
 
+    // 模拟响应
+    const response = `收到消息: "${content.text}"。Agent Service 正在运行。`;
+    sendChunk({ delta: response, done: false });
     sendChunk({ done: true });
     session.messages.push({ role: 'assistant', content: response });
   }

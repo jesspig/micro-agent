@@ -263,7 +263,6 @@ export class IPCTransport {
 
     const id = crypto.randomUUID();
     const body = RequestBuilder.buildRequest(method, { ...params, stream: true }, id);
-    console.log('[IPC] 发送流式请求:', method, 'id:', id);
 
     return new Promise((resolve, reject) => {
       const timeoutId = setTimeout(() => {
@@ -272,7 +271,6 @@ export class IPCTransport {
       }, this.config.timeout! * 3);
 
       this.streamHandlers.set(id, (chunk) => {
-        console.log('[IPC] 调用 handler, type:', chunk.type);
         handler(chunk);
         if (chunk.type === 'done' || chunk.type === 'error') {
           clearTimeout(timeoutId);
@@ -309,14 +307,10 @@ export class IPCTransport {
       if (!id) return;
 
       // 检查是否为流式响应
-      if (parsed.method === 'stream') {
-        console.log('[IPC] 收到流式响应, id:', id, 'handler存在:', this.streamHandlers.has(id));
-        if (this.streamHandlers.has(id)) {
-          const handler = this.streamHandlers.get(id)!;
-          const chunk = this.parseStreamChunk(parsed.result);
-          console.log('[IPC] 流式 chunk:', chunk.type, chunk.content?.slice(0, 30));
-          handler(chunk);
-        }
+      if (parsed.method === 'stream' && this.streamHandlers.has(id)) {
+        const handler = this.streamHandlers.get(id)!;
+        const chunk = this.parseStreamChunk(parsed.result);
+        handler(chunk);
         return;
       }
 
