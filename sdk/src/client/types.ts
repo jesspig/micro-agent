@@ -69,6 +69,72 @@ export type StreamHandler = (chunk: StreamChunk) => void;
 /** 会话键类型 */
 export type SessionKey = `${string}:${string}`;
 
+/** 工具配置 */
+export interface ToolConfig {
+  /** 工具名称 */
+  name: string;
+  /** 工具描述 */
+  description?: string;
+  /** 是否启用 */
+  enabled?: boolean;
+  /** 工具参数 schema */
+  inputSchema?: Record<string, unknown>;
+  /** 工具元数据 */
+  metadata?: Record<string, unknown>;
+}
+
+/** 技能配置 */
+export interface SkillConfig {
+  /** 技能名称 */
+  name: string;
+  /** 技能描述 */
+  description?: string;
+  /** 是否启用 */
+  enabled?: boolean;
+  /** 技能路径 */
+  path?: string;
+  /** 是否自动加载 */
+  always?: boolean;
+  /** 预批准工具列表 */
+  allowedTools?: string[];
+  /** 技能元数据 */
+  metadata?: Record<string, unknown>;
+}
+
+/** 记忆系统配置 */
+export interface MemoryConfig {
+  /** 是否启用 */
+  enabled?: boolean;
+  /** 存储路径 */
+  storagePath?: string;
+  /** 嵌入模型 */
+  embedModel?: string;
+  /** 检索模式 */
+  mode?: 'fulltext' | 'vector' | 'hybrid' | 'auto';
+  /** 检索数量限制 */
+  searchLimit?: number;
+  /** 自动摘要 */
+  autoSummarize?: boolean;
+  /** 摘要阈值 */
+  summarizeThreshold?: number;
+}
+
+/** 知识库配置 */
+export interface KnowledgeConfig {
+  /** 是否启用 */
+  enabled?: boolean;
+  /** 知识库路径 */
+  basePath?: string;
+  /** 嵌入模型 */
+  embedModel?: string;
+  /** 分块大小 */
+  chunkSize?: number;
+  /** 分块重叠 */
+  chunkOverlap?: number;
+  /** 检索数量限制 */
+  searchLimit?: number;
+}
+
 /** 运行时配置 */
 export interface RuntimeConfig {
   /** 工作目录 */
@@ -88,6 +154,16 @@ export interface RuntimeConfig {
   temperature?: number;
   /** 最大迭代次数 */
   maxIterations?: number;
+  /** 系统提示词 */
+  systemPrompt?: string;
+  /** 工具列表 */
+  tools?: ToolConfig[];
+  /** 技能列表 */
+  skills?: SkillConfig[];
+  /** 记忆系统配置 */
+  memory?: MemoryConfig;
+  /** 知识库配置 */
+  knowledge?: KnowledgeConfig;
 }
 
 /** 提示词模板 */
