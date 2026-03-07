@@ -135,12 +135,9 @@ function toOpenAIMessages(messages: LLMMessage[]): OpenAIMessage[] {
 
 /** 解析 OpenAI 格式响应 */
 function parseOpenAIResponse(data: unknown): LLMResponse {
-  // 调试日志
-  console.log('[LLM] 解析响应, 数据类型:', typeof data, '数据:', JSON.stringify(data).slice(0, 500));
-  
   // 类型检查
   if (!data || typeof data !== 'object') {
-    console.error('[LLM] 响应数据无效:', data);
+    log.warn('LLM 响应数据无效', { dataType: typeof data });
     return { content: '', hasToolCalls: false };
   }
 
@@ -202,13 +199,13 @@ function parseOpenAIResponse(data: unknown): LLMResponse {
   const choice = choices?.[0];
   
   if (!choice) {
-    console.error('[LLM] choices 数组为空');
+    log.warn('LLM choices 数组为空');
     return { content: '', hasToolCalls: false };
   }
 
   const message = (choice as Record<string, unknown>).message as Record<string, unknown> | undefined;
   if (!message) {
-    console.error('[LLM] choice 没有 message 字段');
+    log.warn('LLM choice 没有 message 字段');
     return { content: '', hasToolCalls: false };
   }
 
@@ -255,6 +252,14 @@ export class OpenAICompatibleProvider implements LLMProvider {
     const modelName = model ?? this.config.defaultModel;
     const genConfig = { ...this.generationConfig, ...config };
 
+    // 记录请求
+    log.info('LLM 请求', {
+      model: modelName,
+      messageCount: messages.length,
+      toolCount: tools?.length ?? 0,
+      lastUserMessage: messages.filter(m => m.role === 'user').slice(-1)[0]?.content?.toString().slice(0, 200),
+    });
+
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
@@ -298,13 +303,14 @@ export class OpenAICompatibleProvider implements LLMProvider {
 
     if (!response.ok) {
       const errorText = await response.text();
+      log.error('LLM API 错���', { status: response.status, error: errorText.slice(0, 500) });
       throw new Error(`API 错误 (${response.status}): ${errorText}`);
     }
 
     const data = await response.json();
     
-    // 调试日志：捕获原始响应
-    console.log('[LLM] API 原始响应:', JSON.stringify(data, null, 2));
+    // 记录原始响应（debug 级别）
+    log.debug('LLM API 原始响应', { response: JSON.stringify(data).slice(0, 1000) });
     
     // 检查是否为错误响应（某些 API 返回 HTTP 200 但包含错误信息）
     if (data && typeof data === 'object') {

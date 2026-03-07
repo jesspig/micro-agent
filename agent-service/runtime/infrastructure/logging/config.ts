@@ -59,10 +59,10 @@ import type { LoggingConfig, LogEntry, TraceContext } from './types';
 /** 默认日志配置 */
 const DEFAULT_CONFIG: LoggingConfig = {
   console: true,
-  file: true,
+  file: false, // Agent Service 不写文件，由 CLI 负责
   logDir: '~/.micro-agent/logs',
   logFilePrefix: 'agent',
-  level: 'info',
+  level: 'debug', // 输出所有级别，由 CLI 负责过滤
   traceEnabled: true,
   logInput: true,
   logOutput: true,

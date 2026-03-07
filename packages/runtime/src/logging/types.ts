@@ -15,8 +15,10 @@ export interface LoggingConfig {
   logDir: string;
   /** 日志文件名前缀 */
   logFilePrefix: string;
-  /** 最低日志级别 */
+  /** 最低日志级别（文件日志） */
   level: LogLevel;
+  /** 控制台最低日志级别（默认 warn，只显示警告和错误） */
+  consoleLevel?: LogLevel;
   /** 是否启用调用链追踪 */
   traceEnabled: boolean;
   /** 是否记录方法入参 */
@@ -40,6 +42,7 @@ export const DEFAULT_LOGGING_CONFIG: LoggingConfig = {
   logDir: '~/.micro-agent/logs',
   logFilePrefix: 'app',
   level: 'info',
+  consoleLevel: 'warn', // 控制台只显示警告和错误
   traceEnabled: true,
   logInput: true,
   logOutput: true,

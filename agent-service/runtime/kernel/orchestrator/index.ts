@@ -112,6 +112,16 @@ export class AgentOrchestrator {
   ): Promise<void> {
     const sessionKey = `${msg.channel}:${msg.chatId}`;
 
+    // 记录用户输入
+    const userContent = typeof msg.content === 'string' 
+      ? msg.content 
+      : (msg.content as { text?: string }).text || JSON.stringify(msg.content);
+    log.info('收到用户消息', { 
+      sessionKey,
+      content: userContent.slice(0, 200),
+      channel: msg.channel,
+    });
+
     try {
       // 获取会话历史
       const history = await this.getSessionHistory(sessionKey);
@@ -129,6 +139,15 @@ export class AgentOrchestrator {
 
       // 执行流式 ReAct 循环
       const result = await this.executeLoopWithStream(messages, msg, callbacks, toolContext);
+
+      // 记录 LLM 输出
+      if (result.answer) {
+        log.info('LLM 响应', { 
+          sessionKey,
+          content: result.answer.slice(0, 500),
+          toolCalls: result.toolCalls?.length ?? 0,
+        });
+      }
 
       // 更新历史
       messages.push({ role: 'assistant', content: result.answer });
@@ -321,6 +340,13 @@ export class AgentOrchestrator {
         this.config.defaultModel,
         this.config.generationConfig
       );
+
+      // 记录每次 LLM 响应（包括中间响应）
+      log.info('LLM 思考', { 
+        iteration: iterations,
+        content: response.content?.slice(0, 200),
+        toolCalls: response.toolCalls?.map(tc => tc.name) ?? [],
+      });
 
       // 检查是否有工具调用
       if (!response.hasToolCalls || !response.toolCalls?.length) {
