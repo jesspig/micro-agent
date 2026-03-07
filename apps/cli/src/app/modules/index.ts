@@ -15,7 +15,8 @@ export {
 
 export {
   ensureUserConfigFiles,
-  loadSystemPromptFromUserConfig,
+  loadUserPrompts,
+  loadSystemPromptTemplate,
   loadSystemPrompt,
 } from './system-prompt';
 

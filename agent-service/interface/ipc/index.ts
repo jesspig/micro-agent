@@ -24,6 +24,10 @@ export interface IPCServer {
   send(message: unknown): void;
   /** 广播消息 */
   broadcast(message: unknown): void;
+  /** 注册方法处理器（可选） */
+  registerMethod?(method: string, handler: (params: unknown, context: unknown) => Promise<unknown> | unknown): void;
+  /** 注册流式方法处理器（可选） */
+  registerStreamMethod?(method: string, handler: (params: unknown, context: unknown) => Promise<void>): void;
 }
 
 /**

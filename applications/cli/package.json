@@ -1,5 +1,5 @@
 {
-  "name": "@micro-agent/cli",
+  "name": "@micro-agent/cli-new",
   "version": "0.3.0",
   "description": "MicroAgent CLI 应用",
   "type": "module",
@@ -20,7 +20,12 @@
     "start": "bun run src/index.ts start"
   },
   "dependencies": {
-    "@micro-agent/sdk": "workspace:*"
+    "@larksuiteoapi/node-sdk": "^1.59.0",
+    "@micro-agent/client-sdk": "workspace:*",
+    "@micro-agent/config": "workspace:*",
+    "@micro-agent/runtime": "workspace:*",
+    "@micro-agent/server": "workspace:*",
+    "@micro-agent/providers": "workspace:*"
   },
   "devDependencies": {
     "@types/bun": "latest",

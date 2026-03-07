@@ -1,1 +1,0 @@
-# TODO: 迁移自 templates/prompts/system.md

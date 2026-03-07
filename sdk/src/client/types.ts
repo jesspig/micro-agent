@@ -5,12 +5,26 @@
 /** 传输类型 */
 export type TransportType = 'ipc' | 'http' | 'websocket';
 
+/** 日志输出类型 */
+export type LogOutputType = 'stdout' | 'stderr';
+
+/** 日志处理器 */
+export type LogHandler = (text: string, type: LogOutputType) => void;
+
 /** IPC 配置 */
 export interface IPCConfig {
-  /** Socket 路径（Linux/macOS）或管道名（Windows） */
+  /** Agent Service 路径（Bun IPC 模式） */
+  servicePath?: string;
+  /** TCP 端口（TCP Loopback 模式，Windows） */
+  port?: number;
+  /** Socket 路径（Unix Socket 模式，Linux/macOS） */
   path?: string;
   /** 超时时间（毫秒） */
   timeout?: number;
+  /** 序列化方式（Bun IPC） */
+  serialization?: 'advanced' | 'json';
+  /** 日志处理器（用于处理子进程输出） */
+  logHandler?: LogHandler;
 }
 
 /** HTTP 配置 */
@@ -63,6 +77,80 @@ export type StreamHandler = (chunk: StreamChunk) => void;
 /** 会话键类型 */
 export type SessionKey = `${string}:${string}`;
 
+/** 工具配置 */
+export interface ToolConfig {
+  /** 工具名称 */
+  name: string;
+  /** 工具描述 */
+  description?: string;
+  /** 是否启用 */
+  enabled?: boolean;
+  /** 工具参数 schema */
+  inputSchema?: Record<string, unknown>;
+  /** 工具元数据 */
+  metadata?: Record<string, unknown>;
+}
+
+/** 技能配置 */
+export interface SkillConfig {
+  /** 技能名称 */
+  name: string;
+  /** 技能描述 */
+  description?: string;
+  /** 是否启用 */
+  enabled?: boolean;
+  /** 技能路径 */
+  path?: string;
+  /** 是否自动加载 */
+  always?: boolean;
+  /** 预批准工具列表 */
+  allowedTools?: string[];
+  /** 技能元数据 */
+  metadata?: Record<string, unknown>;
+}
+
+/** 记忆系统配置 */
+export interface MemoryConfig {
+  /** 是否启用 */
+  enabled?: boolean;
+  /** 存储路径 */
+  storagePath?: string;
+  /** 嵌入模型 */
+  embedModel?: string;
+  /** 嵌入服务 Base URL */
+  embedBaseUrl?: string;
+  /** 嵌入服务 API Key */
+  embedApiKey?: string;
+  /** 检索模式 */
+  mode?: 'fulltext' | 'vector' | 'hybrid' | 'auto';
+  /** 检索数量限制 */
+  searchLimit?: number;
+  /** 自动摘要 */
+  autoSummarize?: boolean;
+  /** 摘要阈值 */
+  summarizeThreshold?: number;
+}
+
+/** 知识库配置 */
+export interface KnowledgeConfig {
+  /** 是否启用 */
+  enabled?: boolean;
+  /** 知识库路径 */
+  basePath?: string;
+  /** 嵌入模型 */
+  embedModel?: string;
+  /** 嵌入服务 Base URL */
+  embedBaseUrl?: string;
+  /** 嵌入服务 API Key */
+  embedApiKey?: string;
+  /** 分块大小 */
+  chunkSize?: number;
+  /** 分块重叠 */
+  chunkOverlap?: number;
+  /** 检索数量限制 */
+  searchLimit?: number;
+}
+
 /** 运行时配置 */
 export interface RuntimeConfig {
   /** 工作目录 */
@@ -82,6 +170,16 @@ export interface RuntimeConfig {
   temperature?: number;
   /** 最大迭代次数 */
   maxIterations?: number;
+  /** 系统提示词 */
+  systemPrompt?: string;
+  /** 工具列表 */
+  tools?: ToolConfig[];
+  /** 技能列表 */
+  skills?: SkillConfig[];
+  /** 记忆系统配置 */
+  memory?: MemoryConfig;
+  /** 知识库配置 */
+  knowledge?: KnowledgeConfig;
 }
 
 /** 提示词模板 */
@@ -98,4 +196,28 @@ export interface PromptTemplate {
     default?: unknown;
     required?: boolean;
   }>;
+}
+
+/** LLM 消息 */
+export interface LLMMessage {
+  /** 角色 */
+  role: 'system' | 'user' | 'assistant' | 'tool';
+  /** 内容 */
+  content: string;
+  /** 时间戳 */
+  timestamp?: Date;
+  /** 工具调用 */
+  toolCalls?: ToolCall[];
+}
+
+/** 工具调用 */
+export interface ToolCall {
+  /** 调用 ID */
+  id: string;
+  /** 工具名称 */
+  name: string;
+  /** 参数 */
+  arguments: Record<string, unknown>;
+  /** 结果 */
+  result?: unknown;
 }

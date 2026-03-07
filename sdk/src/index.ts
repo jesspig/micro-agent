@@ -52,3 +52,23 @@ export type {
   ExtensionDescriptor,
   ExtensionContext,
 } from './define/index';
+
+export type {
+  RuntimeConfig,
+  ToolConfig,
+  SkillConfig,
+  MemoryConfig,
+  KnowledgeConfig,
+  StreamChunk,
+  StreamHandler,
+  LLMMessage,
+  SDKClientConfig,
+  TransportType,
+  IPCConfig,
+  HTTPConfig,
+  WebSocketConfig,
+  PromptTemplate,
+  SessionKey,
+  LogHandler,
+  LogOutputType,
+} from './client/types';

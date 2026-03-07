@@ -13,7 +13,10 @@ export type SDKErrorCode =
   | 'PROTOCOL_ERROR'
   | 'SESSION_NOT_FOUND'
   | 'INVALID_REQUEST'
-  | 'INTERNAL_ERROR';
+  | 'INTERNAL_ERROR'
+  | 'IPC_CONNECT_FAILED'
+  | 'IPC_TIMEOUT'
+  | 'IPC_DISCONNECTED';
 
 /**
  * SDK 错误

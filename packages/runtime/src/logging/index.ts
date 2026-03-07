@@ -9,12 +9,15 @@ export type {
   LogLevel,
   LoggingConfig,
   TraceContext,
+  LogType,
+  BaseLogEntry,
   MethodCallLog,
   LLMCallLog,
   ToolCallLog,
   EventLog,
   LogEntry,
   TracerOptions,
+  LogEventListener,
 } from './types';
 
 export { DEFAULT_LOGGING_CONFIG } from './types';
@@ -26,6 +29,7 @@ export {
   isLoggingInitialized,
   getLogFilePath,
   createModuleLogger,
+  subscribeToLogs,
 } from './config';
 
 // Tracer

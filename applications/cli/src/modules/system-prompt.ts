@@ -10,7 +10,6 @@ import { readFileSync, existsSync, mkdirSync, copyFileSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { homedir } from 'os';
-import type { SkillsLoader } from '@micro-agent/sdk';
 
 /** 用户级配置目录 */
 const USER_CONFIG_DIR = resolve(homedir(), '.micro-agent');
@@ -27,8 +26,8 @@ const USER_PROMPT_FILES = [
  */
 function getTemplatesPath(): string {
   const currentDir = dirname(fileURLToPath(import.meta.url));
-  // apps/cli/src/app/modules -> applications/templates/prompts
-  return resolve(currentDir, '../../../../../applications/templates/prompts');
+  // applications/cli/src/modules -> applications/templates/prompts
+  return resolve(currentDir, '../../../templates/prompts');
 }
 
 /**
@@ -37,8 +36,9 @@ function getTemplatesPath(): string {
  * 首次启动时从模板复制 SOUL.mdx、USER.mdx、AGENTS.mdx 到 ~/.micro-agent/
  * system.mdx 不会被复制，始终从模板目录加载
  */
-export function ensureUserConfigFiles(): { created: string[] } {
+export function ensureUserConfigFiles(): { created: string[]; existed: string[] } {
   const created: string[] = [];
+  const existed: string[] = [];
 
   // 确保用户配置目录存在
   if (!existsSync(USER_CONFIG_DIR)) {
@@ -51,13 +51,31 @@ export function ensureUserConfigFiles(): { created: string[] } {
     const targetPath = resolve(USER_CONFIG_DIR, file.name);
     const templatePath = resolve(templatesPath, file.template);
 
-    if (!existsSync(targetPath) && existsSync(templatePath)) {
+    if (existsSync(targetPath)) {
+      existed.push(file.name);
+    } else if (existsSync(templatePath)) {
+      // 从模板复制
       copyFileSync(templatePath, targetPath);
       created.push(file.name);
     }
   }
 
-  return { created };
+  return { created, existed };
+}
+
+/**
+ * 获取用户级提示词文件状态
+ */
+export function getSystemPromptFiles(): { name: string; path: string; exists: boolean; description: string }[] {
+  return USER_PROMPT_FILES.map((file) => {
+    const path = resolve(USER_CONFIG_DIR, file.name);
+    return {
+      name: file.name,
+      path,
+      exists: existsSync(path),
+      description: file.description,
+    };
+  });
 }
 
 /**
@@ -89,6 +107,7 @@ export function loadSystemPromptTemplate(workspace: string): string {
     return content;
   }
 
+  // 回退：使用默认内容
   return `# 系统路径说明
 
 工作区: ${workspace}
@@ -143,11 +162,11 @@ export function loadUserPrompts(workspace?: string): string {
  * 4. 技能摘要
  *
  * @param workspace 工作区路径
- * @param skillsLoader 技能加载器
+ * @param skillsLoader 技能加载器（可选）
  */
 export function loadSystemPrompt(
   workspace: string,
-  skillsLoader: SkillsLoader | null
+  skillsLoader: { buildSkillsSummary: () => string; buildAlwaysSkillsContent: () => string; count: number } | null
 ): string {
   const parts: string[] = [];
 
@@ -189,4 +208,11 @@ ${skillsSummary}`);
   }
 
   return parts.join('\n\n---\n\n');
+}
+
+/**
+ * 获取用户配置目录路径
+ */
+export function getUserConfigDir(): string {
+  return USER_CONFIG_DIR;
 }

@@ -15,8 +15,10 @@ export interface LoggingConfig {
   logDir: string;
   /** 日志文件名前缀 */
   logFilePrefix: string;
-  /** 最低日志级别 */
+  /** 最低日志级别（文件日志） */
   level: LogLevel;
+  /** 控制台最低日志级别（默认 warn，只显示警告和错误） */
+  consoleLevel?: LogLevel;
   /** 是否启用调用链追踪 */
   traceEnabled: boolean;
   /** 是否记录方法入参 */
@@ -40,13 +42,14 @@ export const DEFAULT_LOGGING_CONFIG: LoggingConfig = {
   logDir: '~/.micro-agent/logs',
   logFilePrefix: 'app',
   level: 'info',
+  consoleLevel: 'warn', // 控制台只显示警告和错误
   traceEnabled: true,
   logInput: true,
   logOutput: true,
   logDuration: true,
   sensitiveFields: ['password', 'token', 'secret', 'apiKey', 'api_key', 'authorization'],
   maxFileSize: 10 * 1024 * 1024, // 10MB
-  maxFiles: 5,
+  maxFiles: 30,
 };
 
 /** 调用链上下文 */
@@ -58,109 +61,105 @@ export interface TraceContext {
   /** 当前调用 ID */
   spanId: string;
   /** 文件名 */
-  file: string;
+  file?: string;
   /** 方法名 */
-  method: string;
+  method?: string;
   /** 类名（可选） */
   className?: string;
   /** 调用层级 */
-  depth: number;
+  depth?: number;
   /** 开始时间 */
-  startTime: number;
+  startTime?: number;
+}
+
+/** 日志类型标识 */
+export type LogType = 
+  | 'method_call'
+  | 'llm_call'
+  | 'tool_call'
+  | 'event'
+  | 'service_lifecycle'
+  | 'session_lifecycle'
+  | 'memory_op'
+  | 'knowledge_op'
+  | 'ipc_message'
+  | 'error'
+  | 'metric';
+
+/** 基础日志条目 */
+export interface BaseLogEntry {
+  /** 日志类型 */
+  _type?: LogType;
+  /** 时间戳 */
+  timestamp: string;
+  /** 日志级别 */
+  level?: LogLevel;
+  /** 日志分类 */
+  category?: string;
+  /** 消息 */
+  message?: string | string[];
+  /** 调用链上下文 */
+  trace?: TraceContext;
+  /** 属性 */
+  properties?: Record<string, unknown>;
 }
 
 /** 方法调用日志 */
-export interface MethodCallLog {
-  /** 日志类型 */
+export interface MethodCallLog extends BaseLogEntry {
   _type: 'method_call';
-  /** 调用链上下文 */
   trace: TraceContext;
-  /** 时间戳 */
-  timestamp: string;
-  /** 输入参数 */
   input?: Record<string, unknown>;
-  /** 输出结果 */
   output?: unknown;
-  /** 执行耗时（毫秒） */
   duration?: number;
-  /** 是否成功 */
   success: boolean;
-  /** 错误信息 */
   error?: string;
-  /** 错误堆栈 */
   stack?: string;
 }
 
 /** LLM 调用日志 */
-export interface LLMCallLog {
-  /** 日志类型 */
+export interface LLMCallLog extends BaseLogEntry {
   _type: 'llm_call';
-  /** 调用链上下文 */
   trace: TraceContext;
-  /** 时间戳 */
-  timestamp: string;
-  /** 模型名称 */
   model: string;
-  /** Provider 名称 */
   provider: string;
-  /** 输入消息数量 */
   messageCount: number;
-  /** 工具数量 */
   toolCount: number;
-  /** 输出 Token 数 */
   promptTokens?: number;
-  /** 输入 Token 数 */
   completionTokens?: number;
-  /** 执行耗时（毫秒） */
   duration: number;
-  /** 是否成功 */
   success: boolean;
-  /** 错误信息 */
   error?: string;
-  /** 响应内容 */
   content?: string;
-  /** 是否有工具调用 */
   hasToolCalls?: boolean;
 }
 
 /** 工具调用日志 */
-export interface ToolCallLog {
-  /** 日志类型 */
+export interface ToolCallLog extends BaseLogEntry {
   _type: 'tool_call';
-  /** 调用链上下文 */
   trace: TraceContext;
-  /** 时间戳 */
-  timestamp: string;
-  /** 工具名称 */
   tool: string;
-  /** 输入参数 */
   input?: unknown;
-  /** 输出结果 */
   output?: string;
-  /** 执行耗时（毫秒） */
   duration: number;
-  /** 是否成功 */
   success: boolean;
-  /** 错误信息 */
   error?: string;
 }
 
 /** 事件日志 */
-export interface EventLog {
-  /** 日志类型 */
+export interface EventLog extends BaseLogEntry {
   _type: 'event';
-  /** 调用链上下文 */
   trace?: TraceContext;
-  /** 时间戳 */
-  timestamp: string;
-  /** 事件名称 */
   event: string;
-  /** 事件数据 */
   payload: unknown;
 }
 
 /** 统一日志条目类型 */
-export type LogEntry = MethodCallLog | LLMCallLog | ToolCallLog | EventLog;
+export type LogEntry = 
+  | BaseLogEntry 
+  | MethodCallLog 
+  | LLMCallLog 
+  | ToolCallLog 
+  | EventLog;
 
 /** 追踪器选项 */
 export interface TracerOptions {
@@ -171,3 +170,6 @@ export interface TracerOptions {
   /** 最大深度 */
   maxDepth: number;
 }
+
+/** 日志事件监听器 */
+export type LogEventListener = (entry: Record<string, unknown>) => void;

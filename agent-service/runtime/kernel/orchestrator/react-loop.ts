@@ -59,7 +59,7 @@ export class ReActLoop {
     let completed = false;
     let iterations = 0;
 
-    const toolDefinitions = this.tools.getToolDefinitions();
+    const toolDefinitions = this.tools.getDefinitions();
 
     while (iterations < this.config.maxIterations && !completed) {
       iterations++;
@@ -92,7 +92,7 @@ export class ReActLoop {
         });
 
         try {
-          const result = await this.tools.executeTool(tc.name, tc.arguments, toolContext);
+          const result = await this.tools.execute(tc.name, tc.arguments, toolContext as Parameters<typeof this.tools.execute>[2]);
           const resultText = result.content ? JSON.stringify(result.content) : JSON.stringify(result);
 
           steps.push({

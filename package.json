@@ -24,7 +24,7 @@
     "registry": "https://registry.npmjs.org"
   },
   "bin": {
-    "micro-agent": "./apps/cli/src/cli.ts"
+    "micro-agent": "./applications/cli/src/index.ts"
   },
   "main": "./packages/sdk/src/index.ts",
   "exports": {
@@ -63,8 +63,8 @@
   },
   "scripts": {
     "prepare": "bun link",
-    "dev": "bun run apps/cli/src/cli.ts start",
-    "start": "bun run apps/cli/src/cli.ts start",
+    "dev": "bun run applications/cli/src/index.ts start",
+    "start": "bun run applications/cli/src/index.ts start",
     "test": "bun test",
     "test:container": "bun test tests/unit/container.test.ts",
     "test:config": "bun test tests/unit/config.test.ts",

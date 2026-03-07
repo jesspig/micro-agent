@@ -148,7 +148,7 @@ export class Tracer {
     }
 
     const ctx = this.createContext(file, method, className);
-    this.depthStack.push(ctx.depth);
+    this.depthStack.push(ctx.depth ?? 0);
 
     const logEntry: Partial<MethodCallLog> = {
       _type: 'method_call',
@@ -225,7 +225,7 @@ export class Tracer {
     }
 
     const ctx = this.createContext(file, method, className);
-    this.depthStack.push(ctx.depth);
+    this.depthStack.push(ctx.depth ?? 0);
 
     const logEntry: Partial<MethodCallLog> = {
       _type: 'method_call',

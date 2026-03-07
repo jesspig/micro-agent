@@ -92,10 +92,83 @@ export class MicroAgentClient {
   }
 
   /**
+   * 断开连接
+   */
+  async disconnect(): Promise<void> {
+    if ('disconnect' in this.transport) {
+      await (this.transport as WebSocketTransport | IPCTransport).disconnect();
+    } else {
+      this.transport.close();
+    }
+  }
+
+  /**
    * 关闭客户端
    */
   close(): void {
     this.transport.close();
+  }
+
+  /**
+   * 发送原始请求
+   */
+  async sendRequest(method: string, params: unknown): Promise<unknown> {
+    return this.transport.send(method, params);
+  }
+
+  /**
+   * 流式聊天
+   */
+  async *chatStream(params: {
+    sessionId: string;
+    content: { type: string; text: string };
+    metadata?: Record<string, unknown>;
+  }): AsyncIterable<import('../client/types').StreamChunk> {
+    if (!('sendStream' in this.transport)) {
+      throw new Error('当前传输层不支持流式响应');
+    }
+
+    // 使用队列来收集 chunks
+    const chunks: import('../client/types').StreamChunk[] = [];
+    let done = false;
+    let error: Error | null = null;
+
+    // 启动流式请求
+    const streamPromise = (this.transport as WebSocketTransport | IPCTransport).sendStream(
+      'chat',
+      params,
+      (chunk) => {
+        chunks.push(chunk);
+        if (chunk.type === 'done') {
+          done = true;
+        } else if (chunk.type === 'error') {
+          error = new Error(chunk.content);
+          done = true;
+        }
+      }
+    );
+
+    // 异步产生 chunks
+    while (!done) {
+      while (chunks.length > 0) {
+        const chunk = chunks.shift()!;
+        yield chunk;
+      }
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+
+    // 产生剩余的 chunks
+    while (chunks.length > 0) {
+      const chunk = chunks.shift()!;
+      yield chunk;
+    }
+
+    // 等待流式请求完成
+    await streamPromise;
+
+    if (error) {
+      throw error;
+    }
   }
 }
 

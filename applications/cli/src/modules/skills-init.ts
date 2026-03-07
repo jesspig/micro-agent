@@ -1,0 +1,289 @@
+/**
+ * 技能初始化模块
+ *
+ * 为 Agent Service 准备技能配置数据。
+ * 此模块仅负责准备配置数据，不负责实际加载。
+ */
+
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { join, basename, resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import matter from 'gray-matter';
+
+/**
+ * 技能配置接口
+ */
+export interface SkillConfig {
+  /** 技能名称 */
+  name: string;
+  /** 技能描述 */
+  description: string;
+  /** 技能文件路径（SKILL.md 所在目录） */
+  path: string;
+  /** 是否启用 */
+  enabled: boolean;
+  /** 是否自动加载 */
+  always?: boolean;
+  /** 环境兼容性要求 */
+  compatibility?: string;
+  /** 依赖列表 */
+  dependencies?: string[];
+}
+
+/**
+ * 技能来源类型
+ */
+export type SkillSource = 'builtin' | 'workspace' | 'user';
+
+/**
+ * 内置技能目录路径
+ *
+ * 相对于此模块的位置：applications/cli/src/modules/ -> extensions/skills/
+ */
+function getBuiltinSkillsPath(): string {
+  const currentDir = dirname(fileURLToPath(import.meta.url));
+  // 从 applications/cli/src/modules 向上 4 级到达项目根目录
+  return resolve(currentDir, '../../../../extensions/skills');
+}
+
+/**
+ * 用户技能目录
+ */
+const USER_SKILLS_DIR = '~/.micro-agent/skills';
+
+/**
+ * 默认启用的技能列表
+ *
+ * 如果配置文件未指定，则使用此列表
+ */
+const DEFAULT_ENABLED_SKILLS: string[] = [
+  'time',
+  'sysinfo',
+];
+
+/**
+ * 从 frontmatter 解析技能元数据
+ */
+function parseSkillMetadata(fileContent: string, skillDir: string): Partial<SkillConfig> {
+  try {
+    const { data } = matter(fileContent);
+    return {
+      name: data.name ?? basename(skillDir),
+      description: data.description ?? '',
+      always: data.always ?? false,
+      compatibility: data.compatibility,
+      dependencies: data.dependencies,
+    };
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * 发现指定目录下的所有技能
+ *
+ * 扫描目录下的所有子目录，查找包含 SKILL.md 文件的技能
+ *
+ * @param basePath 技能根目录路径
+ * @param source 技能来源类型
+ * @param enabledList 启用的技能名称列表（可选）
+ * @returns 发现的技能配置数组
+ */
+export function discoverSkills(
+  basePath: string,
+  source: SkillSource = 'builtin',
+  enabledList?: string[]
+): SkillConfig[] {
+  const skills: SkillConfig[] = [];
+
+  if (!existsSync(basePath)) {
+    return skills;
+  }
+
+  const entries = readdirSync(basePath, { withFileTypes: true });
+
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+
+    const skillDir = join(basePath, entry.name);
+    const skillMdPath = join(skillDir, 'SKILL.md');
+
+    if (!existsSync(skillMdPath)) continue;
+
+    // 检查文件大小，防止过大文件
+    try {
+      const stats = statSync(skillMdPath);
+      if (stats.size > 256000) { // 256KB 限制
+        continue;
+      }
+    } catch {
+      continue;
+    }
+
+    try {
+      const fileContent = readFileSync(skillMdPath, 'utf-8');
+      const metadata = parseSkillMetadata(fileContent, skillDir);
+      const skillName = metadata.name ?? entry.name;
+
+      // 确定是否启用：优先使用传入的启用列表，否则默认全部启用
+      const enabled = enabledList !== undefined
+        ? enabledList.includes(skillName)
+        : true;
+
+      skills.push({
+        name: skillName,
+        description: metadata.description ?? '',
+        path: skillDir,
+        enabled,
+        always: metadata.always,
+        compatibility: metadata.compatibility,
+        dependencies: metadata.dependencies,
+      });
+    } catch {
+      // 解析失败，跳过此技能
+      continue;
+    }
+  }
+
+  return skills;
+}
+
+/**
+ * 获取内置技能配置列表
+ *
+ * 返回所有内置技能的配置信息。
+ * 配置将传递给 Agent Service 进行技能加载。
+ *
+ * @param workspacePath 工作区路径（可选，用于加载项目级技能）
+ * @param enabledSkills 启用的技能名称列表（可选，未指定则使用默认列表）
+ * @returns 内置技能配置数组
+ */
+export function getBuiltinSkillConfigs(
+  workspacePath?: string,
+  enabledSkills?: string[]
+): SkillConfig[] {
+  const enabledList = enabledSkills ?? DEFAULT_ENABLED_SKILLS;
+  const skills: SkillConfig[] = [];
+  const seenNames = new Set<string>();
+
+  // 加载优先级：builtin < user < workspace
+
+  // 1. 加载内置技能
+  const builtinPath = getBuiltinSkillsPath();
+  const builtinSkills = discoverSkills(builtinPath, 'builtin', enabledList);
+  for (const skill of builtinSkills) {
+    if (!seenNames.has(skill.name)) {
+      skills.push(skill);
+      seenNames.add(skill.name);
+    }
+  }
+
+  // 2. 加载用户技能
+  const userSkillsPath = expandPath(USER_SKILLS_DIR);
+  const userSkills = discoverSkills(userSkillsPath, 'user', enabledList);
+  for (const skill of userSkills) {
+    if (!seenNames.has(skill.name)) {
+      skills.push(skill);
+      seenNames.add(skill.name);
+    } else {
+      // 用户技能覆盖同名内置技能
+      const index = skills.findIndex(s => s.name === skill.name);
+      if (index >= 0) {
+        skills[index] = skill;
+      }
+    }
+  }
+
+  // 3. 加载工作区技能
+  if (workspacePath) {
+    const projectSkillsPath = join(workspacePath, 'skills');
+    const projectSkills = discoverSkills(projectSkillsPath, 'workspace', enabledList);
+    for (const skill of projectSkills) {
+      if (!seenNames.has(skill.name)) {
+        skills.push(skill);
+        seenNames.add(skill.name);
+      } else {
+        // 工作区技能优先级最高，覆盖同名技能
+        const index = skills.findIndex(s => s.name === skill.name);
+        if (index >= 0) {
+          skills[index] = skill;
+        }
+      }
+    }
+  }
+
+  return skills;
+}
+
+/**
+ * 获取启用的技能名称列表
+ *
+ * 返回所有 enabled=true 的技能名称。
+ * 用于启动时显示已加载的技能列表。
+ *
+ * @param configs 技能配置数组（可选，未指定则自动获取）
+ * @returns 启用的技能名称数组
+ */
+export function getEnabledSkills(configs?: SkillConfig[]): string[] {
+  const skillConfigs = configs ?? getBuiltinSkillConfigs();
+  return skillConfigs
+    .filter(skill => skill.enabled)
+    .map(skill => skill.name);
+}
+
+/**
+ * 获取 always=true 的技能名称列表
+ *
+ * 返回需要自动加载完整内容的技能名称。
+ * 这些技能会在 Agent 启动时直接注入上下文。
+ *
+ * @param configs 技能配置数组（可选，未指定则自动获取）
+ * @returns 自动加载的技能名称数组
+ */
+export function getAlwaysSkills(configs?: SkillConfig[]): string[] {
+  const skillConfigs = configs ?? getBuiltinSkillConfigs();
+  return skillConfigs
+    .filter(skill => skill.enabled && skill.always)
+    .map(skill => skill.name);
+}
+
+/**
+ * 获取技能数量统计
+ *
+ * @param configs 技能配置数组（可选，未指定则自动获取）
+ * @returns 包含总数、启用数、自动加载数的统计对象
+ */
+export function getSkillStats(configs?: SkillConfig[]): {
+  total: number;
+  enabled: number;
+  always: number;
+} {
+  const skillConfigs = configs ?? getBuiltinSkillConfigs();
+  return {
+    total: skillConfigs.length,
+    enabled: skillConfigs.filter(s => s.enabled).length,
+    always: skillConfigs.filter(s => s.enabled && s.always).length,
+  };
+}
+
+/**
+ * 展开路径中的 ~ 符号
+ */
+function expandPath(path: string): string {
+  if (path.startsWith('~/')) {
+    return resolve(process.env.HOME ?? '', path.slice(2));
+  }
+  return resolve(path);
+}
+
+/**
+ * 获取内置技能路径
+ *
+ * 返回内置技能目录的绝对路径。
+ * 用于 SkillsLoader 初始化。
+ *
+ * @returns 内置技能目录路径
+ */
+export function getSkillsBuiltinPath(): string {
+  return getBuiltinSkillsPath();
+}

@@ -6,7 +6,7 @@ import type { LLMMessage, LLMProvider } from '../../../types/provider';
 import type { MemoryEntry } from '../../../types/memory';
 import { getLogger } from '@logtape/logtape';
 
-const log = getLogger(['memory', 'summarizer');
+const log = getLogger(['memory', 'summarizer']);
 
 /** 摘要结果 */
 export interface Summary {

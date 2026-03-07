@@ -136,7 +136,7 @@ export class MemoryManager {
   /**
    * 存储记忆
    */
-  async store(entry: Omit<MemoryEntry, 'id' | 'createdAt' | 'accessedAt' | 'accessCount'>): Promise<string> {
+  async save(entry: Omit<MemoryEntry, 'id' | 'createdAt' | 'accessedAt' | 'accessCount'>): Promise<string> {
     await this.ensureInitialized();
 
     // 自动分类（如果未指定类型）

@@ -212,6 +212,7 @@ const DEFAULT_CONFIG: LoggingConfig = {
   logDir: '~/.micro-agent/logs',
   logFilePrefix: 'app',
   level: 'info',
+  consoleLevel: 'warn', // 控制台只显示警告和错误
   traceEnabled: true,
   logInput: true,
   logOutput: true,
@@ -223,6 +224,33 @@ const DEFAULT_CONFIG: LoggingConfig = {
 
 /** 是否已初始化 */
 let initialized = false;
+
+/** 日志事件监听器 */
+type LogEventListener = (entry: Record<string, unknown>) => void;
+const logEventListeners: Set<LogEventListener> = new Set();
+
+/**
+ * 订阅日志事件
+ * 
+ * CLI 端可以订阅此事件来获取结构化日志并进行格式化显示
+ */
+export function subscribeToLogs(listener: LogEventListener): () => void {
+  logEventListeners.add(listener);
+  return () => logEventListeners.delete(listener);
+}
+
+/**
+ * 发布日志事件
+ */
+function emitLogEvent(entry: Record<string, unknown>): void {
+  for (const listener of logEventListeners) {
+    try {
+      listener(entry);
+    } catch {
+      // 忽略监听器错误
+    }
+  }
+}
 
 /** 当前日志文件信息 */
 interface LogFileInfo {
@@ -350,6 +378,9 @@ function jsonLinesFormatter(record: LogRecord): string {
   if (record.properties && Object.keys(record.properties).length > 0) {
     entry.properties = record.properties;
   }
+
+  // 发布日志事件供 CLI 订阅
+  emitLogEvent(entry);
 
   return JSON.stringify(entry) + '\n';
 }
@@ -627,22 +658,6 @@ export async function initLogging(config: Partial<LoggingConfig> = {}): Promise<
   const sinks: Record<string, Sink> = {};
 
   // 控制台输出
-  if (fullConfig.console) {
-    sinks.console = getConsoleSink({
-      formatter: detailedConsoleFormatter,
-    });
-  }
-
-  // 文件输出 - 小时批次格式
-  if (fullConfig.file) {
-    sinks.file = createDateBatchFileSink(
-      logDir,
-      fullConfig.maxFileSize,
-      fullConfig.maxFiles,
-      jsonLinesFormatter
-    );
-  }
-
   // 日志级别映射
   const levelMap: Record<string, 'trace' | 'debug' | 'info' | 'warning' | 'error' | 'fatal'> = {
     trace: 'trace',
@@ -655,11 +670,49 @@ export async function initLogging(config: Partial<LoggingConfig> = {}): Promise<
   };
 
   const mappedLevel = levelMap[fullConfig.level] ?? 'info';
+  const mappedConsoleLevel = levelMap[fullConfig.consoleLevel ?? 'warn'] ?? 'warning';
 
-  const loggers = [
+  // 级别优先级（用于过滤）
+  const levelPriority: Record<string, number> = {
+    trace: 0,
+    debug: 1,
+    info: 2,
+    warning: 3,
+    warn: 3,
+    error: 4,
+    fatal: 5,
+  };
+
+  // 控制台输出（带级别过滤）
+  if (fullConfig.console) {
+    const consoleSink = getConsoleSink({
+      formatter: detailedConsoleFormatter,
+    });
+    // 包装 sink，添加级别过滤
+    sinks.console = (record: LogRecord) => {
+      const recordLevel = levelPriority[record.level] ?? 2;
+      const filterLevel = levelPriority[mappedConsoleLevel] ?? 3;
+      if (recordLevel >= filterLevel) {
+        consoleSink(record);
+      }
+    };
+  }
+
+  // 文件输出 - 小时批次格式
+  if (fullConfig.file) {
+    sinks.file = createDateBatchFileSink(
+      logDir,
+      fullConfig.maxFileSize,
+      fullConfig.maxFiles,
+      jsonLinesFormatter
+    );
+  }
+
+  // logtape 内部日志
+  const loggers: Array<{ category: string[]; sinks: string[]; lowestLevel: 'trace' | 'debug' | 'info' | 'warning' | 'error' | 'fatal' }> = [
     { category: [], sinks: Object.keys(sinks), lowestLevel: mappedLevel },
-    { category: ['logtape', 'meta'], sinks: Object.keys(sinks), lowestLevel: 'warning' as const },
-    { category: ['tracer'], sinks: Object.keys(sinks), lowestLevel: fullConfig.traceEnabled ? 'debug' as const : 'info' as const },
+    { category: ['logtape', 'meta'], sinks: Object.keys(sinks), lowestLevel: 'warning' },
+    { category: ['tracer'], sinks: Object.keys(sinks), lowestLevel: fullConfig.traceEnabled ? 'debug' : 'info' },
   ];
 
   // 添加 contextLocalStorage 以支持隐式上下文（traceId, spanId）

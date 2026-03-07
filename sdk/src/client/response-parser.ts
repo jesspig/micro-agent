@@ -16,8 +16,9 @@ export class ResponseParser {
   static parseResponse(data: string): {
     success: boolean;
     result?: unknown;
-    error?: { code: number; message: string };
+    error?: { code: number; message: string; data?: unknown };
     id?: string;
+    method?: string;
   } {
     try {
       const response = JSON.parse(data);
@@ -30,10 +31,12 @@ export class ResponseParser {
         };
       }
 
+      // 支持流式响应：result 或 params 都可能包含数据
       return {
         success: true,
-        result: response.result,
+        result: response.result ?? response.params,
         id: response.id,
+        method: response.method,
       };
     } catch (e) {
       return {
