@@ -6,7 +6,7 @@
 
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
-import { getConfig } from './settings';
+import { getConfig } from '../settings';
 import { getLogger } from '@logtape/logtape';
 
 const log = getLogger(['config', 'prompts']);

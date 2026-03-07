@@ -368,10 +368,6 @@ function showHelp(): void {
   list                列出所有已安装的扩展
   search <keyword>    搜索扩展
   show <name>         显示扩展详情
-  install <name>      安装扩展（暂未实现）
-  uninstall <name>    卸载扩展（暂未实现）
-  enable <name>       启用扩展（暂未实现）
-  disable <name>      禁用扩展（暂未实现）
 
 扩展类型:
   tool                工具扩展 - 提供可执行的功能
@@ -414,26 +410,6 @@ export async function runExtCommand(args: string[]): Promise<void> {
         return;
       }
       showExtensionDetail(args[1]);
-      break;
-
-    case 'install':
-      console.log('\x1b[33m暂未实现: install 子命令\x1b[0m');
-      console.log('扩展安装功能正在开发中...');
-      break;
-
-    case 'uninstall':
-      console.log('\x1b[33m暂未实现: uninstall 子命令\x1b[0m');
-      console.log('扩展卸载功能正在开发中...');
-      break;
-
-    case 'enable':
-      console.log('\x1b[33m暂未实现: enable 子命令\x1b[0m');
-      console.log('扩展启用功能正在开发中...');
-      break;
-
-    case 'disable':
-      console.log('\x1b[33m暂未实现: disable 子命令\x1b[0m');
-      console.log('扩展禁用功能正在开发中...');
       break;
 
     case 'help':

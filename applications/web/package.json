@@ -16,9 +16,7 @@
     "dev": "bun run src/server.ts",
     "start": "bun run src/server.ts"
   },
-  "dependencies": {
-    "@micro-agent/sdk": "workspace:*"
-  },
+  "dependencies": {},
   "devDependencies": {
     "@types/bun": "latest",
     "typescript": "^5.9.3"

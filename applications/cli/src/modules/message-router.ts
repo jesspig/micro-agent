@@ -4,7 +4,7 @@
  * 负责将通道消息路由到 Agent，并将 Agent 响应路由回通道。
  */
 
-import type { StreamChunk } from '@micro-agent/client-sdk';
+import type { StreamChunk } from '@micro-agent/sdk';
 
 /**
  * 入站消息

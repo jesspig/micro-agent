@@ -38,12 +38,12 @@ export type SkillSource = 'builtin' | 'workspace' | 'user';
 /**
  * 内置技能目录路径
  *
- * 相对于此模块的位置：applications/cli/src/modules/ -> extensions/skills/
+ * 相对于此模块的位置：applications/cli/src/modules/ -> applications/extensions/skills/
  */
 function getBuiltinSkillsPath(): string {
   const currentDir = dirname(fileURLToPath(import.meta.url));
-  // 从 applications/cli/src/modules 向上 4 级到达项目根目录
-  return resolve(currentDir, '../../../../extensions/skills');
+  // 从 applications/cli/src/modules 向上 3 级到达 applications 目录
+  return resolve(currentDir, '../../../extensions/skills');
 }
 
 /**
@@ -287,3 +287,95 @@ function expandPath(path: string): string {
 export function getSkillsBuiltinPath(): string {
   return getBuiltinSkillsPath();
 }
+
+/**
+ * 技能加载器
+ *
+ * 加载和构建技能摘要及内容
+ */
+export class SkillsLoader {
+  private skills: SkillConfig[] = [];
+  private workspace: string;
+  private builtinPath: string;
+
+  constructor(workspace: string, builtinPath: string) {
+    this.workspace = workspace;
+    this.builtinPath = builtinPath;
+  }
+
+  /**
+   * 加载技能
+   */
+  load(): void {
+    this.skills = getBuiltinSkillConfigs(this.workspace);
+  }
+
+  /**
+   * 获取技能数量
+   */
+  get count(): number {
+    return this.skills.length;
+  }
+
+  /**
+   * 获取所有技能配置
+   */
+  getAll(): SkillConfig[] {
+    return this.skills;
+  }
+
+  /**
+   * 构建技能摘要
+   *
+   * 生成所有启用技能的简要描述表格
+   */
+  buildSkillsSummary(): string {
+    const enabledSkills = this.skills.filter(s => s.enabled);
+    if (enabledSkills.length === 0) {
+      return '';
+    }
+
+    const lines: string[] = ['| 名称 | 描述 |', '|------|------|'];
+    for (const skill of enabledSkills) {
+      lines.push(`| ${skill.name} | ${skill.description || '-'} |`);
+    }
+
+    // 添加位置信息
+    lines.push('');
+    lines.push('**技能位置：**');
+    for (const skill of enabledSkills) {
+      lines.push(`- \`${skill.name}\`: ${skill.path}`);
+    }
+
+    return lines.join('\n');
+  }
+
+  /**
+   * 构建 Always 技能内容
+   *
+   * 返回 always=true 的技能完整内容
+   */
+  buildAlwaysSkillsContent(): string {
+    const alwaysSkills = this.skills.filter(s => s.enabled && s.always);
+    if (alwaysSkills.length === 0) {
+      return '';
+    }
+
+    const parts: string[] = [];
+
+    for (const skill of alwaysSkills) {
+      const skillMdPath = join(skill.path, 'SKILL.md');
+      if (existsSync(skillMdPath)) {
+        try {
+          const content = readFileSync(skillMdPath, 'utf-8');
+          parts.push(`# 技能：${skill.name}\n\n${content}`);
+        } catch {
+          // 读取失败，跳过
+        }
+      }
+    }
+
+    return parts.join('\n\n---\n\n');
+  }
+}
+

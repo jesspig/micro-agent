@@ -6,7 +6,7 @@
 
 import { homedir } from 'os';
 import { join, resolve, dirname } from 'path';
-import { loadConfig, createDefaultUserConfig } from '@micro-agent/config';
+import { loadConfig, createDefaultUserConfig } from '@micro-agent/sdk';
 import { MessageRouter } from './modules/message-router';
 import { FeishuWrapper, type FeishuConfig as FeishuWrapperConfig } from './modules/feishu-wrapper';
 import { AgentClientImpl } from './modules/agent-client';
@@ -18,13 +18,12 @@ import {
   type StartupInfo,
 } from './modules/startup-info';
 import { getBuiltinToolConfigs } from './modules/tools-init';
-import { getBuiltinSkillConfigs, getSkillsBuiltinPath } from './modules/skills-init';
+import { getBuiltinSkillConfigs, getSkillsBuiltinPath, SkillsLoader, type SkillConfig } from './modules/skills-init';
 import { getProviderConfigs, parseDefaultModelInfo } from './modules/providers-init';
 import { getMemorySystemConfig, getSearchModeDescription, getEmbeddingModelInfo } from './modules/memory-init';
 import { ensureUserConfigFiles, loadSystemPrompt } from './modules/system-prompt';
 import { getLogger } from '@logtape/logtape';
 import { existsSync, watch, type FSWatcher } from 'fs';
-import { SkillsLoader } from '@micro-agent/sdk';
 import { fileURLToPath } from 'url';
 
 const log = getLogger(['cli', 'app']);
@@ -168,13 +167,12 @@ class CLIApp implements App {
 
       // 3. 加载技能（传递完整技能信息，包含路径）
       if (this.skillsLoader && this.skillsLoader.count > 0) {
-        const skills = this.skillsLoader.getAll().map(s => ({
+        const skills = this.skillsLoader.getAll().map((s: SkillConfig) => ({
           name: s.name,
           description: s.description,
           enabled: true,
-          path: s.skillPath,
+          path: s.path,
           always: s.always,
-          allowedTools: s.allowedTools,
         }));
         await this.agentClient.loadSkills(skills);
         log.info('技能已加载', { count: skills.length });
@@ -256,8 +254,8 @@ class CLIApp implements App {
     if (providers.length === 0) {
       return '未配置';
     }
-    const { defaultProviderName } = parseDefaultModelInfo(this.settings as any);
-    return defaultProviderName || providers[0].name;
+    const { providerName } = parseDefaultModelInfo(this.settings as any);
+    return providerName || providers[0].name;
   }
 
   /**
@@ -309,7 +307,7 @@ class CLIApp implements App {
     // 收集技能信息（使用 SkillsLoader）
     log.info('加载技能...');
     if (this.skillsLoader && this.skillsLoader.count > 0) {
-      this.startupInfo.skills = this.skillsLoader.getAll().map(s => s.name);
+      this.startupInfo.skills = this.skillsLoader.getAll().map((s: SkillConfig) => s.name);
       log.info('技能已加载', { count: this.startupInfo.skills.length, skills: this.startupInfo.skills.slice(0, 5) });
     }
 

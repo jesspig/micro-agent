@@ -5,5 +5,3 @@
  */
 
 export { runExtCommand } from './ext';
-export { runGatewayCommand } from './gateway';
-export { runMCPCommand } from './mcp';

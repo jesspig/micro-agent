@@ -4,8 +4,8 @@
  * 通过 IPC 与 Agent Service 通信。
  */
 
-import { MicroAgentClient } from '@micro-agent/client-sdk';
-import type { StreamChunk, ToolConfig, SkillConfig, MemoryConfig, KnowledgeConfig } from '@micro-agent/client-sdk';
+import { MicroAgentClient } from '@micro-agent/sdk';
+import type { StreamChunk, ToolConfig, SkillConfig, MemoryConfig, KnowledgeConfig } from '@micro-agent/sdk';
 import { getLogger } from '@logtape/logtape';
 import type { AgentClient, MessageContent } from './message-router';
 
@@ -195,13 +195,9 @@ export class AgentClientImpl implements AgentClient {
 
     const text = content.type === 'text' ? content.text : JSON.stringify(content);
 
-    const response = await this.client.chat({
-      sessionId,
-      content: { type: 'text', text },
-      metadata,
-    });
+    const response = await this.client.chat.send(sessionId, text);
 
-    return response.content ?? '';
+    return response ?? '';
   }
 
   /**

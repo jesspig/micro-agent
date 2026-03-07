@@ -19,7 +19,7 @@ export class ApiClient {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ message }),
     });
-    return response.json();
+    return response.json() as Promise<{ response: string }>;
   }
 
   /**
@@ -27,7 +27,7 @@ export class ApiClient {
    */
   async getSessions(): Promise<{ sessions: ChatSession[] }> {
     const response = await fetch(`${API_BASE}/sessions`);
-    return response.json();
+    return response.json() as Promise<{ sessions: ChatSession[] }>;
   }
 
   /**
@@ -37,7 +37,7 @@ export class ApiClient {
     const response = await fetch(`${API_BASE}/sessions`, {
       method: 'POST',
     });
-    return response.json();
+    return response.json() as Promise<{ sessionId: string }>;
   }
 
   /**
@@ -45,7 +45,7 @@ export class ApiClient {
    */
   async getSettings(): Promise<AppSettings> {
     const response = await fetch(`${API_BASE}/settings`);
-    return response.json();
+    return response.json() as Promise<AppSettings>;
   }
 
   /**

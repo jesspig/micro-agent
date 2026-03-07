@@ -5,8 +5,8 @@
  * 此模块仅负责准备配置数据，不负责实际初始化。
  */
 
-import type { Config, ProviderEntry } from '@micro-agent/config';
-import { expandPath } from '@micro-agent/config';
+import type { Config, ProviderEntry } from '@micro-agent/sdk';
+import { expandPath } from '@micro-agent/sdk';
 import { resolve } from 'path';
 import { homedir } from 'os';
 

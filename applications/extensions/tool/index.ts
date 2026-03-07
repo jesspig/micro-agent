@@ -1,11 +1,17 @@
 /**
- * Tool 扩展索引
+ * 工具扩展入口
  *
- * 迁移自 extensions/tool
+ * 导出所有工具组件。
  */
 
-// TODO: 迁移工具扩展
-// export * from './filesystem';
-// export * from './message';
-// export * from './shell';
-// export * from './web';
+// 文件系统工具
+export { ReadFileTool, WriteFileTool, ListDirTool, filesystemTools } from './filesystem';
+
+// Shell 工具
+export { createExecTool } from './shell';
+
+// Web 工具
+export { WebFetchTool, webTools } from './web';
+
+// 消息工具
+export { MessageTool, messageTools } from './message';

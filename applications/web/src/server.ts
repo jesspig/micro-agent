@@ -33,7 +33,7 @@ const DEFAULT_CONFIG: ServerConfig = {
 /**
  * 创建 Web 服务器
  */
-export function createServer(config?: Partial<ServerConfig>): Bun.Server {
+export function createServer(config?: Partial<ServerConfig>): Bun.Server<undefined> {
   const fullConfig = { ...DEFAULT_CONFIG, ...config };
   const appConfig = getConfig().getConfig();
 

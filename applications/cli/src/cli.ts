@@ -8,7 +8,7 @@ import { join } from 'path';
 import { createApp } from './app';
 import { performConfigCheck } from './modules/config-check';
 import { initLogging, getLogFilePath } from '@micro-agent/runtime';
-import { runExtCommand, runGatewayCommand, runMCPCommand } from './commands';
+import { runExtCommand } from './commands';
 
 // 版本号
 const VERSION = (() => {
@@ -73,7 +73,6 @@ async function initLoggingSystem(level: 'debug' | 'info' | 'warn' = 'info'): Pro
     console: true,
     file: true,
     level,
-    consoleLevel: level === 'debug' ? 'debug' : 'warn',
     traceEnabled: level === 'debug',
   });
 }
@@ -90,8 +89,6 @@ MicroAgent - 轻量级 AI 助手框架
   start       启动服务（连接 Agent Service + 飞书）
   status      显示状态
   ext         扩展管理（工具、技能、通道）
-  gateway     启动 HTTP 网关服务（OpenAI 兼容 API）
-  mcp         启动 MCP Server（Model Context Protocol）
 
 选项:
   -c, --config <path>   配置文件路径
@@ -106,9 +103,6 @@ MicroAgent - 轻量级 AI 助手框架
   micro-agent start -c ./config.yaml
   micro-agent status
   micro-agent ext list          # 列出扩展
-  micro-agent gateway           # 启动网关服务
-  micro-agent gateway --port 8080
-  micro-agent mcp               # 启动 MCP Server
 `);
 }
 
@@ -239,16 +233,6 @@ export async function runCli(argv: string[] = process.argv.slice(2)): Promise<vo
     case 'ext':
       // ext 子命令参数从第二个位置参数开始
       await runExtCommand(positionals.slice(1));
-      break;
-
-    case 'gateway':
-      // gateway 子命令参数从第二个位置参数开始
-      await runGatewayCommand(positionals.slice(1));
-      break;
-
-    case 'mcp':
-      // mcp 子命令参数从第二个位置参数开始
-      await runMCPCommand(positionals.slice(1));
       break;
 
     case undefined:

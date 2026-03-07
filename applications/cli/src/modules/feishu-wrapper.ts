@@ -193,7 +193,7 @@ export class FeishuWrapper implements Channel {
       },
     };
 
-    log.debug('解析消息', { id: result.id, chatId: result.chatId, text: result.content.text?.slice(0, 50) });
+    log.debug('解析消息', { id: result.id, chatId: result.chatId, text: result.content.type === 'text' ? result.content.text?.slice(0, 50) : '[non-text]' });
     return result;
   }
 }

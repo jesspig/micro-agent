@@ -3,8 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'bun:test'
-import { ExtensionDiscovery } from '@micro-agent/extension-system'
-import { ExtensionRegistry } from '@micro-agent/extension-system'
+import { ExtensionDiscovery, ExtensionRegistry } from '@micro-agent/sdk'
 import { mkdirSync, writeFileSync, rmSync, existsSync } from 'fs'
 import { join } from 'path'
 
@@ -21,13 +20,13 @@ describe('Extension System Package', () => {
       }
     })
 
-    it('should add search path', () => {
+    it('should add search path', async () => {
       discovery.addSearchPath('/test/path')
       // Should not throw
       expect(discovery).toBeDefined()
     })
 
-    it('should not add duplicate paths', () => {
+    it('should not add duplicate paths', async () => {
       discovery.addSearchPath('/test/path')
       discovery.addSearchPath('/test/path')
       discovery.addSearchPath('/test/path')
@@ -35,15 +34,15 @@ describe('Extension System Package', () => {
       expect(discovery).toBeDefined()
     })
 
-    it('should return empty result for non-existent path', () => {
+    it('should return empty result for non-existent path', async () => {
       discovery.addSearchPath('/non/existent/path')
-      const result = discovery.discover()
+      const result = await discovery.discover()
       
       expect(result.descriptors).toHaveLength(0)
       expect(result.scannedDirs).toBe(0)
     })
 
-    it('should discover extension with extension.yaml', () => {
+    it('should discover extension with extension.yaml', async () => {
       // 创建测试扩展目录
       const extDir = join(testDir, 'test-ext')
       mkdirSync(extDir, { recursive: true })
@@ -57,7 +56,7 @@ description: A test extension
 `)
 
       discovery.addSearchPath(testDir)
-      const result = discovery.discover()
+      const result = await discovery.discover()
 
       expect(result.descriptors).toHaveLength(1)
       expect(result.descriptors[0].id).toBe('test-ext')
@@ -67,7 +66,7 @@ description: A test extension
       rmSync(testDir, { recursive: true })
     })
 
-    it('should discover extension with package.json', () => {
+    it('should discover extension with package.json', async () => {
       const pkgTestDir = join(process.cwd(), 'test-extensions-temp-pkg')
       const extDir = join(pkgTestDir, 'pkg-ext')
       mkdirSync(extDir, { recursive: true })
@@ -81,7 +80,7 @@ description: A test extension
       }))
 
       discovery.addSearchPath(pkgTestDir)
-      const result = discovery.discover()
+      const result = await discovery.discover()
 
       expect(result.descriptors).toHaveLength(1)
       expect(result.descriptors[0].id).toBe('pkg-ext')
@@ -91,7 +90,7 @@ description: A test extension
       rmSync(pkgTestDir, { recursive: true })
     })
 
-    it('should report error for invalid manifest', () => {
+    it('should report error for invalid manifest', async () => {
       const errTestDir = join(process.cwd(), 'test-extensions-temp-err')
       const extDir = join(errTestDir, 'invalid-ext')
       mkdirSync(extDir, { recursive: true })
@@ -99,7 +98,7 @@ description: A test extension
       writeFileSync(join(extDir, 'extension.yaml'), 'invalid: yaml: content:')
 
       discovery.addSearchPath(errTestDir)
-      const result = discovery.discover()
+      const result = await discovery.discover()
 
       expect(result.errors.length).toBeGreaterThan(0)
       
@@ -107,7 +106,7 @@ description: A test extension
       rmSync(errTestDir, { recursive: true })
     })
 
-    it('should report error for missing required fields', () => {
+    it('should report error for missing required fields', async () => {
       const missTestDir = join(process.cwd(), 'test-extensions-temp-miss')
       const extDir = join(missTestDir, 'incomplete-ext')
       mkdirSync(extDir, { recursive: true })
@@ -118,7 +117,7 @@ name: Incomplete
 `)
 
       discovery.addSearchPath(missTestDir)
-      const result = discovery.discover()
+      const result = await discovery.discover()
 
       expect(result.errors.length).toBeGreaterThan(0)
       
@@ -139,25 +138,25 @@ name: Incomplete
       })
     })
 
-    it('should create registry with config', () => {
+    it('should create registry with config', async () => {
       expect(registry).toBeDefined()
       expect(registry.size).toBe(0)
     })
 
-    it('should throw error for non-existent extension', () => {
+    it('should throw error for non-existent extension', async () => {
       expect(registry.get('non-existent')).toBeUndefined()
       expect(registry.has('non-existent')).toBe(false)
     })
 
-    it('should return empty array for getAll', () => {
+    it('should return empty array for getAll', async () => {
       expect(registry.getAll()).toHaveLength(0)
     })
 
-    it('should return empty array for getByType', () => {
+    it('should return empty array for getByType', async () => {
       expect(registry.getByType('tool')).toHaveLength(0)
     })
 
-    it('should return empty array for getActive', () => {
+    it('should return empty array for getActive', async () => {
       expect(registry.getActive()).toHaveLength(0)
     })
 

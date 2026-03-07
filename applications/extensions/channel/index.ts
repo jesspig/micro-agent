@@ -1,8 +1,8 @@
 /**
- * Channel 扩展索引
+ * 通道扩展入口
  *
- * 迁移自 extensions/channel
+ * 导出所有通道组件。
  */
 
-// TODO: 迁移 feishu 通道
-export * from './feishu';
+// 飞书通道
+export { FeishuChannel } from './feishu';

@@ -8,7 +8,7 @@
  * 通过 RAG (Retrieval-Augmented Generation) 技术实现智能检索。
  */
 
-import type { Config } from '@micro-agent/config';
+import type { Config } from '@micro-agent/sdk';
 import { resolve } from 'path';
 import { homedir } from 'os';
 
