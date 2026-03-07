@@ -5,6 +5,12 @@
 /** 传输类型 */
 export type TransportType = 'ipc' | 'http' | 'websocket';
 
+/** 日志输出类型 */
+export type LogOutputType = 'stdout' | 'stderr';
+
+/** 日志处理器 */
+export type LogHandler = (text: string, type: LogOutputType) => void;
+
 /** IPC 配置 */
 export interface IPCConfig {
   /** Agent Service 路径（Bun IPC 模式） */
@@ -17,6 +23,8 @@ export interface IPCConfig {
   timeout?: number;
   /** 序列化方式（Bun IPC） */
   serialization?: 'advanced' | 'json';
+  /** 日志处理器（用于处理子进程输出） */
+  logHandler?: LogHandler;
 }
 
 /** HTTP 配置 */

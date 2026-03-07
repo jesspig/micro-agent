@@ -129,7 +129,7 @@ export async function runGatewayCommand(args: string[]): Promise<void> {
   const host = config.host ?? '0.0.0.0';
   const port = config.port ?? 3000;
 
-  // 显示启动信息
+  // 显示启动信息（UI 元素）
   console.log();
   console.log('\x1b[1m\x1b[36m启动 HTTP 网关服务...\x1b[0m');
   console.log('─'.repeat(50));
@@ -166,7 +166,7 @@ export async function runGatewayCommand(args: string[]): Promise<void> {
     });
     process.on('SIGTERM', () => {
       console.log();
-      console.log('\x1b[2m收到终止信号，正在关闭服务器...\x1b[0m');
+      console.log('\x1b[2m收到终止信号，��在关闭服务器...\x1b[0m');
       resolve();
     });
   });

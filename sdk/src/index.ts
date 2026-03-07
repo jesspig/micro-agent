@@ -69,4 +69,6 @@ export type {
   WebSocketConfig,
   PromptTemplate,
   SessionKey,
+  LogHandler,
+  LogOutputType,
 } from './client/types';

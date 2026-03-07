@@ -21,12 +21,59 @@ const VERSION = (() => {
   }
 })();
 
+/**
+ * 拦截第三方库的冗余日志
+ * 
+ * 过滤规则：
+ * - `[info]:` - 飞书 SDK 的信息日志，抑制
+ * - `[warn]:` - 飞书 SDK 的警告日志，显示
+ * - `[error]:` - 飞书 SDK 的错误日志，显示
+ */
+function suppressThirdPartyLogs(): void {
+  const originalLog = console.log;
+  const originalError = console.error;
+
+  // 拦截 console.log
+  console.log = (...args: unknown[]) => {
+    const str = args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' ');
+    
+    // 飞书 SDK 的 [info]: 日志，抑制
+    if (str.startsWith('[info]:')) {
+      return;
+    }
+    
+    // 飞书 SDK 的 [warn]: 日志，显示为黄色警告
+    if (str.startsWith('[warn]:')) {
+      console.error('\x1b[33m[飞书]\x1b[0m', str.slice(7).trim());
+      return;
+    }
+    
+    // 其他日志正常输出
+    originalLog(...args);
+  };
+
+  // 拦截 console.error
+  console.error = (...args: unknown[]) => {
+    const str = args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' ');
+    
+    // 飞书 SDK 的错误日志，显示为红色
+    if (str.startsWith('[error]:')) {
+      originalError('\x1b[31m[飞书错误]\x1b[0m', str.slice(8).trim());
+      return;
+    }
+    
+    // 其他错误正常输出
+    originalError(...args);
+  };
+}
+
 /** 初始化日志系统 */
 async function initLoggingSystem(level: 'debug' | 'info' | 'warn' = 'info'): Promise<void> {
   await initLogging({
     console: true,
     file: true,
     level,
+    consoleLevel: level === 'debug' ? 'debug' : 'warn',
     traceEnabled: level === 'debug',
   });
 }
@@ -74,25 +121,26 @@ function showVersion(): void {
 async function startService(verbose: boolean, quiet: boolean, configPath?: string): Promise<void> {
   const logLevel = quiet ? 'warn' : (verbose ? 'debug' : 'info');
 
-  // 初始化日志系统
+  // 设置 verbose 环境变量，供日志处理器判断
+  if (verbose) {
+    process.env.MICRO_AGENT_VERBOSE = 'true';
+  }
+
+  // 初始化日志系统（必须在 suppressThirdPartyLogs 之前）
   await initLoggingSystem(logLevel);
 
-  // 清屏并显示标题
+  // 拦截第三方库的冗余日志（在 logtape 初始化之后）
+  suppressThirdPartyLogs();
+
+  // 清屏并显示标题（UI 元素，使用 console.log）
   console.log('\x1b[2J\x1b[H');
   console.log();
   console.log('\x1b[1m\x1b[36mMicroAgent\x1b[0m');
   console.log('─'.repeat(50));
 
-  // 显示日志级别
-  if (logLevel === 'debug') {
-    console.log('  \x1b[90m日志级别:\x1b[0m \x1b[36mDEBUG\x1b[0m (详细模式)');
-  } else if (logLevel === 'warn') {
-    console.log('  \x1b[90m日志级别:\x1b[0m \x1b[33mWARN\x1b[0m (静默模式)');
-  }
-
   // 检查配置状态（显示警告但不阻止启动）
   performConfigCheck(configPath);
-
+  
   const app = await createApp({ 
     logLevel,
     verbose,
@@ -122,7 +170,7 @@ async function startService(verbose: boolean, quiet: boolean, configPath?: strin
   try {
     await app.start();
     
-    // 显示日志文件路径
+    // 显示日志文件路径（UI 元素）
     console.log(`  \x1b[2m日志文件:\x1b[0m ${getLogFilePath()}`);
     console.log();
     console.log('按 Ctrl+C 停止');

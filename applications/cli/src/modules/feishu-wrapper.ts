@@ -5,7 +5,10 @@
  */
 
 import * as Lark from '@larksuiteoapi/node-sdk';
+import { getLogger } from '@logtape/logtape';
 import type { Channel, InboundMessage, MessageContent } from './message-router';
+
+const log = getLogger(['cli', 'feishu']);
 
 /**
  * 飞书配置
@@ -50,13 +53,13 @@ export class FeishuWrapper implements Channel {
    * 启动飞书通道
    */
   async start(): Promise<void> {
-    console.log('[Feishu] 正在启动长连接...');
+    log.info('正在启动长连接...');
 
     try {
       this.wsClient = new Lark.WSClient({
         appId: this.config.appId,
         appSecret: this.config.appSecret,
-        loggerLevel: Lark.LoggerLevel.info,
+        loggerLevel: Lark.LoggerLevel.error, // 只显示错误日志
       });
 
       // 启动长连接
@@ -65,13 +68,13 @@ export class FeishuWrapper implements Channel {
           // 处理接收消息事件
           'im.message.receive_v1': async (data: any) => {
             try {
-              console.log('[Feishu] 收到原始事件:', JSON.stringify(data).slice(0, 500));
+              log.debug('收到原始事件', { data: JSON.stringify(data).slice(0, 500) });
               const msg = this.mapToInboundMessage(data);
               if (msg && this.messageHandler) {
                 this.messageHandler(msg);
               }
             } catch (error) {
-              console.error('[Feishu] 处理消息失败:', error);
+              log.error('处理消息失败', { error: error instanceof Error ? error.message : String(error) });
               if (this.errorHandler) {
                 this.errorHandler(error as Error);
               }
@@ -81,9 +84,9 @@ export class FeishuWrapper implements Channel {
       });
 
       this._connected = true;
-      console.log('[Feishu] 长连接已启动');
+      log.info('长连接已启动');
     } catch (error) {
-      console.error('[Feishu] 启动失败:', error);
+      log.error('启动失败', { error: error instanceof Error ? error.message : String(error) });
       throw error;
     }
   }
@@ -96,7 +99,7 @@ export class FeishuWrapper implements Channel {
       this.wsClient = null;
     }
     this._connected = false;
-    console.log('[Feishu] 通道已停止');
+    log.info('通道已停止');
   }
 
   /**
@@ -138,9 +141,9 @@ export class FeishuWrapper implements Channel {
         },
       });
 
-      console.log('[Feishu] 消息已发送:', chatId);
+      log.debug('消息已发送', { chatId });
     } catch (error) {
-      console.error('[Feishu] 发送消息失败:', error);
+      log.error('发送消息失败', { error: error instanceof Error ? error.message : String(error) });
       throw error;
     }
   }
@@ -155,7 +158,7 @@ export class FeishuWrapper implements Channel {
     const sender = event.sender;
 
     if (!message) {
-      console.log('[Feishu] 事件无消息内容');
+      log.debug('事件无消息内容');
       return null;
     }
 
@@ -190,7 +193,7 @@ export class FeishuWrapper implements Channel {
       },
     };
 
-    console.log('[Feishu] 解析消息:', result.id, result.chatId, result.content.text?.slice(0, 50));
+    log.debug('解析消息', { id: result.id, chatId: result.chatId, text: result.content.text?.slice(0, 50) });
     return result;
   }
 }

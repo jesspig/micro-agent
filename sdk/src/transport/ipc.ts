@@ -110,7 +110,6 @@ export class IPCTransport {
       resolve: () => {
         clearTimeout(timeoutId);
         this._isConnected = true;
-        console.log('[IPC] Agent Service 已启动');
         resolve();
       },
       reject: (error) => {
@@ -128,7 +127,6 @@ export class IPCTransport {
         this.pendingRequests.delete(id);
         clearTimeout(timeoutId);
         this._isConnected = true;
-        console.log('[IPC] Agent Service 已启动（未确认就绪）');
         resolve();
       }
     }, 2000);
@@ -153,7 +151,6 @@ export class IPCTransport {
       try {
         const file = Bun.file(path);
         if (file.size > 0) {
-          console.log(`[IPC] 找到 Agent Service: ${path}`);
           return path;
         }
       } catch {
@@ -162,30 +159,47 @@ export class IPCTransport {
     }
 
     // 默认返回相对于工作目录的路径
-    console.log(`[IPC] 使用默认路径: ${cwd}/agent-service/src/index.ts`);
     return `${cwd}/agent-service/src/index.ts`;
   }
 
   /**
    * 转发子进程输出
+   * 
+   * 如果配置了 logHandler，则调用处理器；否则忽略输出。
+   * 支持多行日志和缓冲不完整的行。
    */
-  private forwardOutput(stream: ReadableStream<Uint8Array> | null, type: string): void {
+  private forwardOutput(stream: ReadableStream<Uint8Array> | null, type: 'stdout' | 'stderr'): void {
     if (!stream) return;
 
     const reader = stream.getReader();
     const decoder = new TextDecoder();
+    const logHandler = this.config.logHandler;
+    let buffer = '';
 
     (async () => {
       while (true) {
         try {
           const { done, value } = await reader.read();
-          if (done) break;
+          if (done) {
+            // 处理缓冲区剩余内容
+            if (buffer.trim() && logHandler) {
+              logHandler(buffer, type);
+            }
+            break;
+          }
 
-          const text = decoder.decode(value);
-          if (type === 'stderr') {
-            process.stderr.write(text);
-          } else {
-            process.stdout.write(text);
+          buffer += decoder.decode(value, { stream: true });
+          
+          // 按行分割处理
+          const lines = buffer.split('\n');
+          // 保留最后一行（可能不完整）
+          buffer = lines.pop() || '';
+          
+          // 处理完整的行
+          for (const line of lines) {
+            if (line.trim() && logHandler) {
+              logHandler(line, type);
+            }
           }
         } catch {
           break;
