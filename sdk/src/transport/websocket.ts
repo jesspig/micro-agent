@@ -120,12 +120,18 @@ export class WebSocketTransport {
       await this.connect();
     }
 
+    if (!this.ws) {
+      throw new Error('WebSocket 连接失败');
+    }
+
+    const ws = this.ws;
     const id = crypto.randomUUID();
-    const body = RequestBuilder.buildRequest(method, { ...params, stream: true }, id);
+    const paramsObj = typeof params === 'object' && params !== null ? params : {};
+    const body = RequestBuilder.buildRequest(method, { ...paramsObj, stream: true }, id);
 
     // 监听流式响应
-    const originalHandler = this.ws.onmessage;
-    this.ws.onmessage = (event) => {
+    const originalHandler = ws.onmessage;
+    ws.onmessage = (event) => {
       const data = event.data;
       
       // 尝试解析为流式块
@@ -141,7 +147,7 @@ export class WebSocketTransport {
           handler(chunk);
           
           if (parsed.type === 'done') {
-            this.ws!.onmessage = originalHandler;
+            ws.onmessage = originalHandler;
           }
           return;
         }
@@ -151,11 +157,11 @@ export class WebSocketTransport {
 
       // 调用原始处理器
       if (originalHandler) {
-        originalHandler(event);
+        originalHandler.call(ws, event);
       }
     };
 
-    this.ws.send(body);
+    ws.send(body);
   }
 
   /**

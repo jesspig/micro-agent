@@ -21,6 +21,8 @@ export interface IPCTransportConfig {
   timeout?: number;
   /** 序列化方式 */
   serialization?: 'advanced' | 'json';
+  /** 日志处理器（用于处理子进程输出） */
+  logHandler?: (text: string, type: 'stdout' | 'stderr') => void;
 }
 
 /**
@@ -76,8 +78,14 @@ export class IPCTransport {
         });
 
         // 转发子进程输出
-        this.forwardOutput(this.subprocess.stdout, 'stdout');
-        this.forwardOutput(this.subprocess.stderr, 'stderr');
+        const stdout = this.subprocess.stdout;
+        const stderr = this.subprocess.stderr;
+        if (stdout && typeof stdout !== 'number') {
+          this.forwardOutput(stdout, 'stdout');
+        }
+        if (stderr && typeof stderr !== 'number') {
+          this.forwardOutput(stderr, 'stderr');
+        }
 
         // 监听进程退出
         this.subprocess.exited.then(() => {
@@ -276,7 +284,8 @@ export class IPCTransport {
     }
 
     const id = crypto.randomUUID();
-    const body = RequestBuilder.buildRequest(method, { ...params, stream: true }, id);
+    const paramsObj = typeof params === 'object' && params !== null ? params : {};
+    const body = RequestBuilder.buildRequest(method, { ...paramsObj, stream: true }, id);
 
     return new Promise((resolve, reject) => {
       const timeoutId = setTimeout(() => {

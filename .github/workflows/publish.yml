@@ -47,7 +47,7 @@ jobs:
           LOCAL_VERSION=$(bun -e "console.log(require('./package.json').version)")
           
           # 使用 bun 检查 npm 上是否已存在该版本
-          NPM_VERSION=$(bun x npm-view @micro-agent/cli version 2>/dev/null || echo "0.0.0")
+          NPM_VERSION=$(bun x npm-view @micro-agent/core version 2>/dev/null || echo "0.0.0")
           
           echo "local_version=$LOCAL_VERSION" >> $GITHUB_OUTPUT
           echo "npm_version=$NPM_VERSION" >> $GITHUB_OUTPUT
@@ -64,32 +64,8 @@ jobs:
         if: steps.check-version.outputs.should_publish == 'true'
         run: |
           # 按依赖顺序发布 (bun publish 会自动将 workspace:* 转换为实际版本)
-          echo "📦 发布 @micro-agent/types"
-          bun publish --cwd packages/types --access public --no-git-checks
-          
-          echo "📦 发布 @micro-agent/config"
-          bun publish --cwd packages/config --access public --no-git-checks
-          
-          echo "📦 发布 @micro-agent/storage"
-          bun publish --cwd packages/storage --access public --no-git-checks
-          
-          echo "📦 发布 @micro-agent/extension-system"
-          bun publish --cwd packages/extension-system --access public --no-git-checks
-          
-          echo "📦 发布 @micro-agent/providers"
-          bun publish --cwd packages/providers --access public --no-git-checks
-          
-          echo "📦 发布 @micro-agent/runtime"
-          bun publish --cwd packages/runtime --access public --no-git-checks
-          
-          echo "📦 发布 @micro-agent/sdk"
-          bun publish --cwd packages/sdk --access public --no-git-checks
-          
-          echo "📦 发布 @micro-agent/server"
-          bun publish --cwd packages/server --access public --no-git-checks
-          
-          echo "📦 发布 @micro-agent/cli"
-          bun publish --cwd apps/cli --access public --no-git-checks
+          echo "📦 发布 @micro-agent/client-sdk"
+          bun publish --cwd sdk --access public --no-git-checks
           
           echo "📦 发布 @micro-agent/core"
           bun publish --access public --no-git-checks

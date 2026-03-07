@@ -3,7 +3,7 @@
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "lib": ["ES2022"],
+    "lib": ["ES2022", "DOM"],
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
@@ -16,25 +16,15 @@
     "rootDir": ".",
     "baseUrl": ".",
     "paths": {
-      "@micro-agent/types": ["./packages/types/src"],
-      "@micro-agent/types/*": ["./packages/types/src/*"],
-      "@micro-agent/runtime": ["./packages/runtime/src"],
-      "@micro-agent/runtime/*": ["./packages/runtime/src/*"],
-      "@micro-agent/config": ["./packages/config/src"],
-      "@micro-agent/config/*": ["./packages/config/src/*"],
-      "@micro-agent/storage": ["./packages/storage/src"],
-      "@micro-agent/storage/*": ["./packages/storage/src/*"],
-      "@micro-agent/providers": ["./packages/providers/src"],
-      "@micro-agent/providers/*": ["./packages/providers/src/*"],
-      "@micro-agent/extension-system": ["./packages/extension-system/src"],
-      "@micro-agent/extension-system/*": ["./packages/extension-system/src/*"],
-      "@micro-agent/sdk": ["./packages/sdk/src"],
-      "@micro-agent/sdk/*": ["./packages/sdk/src/*"],
-      "@micro-agent/server": ["./packages/server/src"],
-      "@micro-agent/server/*": ["./packages/server/src/*"]
+      "@micro-agent/types": ["./agent-service/types"],
+      "@micro-agent/types/*": ["./agent-service/types/*"],
+      "@micro-agent/runtime": ["./agent-service/runtime"],
+      "@micro-agent/runtime/*": ["./agent-service/runtime/*"],
+      "@micro-agent/sdk": ["./sdk/src"],
+      "@micro-agent/sdk/*": ["./sdk/src/*"]
     },
     "types": ["bun"]
   },
-  "include": ["extensions/**/*", "apps/**/*"],
-  "exclude": ["node_modules", "dist", "tests"]
+  "include": ["applications/**/*", "agent-service/**/*", "sdk/**/*"],
+  "exclude": ["node_modules", "dist"]
 }

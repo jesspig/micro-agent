@@ -21,7 +21,3 @@ only = false
 [run]
 # 静默模式
 silent = false
-
-[test]
-# 测试配置
-preload = ["./tests/setup.ts"]

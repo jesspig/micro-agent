@@ -17,7 +17,11 @@
     "sourceMap": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@micro-agent/types": ["../agent-service/types"],
+      "@micro-agent/types/*": ["../agent-service/types/*"],
+      "@micro-agent/runtime": ["../agent-service/runtime"],
+      "@micro-agent/runtime/*": ["../agent-service/runtime/*"]
     },
     "types": ["bun-types"]
   },

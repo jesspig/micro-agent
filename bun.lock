@@ -9,7 +9,7 @@
         "@larksuiteoapi/node-sdk": "^1.59.0",
         "@logtape/logtape": "^2.0.4",
         "@logtape/pretty": "^2.0.4",
-        "@micro-agent/sdk": "workspace:*",
+        "@micro-agent/client-sdk": "workspace:*",
         "ai": "^6.0.106",
         "gray-matter": "^4.0.3",
         "js-yaml": "^4.1.1",
@@ -33,9 +33,12 @@
         "@lancedb/lancedb": "^0.26.2",
         "@logtape/logtape": "^2.0.4",
         "@logtape/pretty": "^2.0.4",
-        "@micro-agent/config": "workspace:*",
         "ai": "^6.0.106",
+        "gray-matter": "^4.0.3",
+        "mammoth": "^1.11.0",
         "mitt": "^3.0.1",
+        "pdf-parse": "^2.4.5",
+        "xlsx": "^0.18.5",
         "zod": "^4.3.6",
       },
       "devDependencies": {
@@ -44,18 +47,13 @@
       },
     },
     "applications/cli": {
-      "name": "@micro-agent/cli-new",
+      "name": "@micro-agent/cli-app",
       "version": "0.3.0",
       "bin": {
         "micro-agent": "./src/index.ts",
       },
       "dependencies": {
         "@larksuiteoapi/node-sdk": "^1.59.0",
-        "@micro-agent/client-sdk": "workspace:*",
-        "@micro-agent/config": "workspace:*",
-        "@micro-agent/providers": "workspace:*",
-        "@micro-agent/runtime": "workspace:*",
-        "@micro-agent/server": "workspace:*",
       },
       "devDependencies": {
         "@types/bun": "latest",
@@ -65,153 +63,6 @@
     "applications/web": {
       "name": "@micro-agent/web",
       "version": "0.3.0",
-      "dependencies": {
-        "@micro-agent/sdk": "workspace:*",
-      },
-      "devDependencies": {
-        "@types/bun": "latest",
-        "typescript": "^5.9.3",
-      },
-    },
-    "apps/cli": {
-      "name": "@micro-agent/cli",
-      "version": "0.2.2",
-      "bin": {
-        "micro-agent": "./src/cli.ts",
-      },
-      "dependencies": {
-        "@larksuiteoapi/node-sdk": "^1.59.0",
-        "@logtape/logtape": "^2.0.4",
-        "@logtape/pretty": "^2.0.4",
-        "@micro-agent/config": "workspace:*",
-        "@micro-agent/extension-system": "workspace:*",
-        "@micro-agent/providers": "workspace:*",
-        "@micro-agent/runtime": "workspace:*",
-        "@micro-agent/sdk": "workspace:*",
-        "@micro-agent/server": "workspace:*",
-        "@micro-agent/storage": "workspace:*",
-        "@micro-agent/types": "workspace:*",
-        "js-yaml": "^4.1.1",
-        "zod": "^4.3.6",
-      },
-      "devDependencies": {
-        "@types/bun": "latest",
-        "@types/js-yaml": "^4.0.9",
-        "typescript": "^5.9.3",
-      },
-    },
-    "packages/config": {
-      "name": "@micro-agent/config",
-      "version": "0.2.2",
-      "dependencies": {
-        "@logtape/logtape": "^2.0.4",
-        "@logtape/pretty": "^2.0.4",
-        "@micro-agent/types": "workspace:*",
-        "gray-matter": "^4.0.3",
-        "js-yaml": "^4.1.1",
-        "zod": "^4.3.6",
-      },
-      "devDependencies": {
-        "@types/bun": "latest",
-        "@types/js-yaml": "^4.0.9",
-        "typescript": "^5.9.3",
-      },
-    },
-    "packages/extension-system": {
-      "name": "@micro-agent/extension-system",
-      "version": "0.2.2",
-      "dependencies": {
-        "@logtape/logtape": "^2.0.4",
-        "@micro-agent/types": "workspace:*",
-        "js-yaml": "^4.1.1",
-      },
-      "devDependencies": {
-        "@types/bun": "latest",
-        "typescript": "^5.9.3",
-      },
-    },
-    "packages/providers": {
-      "name": "@micro-agent/providers",
-      "version": "0.2.2",
-      "dependencies": {
-        "@logtape/logtape": "^2.0.4",
-        "@micro-agent/config": "workspace:*",
-        "@micro-agent/types": "workspace:*",
-        "ai": "^6.0.106",
-      },
-      "devDependencies": {
-        "@types/bun": "latest",
-        "typescript": "^5.9.3",
-      },
-    },
-    "packages/runtime": {
-      "name": "@micro-agent/runtime",
-      "version": "0.2.2",
-      "dependencies": {
-        "@logtape/file": "^2.0.4",
-        "@logtape/logtape": "^2.0.4",
-        "@micro-agent/config": "workspace:*",
-        "@micro-agent/providers": "workspace:*",
-        "@micro-agent/types": "workspace:*",
-        "mammoth": "^1.11.0",
-        "mitt": "^3.0.1",
-        "pdf-parse": "^2.4.5",
-        "xlsx": "^0.18.5",
-      },
-      "devDependencies": {
-        "@types/bun": "latest",
-        "typescript": "^5.9.3",
-      },
-    },
-    "packages/sdk": {
-      "name": "@micro-agent/sdk",
-      "version": "0.2.2",
-      "dependencies": {
-        "@logtape/logtape": "^2.0.4",
-        "@micro-agent/config": "workspace:*",
-        "@micro-agent/extension-system": "workspace:*",
-        "@micro-agent/providers": "workspace:*",
-        "@micro-agent/runtime": "workspace:*",
-        "@micro-agent/storage": "workspace:*",
-        "@micro-agent/types": "workspace:*",
-        "mitt": "^3.0.1",
-        "zod": "^4.3.6",
-      },
-      "devDependencies": {
-        "@types/bun": "latest",
-        "typescript": "^5.9.3",
-      },
-    },
-    "packages/server": {
-      "name": "@micro-agent/server",
-      "version": "0.2.2",
-      "dependencies": {
-        "@logtape/logtape": "^2.0.4",
-        "@micro-agent/providers": "workspace:*",
-        "@micro-agent/runtime": "workspace:*",
-        "@micro-agent/sdk": "workspace:*",
-        "@micro-agent/types": "workspace:*",
-      },
-      "devDependencies": {
-        "@types/bun": "latest",
-        "typescript": "^5.9.3",
-      },
-    },
-    "packages/storage": {
-      "name": "@micro-agent/storage",
-      "version": "0.2.2",
-      "dependencies": {
-        "@logtape/logtape": "^2.0.4",
-        "@micro-agent/types": "workspace:*",
-      },
-      "devDependencies": {
-        "@types/bun": "latest",
-        "typescript": "^5.9.3",
-      },
-    },
-    "packages/types": {
-      "name": "@micro-agent/types",
-      "version": "0.2.2",
       "devDependencies": {
         "@types/bun": "latest",
         "typescript": "^5.9.3",
@@ -257,35 +108,15 @@
 
     "@larksuiteoapi/node-sdk": ["@larksuiteoapi/node-sdk@1.59.0", "", { "dependencies": { "axios": "~1.13.3", "lodash.identity": "^3.0.0", "lodash.merge": "^4.6.2", "lodash.pickby": "^4.6.0", "protobufjs": "^7.2.6", "qs": "^6.14.2", "ws": "^8.19.0" } }, "sha512-sBpkruTvZDOxnVtoTbepWKRX0j1Y1ZElQYu0x7+v088sI9pcpbVp6ZzCGn62dhrKPatzNyCJyzYCPXPYQWccrA=="],
 
-    "@logtape/file": ["@logtape/file@2.0.4", "", { "peerDependencies": { "@logtape/logtape": "^2.0.4" } }, "sha512-T4ajSQR19kae/MLic4dLXehsB5nfMSUdNAIgQcdgToog9E8PGaYT0IINw+v4clD25AYogeCmn30V7/s2ieV3GA=="],
-
     "@logtape/logtape": ["@logtape/logtape@2.0.4", "", {}, "sha512-Z4COeAMdedcBFuFkXaPFvDPOVuHoEom1hwNnPCIkSyojyikuNguplwPoSG+kZthWrS7GiOJo1USQyjWwIFfTKA=="],
 
     "@logtape/pretty": ["@logtape/pretty@2.0.4", "", { "peerDependencies": { "@logtape/logtape": "^2.0.4" } }, "sha512-y1nubV70avD9Gx8Q3gcWBlVUsVwpaBdHUntrkkpXIrC/UPRoHuWnBo+FNrtyvgjCEHSbKuxIaOgsE8rxTPEhzg=="],
 
     "@micro-agent/agent-service": ["@micro-agent/agent-service@workspace:agent-service"],
 
-    "@micro-agent/cli": ["@micro-agent/cli@workspace:apps/cli"],
-
-    "@micro-agent/cli-new": ["@micro-agent/cli-new@workspace:applications/cli"],
+    "@micro-agent/cli-app": ["@micro-agent/cli-app@workspace:applications/cli"],
 
     "@micro-agent/client-sdk": ["@micro-agent/client-sdk@workspace:sdk"],
-
-    "@micro-agent/config": ["@micro-agent/config@workspace:packages/config"],
-
-    "@micro-agent/extension-system": ["@micro-agent/extension-system@workspace:packages/extension-system"],
-
-    "@micro-agent/providers": ["@micro-agent/providers@workspace:packages/providers"],
-
-    "@micro-agent/runtime": ["@micro-agent/runtime@workspace:packages/runtime"],
-
-    "@micro-agent/sdk": ["@micro-agent/sdk@workspace:packages/sdk"],
-
-    "@micro-agent/server": ["@micro-agent/server@workspace:packages/server"],
-
-    "@micro-agent/storage": ["@micro-agent/storage@workspace:packages/storage"],
-
-    "@micro-agent/types": ["@micro-agent/types@workspace:packages/types"],
 
     "@micro-agent/web": ["@micro-agent/web@workspace:applications/web"],
 

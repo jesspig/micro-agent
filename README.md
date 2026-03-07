@@ -5,7 +5,7 @@
 </div>
 
 <p align="center">
-  <a href="https://github.com/jesspig/micro-agent"><img src="https://img.shields.io/badge/Version-0.2.2-blue.svg" alt="Version"></a>
+  <a href="https://github.com/jesspig/micro-agent"><img src="https://img.shields.io/badge/Version-0.3.0-blue.svg" alt="Version"></a>
   <a href="https://bun.sh/"><img src="https://img.shields.io/badge/Bun-1.3.9-black?logo=bun" alt="Bun"></a>
   <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-5.9.3-blue?logo=typescript" alt="TypeScript"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License"></a>
@@ -36,6 +36,13 @@
 📊 **结构化日志**：调用链追踪，LLM/工具/记忆检索日志可观测
 
 ## 📢 最新更新
+
+- **2026-03-07** 🏗️ 发布 **v0.3.0** — 架构重构
+  - 📦 新分层架构：Applications → SDK → Agent Service
+  - 🔧 Agent Service：Interface Layer + Runtime Layer + Infrastructure
+  - 🛠️ SDK：轻量级客户端 API，支持 HTTP/WebSocket/IPC
+  - 🧠 Kernel：Orchestrator、Planner、ExecutionEngine、ContextManager
+  - 🔌 Capability：Tool/Skill/Memory/Knowledge/MCP 系统
 
 - **2026-03-02** 🚀 发布 **v0.2.2** — 意图识别管道、知识库系统、引用溯源
   - 🎯 意图识别管道，分阶段识别 + 上下文重试
@@ -137,27 +144,37 @@ Options:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                         CLI (apps/cli)                       │
-├─────────────────────────────────────────────────────────────┤
-│                        Server (packages/server)              │
-├─────────────────────────────────────────────────────────────┤
-│    SDK    │  Providers  │  Extension-System                 │
-├───────────┴─────────────┴──────────────────┴────────────────┤
-│    Runtime    │    Config    │    Storage    │   Memory     │
-│    Gateway    │              │               │              │
-├───────────────┴──────────────┴───────────────┴──────────────┤
-│                         Types                                │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    Extensions (extensions/)                  │
+│                   Applications Layer                         │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
-│  │   Tools     │  │  Channels   │  │       Skills        │  │
-│  │ filesystem  │  │   feishu    │  │   time, sysinfo     │  │
-│  │ shell, web  │  │             │  │                     │  │
-│  │ message     │  │             │  │                     │  │
+│  │     CLI     │  │     Web     │  │    Extensions       │  │
+│  │  (apps/cli) │  │  (web app)  │  │  (tool/skill/ch)    │  │
 │  └─────────────┘  └─────────────┘  └─────────────────────┘  │
+├─────────────────────────────────────────────────────────────┤
+│                        SDK Layer                             │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │  MicroAgentClient  │  ToolBuilder  │  Define APIs   │    │
+│  └─────────────────────────────────────────────────────┘    │
+├─────────────────────────────────────────────────────────────┤
+│                    Agent Service                             │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │                   Interface Layer                    │    │
+│  │          IPC / HTTP / Streaming                      │    │
+│  ├─────────────────────────────────────────────────────┤    │
+│  │                    Runtime Layer                     │    │
+│  │  ┌───────────┐ ┌───────────┐ ┌───────────────────┐  │    │
+│  │  │  Kernel   │ │Capability │ │    Provider       │  │    │
+│  │  │Orchestrator│ │Tool/Skill │ │LLM/Embed/VectorDB│  │    │
+│  │  │Planner    │ │Memory     │ │                   │  │    │
+│  │  │Execution  │ │Knowledge  │ │                   │  │    │
+│  │  │Context    │ │MCP Client │ │                   │  │    │
+│  │  └───────────┘ └───────────┘ └───────────────────┘  │    │
+│  ├─────────────────────────────────────────────────────┤    │
+│  │               Infrastructure Layer                   │    │
+│  │   Container / EventBus / Database / Cache / Logging  │    │
+│  └─────────────────────────────────────────────────────┘    │
+├─────────────────────────────────────────────────────────────┤
+│                         Types                                │
+│            核心类型定义（MCP 兼容）                           │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -165,14 +182,14 @@ Options:
 
 | 包 | 路径 | 说明 |
 |------|------|------|
-| @micro-agent/types | `packages/types/` | 核心类型定义（MCP 兼容） |
-| @micro-agent/runtime | `packages/runtime/` | 运行时引擎（Container、EventBus、HookSystem、Gateway） |
+| @micro-agent/core | `/` | 根包，统一入口 |
+| @micro-agent/types | `agent-service/types/` | 核心类型定义（MCP 兼容） |
+| @micro-agent/runtime | `agent-service/runtime/` | 运行时引擎（Kernel、Capability、Provider、Infrastructure） |
+| @micro-agent/sdk | `sdk/` | 开发者 SDK，客户端 API 和工具定义 |
 | @micro-agent/config | `packages/config/` | 三级配置系统（user < project < directory） |
-| @micro-agent/storage | `packages/storage/` | 会话存储（SQLite） |
 | @micro-agent/providers | `packages/providers/` | LLM Provider 抽象、Gateway、路由 |
+| @micro-agent/storage | `packages/storage/` | 会话存储（SQLite） |
 | @micro-agent/extension-system | `packages/extension-system/` | 扩展发现、加载、热重载 |
-| @micro-agent/sdk | `packages/sdk/` | 聚合 SDK，统一开发接口 |
-| @micro-agent/server | `packages/server/` | 服务层（Channel、Queue、Events） |
 
 ## 扩展模块
 
@@ -313,25 +330,40 @@ bun test             # 运行测试
 
 ```
 micro-agent/
-├── packages/
-│   ├── types/              # 核心类型定义
-│   ├── runtime/            # 运行时引擎
-│   ├── config/             # 配置系统
-│   ├── storage/            # 存储层
-│   ├── providers/          # LLM 提供商
-│   ├── extension-system/   # 扩展系统
-│   ├── sdk/                # 聚合 SDK
-│   └── server/             # 服务层
-├── apps/
-│   └── cli/                # CLI 应用
-├── extensions/
-│   ├── tool/               # 工具扩展
-│   ├── channel/            # 通道扩展
-│   └── skills/             # 技能扩展
-├── tests/                  # 测试
-├── docs/                   # 文档
-├── templates/              # 模板文件
-└── workspace/              # 工作空间配置
+├── agent-service/           # Agent 运行时服务
+│   ├── interface/           # 接口层（IPC/HTTP/Streaming）
+│   ├── runtime/             # 运行时核心
+│   │   ├── kernel/          # 编排器、规划器、执行引擎
+│   │   ├── capability/      # 工具、技能、记忆、知识库
+│   │   ├── provider/        # LLM、Embedding、VectorDB
+│   │   └── infrastructure/  # 容器、事件总线、数据库
+│   └── types/               # 核心类型定义
+├── sdk/                     # 开发者 SDK
+│   └── src/
+│       ├── api/             # 客户端 API
+│       ├── client/          # 客户端核心
+│       ├── transport/       # 传输层（HTTP/WebSocket/IPC）
+│       ├── tool/            # 工具构建器
+│       └── define/          # 扩展定义函数
+├── applications/            # 应用层
+│   ├── cli/                 # CLI 应用
+│   ├── web/                 # Web 应用
+│   ├── config/              # 应用配置
+│   ├── extensions/          # 应用扩展
+│   └── templates/           # 模板文件
+├── packages/                # 兼容层（旧包结构）
+│   ├── config/              # 配置系统
+│   ├── providers/           # LLM 提供商
+│   ├── runtime/             # 运行时兼容层
+│   ├── storage/             # 存储层
+│   └── types/               # 类型兼容层
+├── extensions/              # 扩展模块
+│   ├── tool/                # 工具扩展
+│   ├── channel/             # 通道扩展
+│   └── skills/              # 技能扩展
+├── tests/                   # 测试
+├── docs/                    # 文档
+└── templates/               # 模板文件
 ```
 
 ## Stars History

@@ -10,8 +10,6 @@
     "url": "https://github.com/jesspig/micro-agent.git"
   },
   "workspaces": [
-    "packages/*",
-    "apps/*",
     "agent-service",
     "sdk",
     "applications/*"
@@ -26,39 +24,19 @@
   "bin": {
     "micro-agent": "./applications/cli/src/index.ts"
   },
-  "main": "./packages/sdk/src/index.ts",
+  "main": "./sdk/src/index.ts",
   "exports": {
     ".": {
-      "types": "./packages/sdk/src/index.ts",
-      "default": "./packages/sdk/src/index.ts"
+      "types": "./sdk/src/index.ts",
+      "default": "./sdk/src/index.ts"
     },
     "./types": {
-      "types": "./packages/types/src/index.ts",
-      "default": "./packages/types/src/index.ts"
+      "types": "./agent-service/types/index.ts",
+      "default": "./agent-service/types/index.ts"
     },
     "./runtime": {
-      "types": "./packages/runtime/src/index.ts",
-      "default": "./packages/runtime/src/index.ts"
-    },
-    "./providers": {
-      "types": "./packages/providers/src/index.ts",
-      "default": "./packages/providers/src/index.ts"
-    },
-    "./server": {
-      "types": "./packages/server/src/index.ts",
-      "default": "./packages/server/src/index.ts"
-    },
-    "./storage": {
-      "types": "./packages/storage/src/index.ts",
-      "default": "./packages/storage/src/index.ts"
-    },
-    "./config": {
-      "types": "./packages/config/src/index.ts",
-      "default": "./packages/config/src/index.ts"
-    },
-    "./extension-system": {
-      "types": "./packages/extension-system/src/index.ts",
-      "default": "./packages/extension-system/src/index.ts"
+      "types": "./agent-service/runtime/index.ts",
+      "default": "./agent-service/runtime/index.ts"
     }
   },
   "scripts": {
@@ -66,11 +44,6 @@
     "dev": "bun run applications/cli/src/index.ts start",
     "start": "bun run applications/cli/src/index.ts start",
     "test": "bun test",
-    "test:container": "bun test tests/unit/container.test.ts",
-    "test:config": "bun test tests/unit/config.test.ts",
-    "test:unit": "bun test tests/",
-    "test:integration": "bun test tests/",
-    "test:e2e": "bun test tests/",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -78,7 +51,7 @@
     "@larksuiteoapi/node-sdk": "^1.59.0",
     "@logtape/logtape": "^2.0.4",
     "@logtape/pretty": "^2.0.4",
-    "@micro-agent/sdk": "workspace:*",
+    "@micro-agent/client-sdk": "workspace:*",
     "ai": "^6.0.106",
     "gray-matter": "^4.0.3",
     "js-yaml": "^4.1.1",

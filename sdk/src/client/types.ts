@@ -221,3 +221,78 @@ export interface ToolCall {
   /** 结果 */
   result?: unknown;
 }
+
+/** 记忆条目 */
+export interface MemoryEntry {
+  /** 记忆 ID */
+  id: string;
+  /** 记忆类型 */
+  type: string;
+  /** 记忆内容 */
+  content: string;
+  /** 创建时间 */
+  createdAt?: Date;
+  /** 重要性分数（0-1） */
+  importance?: number;
+  /** 关联的会话键 */
+  sessionKey?: string;
+  /** 元数据 */
+  metadata?: Record<string, unknown>;
+}
+
+/** 记忆检索结果 */
+export interface MemorySearchResult {
+  /** 匹配的记忆条目 */
+  entry: MemoryEntry;
+  /** 相似度分数（0-1） */
+  score: number;
+}
+
+/** 执行上下文 */
+export interface ExecutionContext {
+  /** 会话键 */
+  sessionKey: SessionKey;
+  /** 工作目录 */
+  workspace?: string;
+  /** 当前状态 */
+  state?: 'idle' | 'thinking' | 'executing' | 'waiting' | 'completed' | 'error';
+  /** 创建时间 */
+  createdAt?: Date;
+  /** 最后活动时间 */
+  lastActivityAt?: Date;
+  /** 配置 */
+  config?: RuntimeConfig;
+}
+
+/** 任务状态 */
+export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+
+/** SDK 请求 */
+export interface SDKRequest {
+  /** 请求 ID */
+  id: string;
+  /** 方法名 */
+  method: string;
+  /** 参数 */
+  params?: unknown;
+  /** 时间戳 */
+  timestamp?: Date;
+}
+
+/** SDK 响应 */
+export interface SDKResponse {
+  /** 请求 ID */
+  id: string;
+  /** 是否成功 */
+  success: boolean;
+  /** 结果 */
+  result?: unknown;
+  /** 错误信息 */
+  error?: {
+    code: string;
+    message: string;
+    data?: unknown;
+  };
+  /** 时间戳 */
+  timestamp?: Date;
+}

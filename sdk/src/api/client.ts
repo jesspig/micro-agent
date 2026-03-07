@@ -95,8 +95,8 @@ export class MicroAgentClient {
    * 断开连接
    */
   async disconnect(): Promise<void> {
-    if ('disconnect' in this.transport) {
-      await (this.transport as WebSocketTransport | IPCTransport).disconnect();
+    if ('disconnect' in this.transport && typeof (this.transport as { disconnect?: () => Promise<void> }).disconnect === 'function') {
+      await (this.transport as { disconnect: () => Promise<void> }).disconnect();
     } else {
       this.transport.close();
     }

@@ -76,7 +76,7 @@ export class HTTPTransport {
     params: unknown,
     handler: StreamHandler
   ): Promise<void> {
-    const body = RequestBuilder.buildRequest(method, { ...params, stream: true });
+    const body = RequestBuilder.buildRequest(method, { ...(params as Record<string, unknown>), stream: true });
 
     const response = await fetch(`${this.baseUrl}/rpc`, {
       method: 'POST',

@@ -36,6 +36,14 @@ features:
 
 MicroAgent 是一个超轻量级的个人 AI 助手框架，使用 TypeScript 开发，Bun 作为运行时。
 
+### 架构特点
+
+- **分层架构**：Applications → SDK → Agent Service，职责清晰
+- **Agent Service**：纯运行时服务，支持 IPC/HTTP 双模式
+- **轻量级 SDK**：客户端 API，支持流式响应
+- **Kernel 层**：Orchestrator、Planner、ExecutionEngine、ContextManager
+- **Capability 层**：Tool、Skill、Memory、Knowledge、MCP 系统
+
 ### 核心特性
 
 - **依赖注入容器**：轻量级 DI 容器，支持瞬态和单例模式

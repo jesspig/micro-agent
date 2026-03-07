@@ -16,7 +16,8 @@ export type SDKErrorCode =
   | 'INTERNAL_ERROR'
   | 'IPC_CONNECT_FAILED'
   | 'IPC_TIMEOUT'
-  | 'IPC_DISCONNECTED';
+  | 'IPC_DISCONNECTED'
+  | 'IPC_ERROR';
 
 /**
  * SDK 错误
