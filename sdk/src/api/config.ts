@@ -58,13 +58,17 @@ export class ConfigAPI {
 
   /**
    * 注册工具
+   * 
+   * 支持两种模式：
+   * 1. IPC 模式：传递 toolsPath，Agent Service 从路径动态加载
+   * 2. 确认模式：传递 tools 列表，确认已注册的工具
    */
-  async registerTools(tools: ToolConfig[]): Promise<void> {
+  async registerTools(tools: ToolConfig[], toolsPath?: string): Promise<void> {
     if (!this.currentConfig.tools) {
       this.currentConfig.tools = [];
     }
     this.currentConfig.tools.push(...tools);
-    await this.transport.send('config.registerTools', { tools });
+    await this.transport.send('config.registerTools', { tools, toolsPath });
   }
 
   /**

@@ -28,12 +28,12 @@ logs/
 # 测试覆盖率
 coverage/
 
-# 测试输出
+# 测试输出文件
 test_output.txt
 test-output.txt
 test-error.txt
 
-# 测试临时文件
+# 测试临时目录
 test-skills-temp/
 test-agent-workspace/
 test-fs-workspace/
@@ -42,21 +42,24 @@ test-watcher-dir/
 test-loader-dir/
 test-manager-dir/
 test-config-test/
+test-extensions-temp*/
 
 # 运行时数据
 .micro-agent/
+.microbot/
 
-# AI 助手配置
-/.agent
-/.claude
-/.cursor
-/.gemini
-/.trae
-/.iflow
-/.specify
-/specs
+# AI 助手配置目录
+.agent/
+.claude/
+.cursor/
+.gemini/
+.trae/
+.iflow/
+.specify/
 
+# AI 助手说明文件
 GEMINI.md
 QWEN.md
 CLAUDE.md
 IFLOW.md
+specs/

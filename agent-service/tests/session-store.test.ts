@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import { mkdirSync, rmSync, existsSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
-import { SessionStore } from '@micro-agent/sdk';
+import { SessionStore } from '../runtime/infrastructure/database/session/store';
 
 const TEST_DIR = join(homedir(), '.micro-agent', 'test-sessions');
 

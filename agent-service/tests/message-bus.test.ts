@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'bun:test';
-import { MessageBus, type ChannelType } from '@micro-agent/sdk';
+import { MessageBus } from '../runtime/infrastructure/message-bus';
+import type { ChannelType } from '../types';
 
 describe('MessageBus', () => {
   let bus: MessageBus;

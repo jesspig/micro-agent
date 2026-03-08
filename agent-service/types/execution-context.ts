@@ -5,6 +5,7 @@
 import type { ChannelType } from './interfaces';
 import type { LLMMessage } from './message';
 import type { Tool, ToolResult } from './tool';
+import type { Blackboard } from './blackboard';
 
 /** 执行上下文配置 */
 export interface ExecutionContextConfig {
@@ -51,6 +52,8 @@ export interface ExecutionContext {
   readonly state: ExecutionContextState;
   /** 可用工具 */
   readonly tools: Map<string, Tool>;
+  /** 黑板（ReAct 多阶段数据共享） */
+  readonly blackboard?: Blackboard;
   
   /** 添加消息到历史 */
   addMessage(message: LLMMessage): void;

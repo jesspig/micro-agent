@@ -59,3 +59,6 @@ export * from './memory';
 
 // 执行上下文类型
 export * from './execution-context';
+
+// 黑板类型
+export * from './blackboard';

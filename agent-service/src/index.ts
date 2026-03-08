@@ -19,16 +19,9 @@ import { join, basename, resolve, dirname } from 'path';
 import { homedir } from 'os';
 import { fileURLToPath } from 'url';
 import matter from 'gray-matter';
-// 内置工具导入
-import {
-  ReadFileTool,
-  WriteFileTool,
-  ListDirTool,
-  createExecTool,
-  WebFetchTool,
-  MessageTool,
-} from '../../applications/extensions/tool';
 import type { Tool } from '../types';
+import { getBuiltinToolProvider } from '../runtime/capability/tool-system/builtin-registry';
+import { getBuiltinSkillProvider } from '../runtime/capability/skill-system/builtin-registry';
 import type { InboundMessage } from '../types/message';
 import type { ChannelType } from '../types/interfaces';
 import {
@@ -210,7 +203,7 @@ class AgentServiceImpl {
     await this.loadAppConfig();
 
     // 初始化组件
-    this.initializeComponents();
+    await this.initializeComponents();
 
     if (this.isIPCMode) {
       this.startIPCMode();
@@ -252,10 +245,10 @@ class AgentServiceImpl {
   /**
    * 初始化组件
    */
-  private initializeComponents(): void {
+  private async initializeComponents(): Promise<void> {
     if (!this.appConfig) return;
     this.initializeLLMProvider();
-    this.initializeToolRegistry();
+    await this.initializeToolRegistry();
     this.initializeSkillRegistry();
     this.initializeOrchestrator();
     this.systemPrompt = this.buildSystemPrompt();
@@ -334,11 +327,27 @@ class AgentServiceImpl {
   
   /**
    * 获取内置技能路径
+   *
+   * 优先使用依赖注入方式获取路径（CLI 注册的 Provider）。
+   * 如果没有 Provider，返回 null 表示不加载内置技能。
    */
-  private getBuiltinSkillsPath(): string {
-    const currentDir = dirname(fileURLToPath(import.meta.url));
-    // 从 agent-service/src 向上到达项目根目录，然后进入 applications/extensions/skills
-    return resolve(currentDir, '../../../applications/extensions/skills');
+  private getBuiltinSkillsPath(): string | null {
+    const provider = getBuiltinSkillProvider();
+    if (provider) {
+      return provider.getSkillsPath();
+    }
+    return null;
+  }
+
+  /**
+   * 获取内置工具路径
+   *
+   * 注意：此方法已废弃，工具加载优先使用 getBuiltinToolProvider()。
+   * 保留此方法仅用于向后兼容，实际不应再调用。
+   */
+  private getBuiltinToolsPath(): string | null {
+    // 不再使用硬编码路径，工具应通过 Provider 注入
+    return null;
   }
   
   /**
@@ -366,7 +375,9 @@ class AgentServiceImpl {
    */
   private loadBuiltinSkills(): void {
     const builtinPath = this.getBuiltinSkillsPath();
-    this.loadSkillsFromDir(builtinPath, 'builtin');
+    if (builtinPath) {
+      this.loadSkillsFromDir(builtinPath, 'builtin');
+    }
   }
   
   /**
@@ -549,40 +560,79 @@ class AgentServiceImpl {
   /**
    * 初始化 Tool Registry
    */
-  private initializeToolRegistry(): void {
+  private async initializeToolRegistry(): Promise<void> {
     this.toolRegistry = new ToolRegistry({
       workspace: this.config.workspace,
     });
 
-    this.registerBuiltinTools();
+    await this.registerBuiltinTools();
 
     log.info('Tool Registry 已初始化', { toolCount: this.toolRegistry.size });
   }
 
   /**
    * 注册内置工具
+   *
+   * 使用依赖注入方式获取工具（CLI 注册的 Provider）。
+   * 如果没有 Provider，跳过工具注册（避免反向依赖）。
    */
-  private registerBuiltinTools(): void {
+  private async registerBuiltinTools(): Promise<void> {
     if (!this.toolRegistry) return;
 
-    // 注册文件系统工具
-    this.toolRegistry.register(ReadFileTool, 'builtin');
-    this.toolRegistry.register(WriteFileTool, 'builtin');
-    this.toolRegistry.register(ListDirTool, 'builtin');
+    // 从 Provider 获取工具（优先使用工具实例）
+    const provider = getBuiltinToolProvider();
+    if (provider) {
+      // 嵌入式模式：直接获取工具实例
+      const workspace = this.config.workspace ?? process.cwd();
+      const tools = provider.getTools(workspace);
+      if (tools.length > 0) {
+        for (const tool of tools) {
+          this.toolRegistry.register(tool, 'builtin');
+        }
+        log.info('内置工具注册完成（通过 Provider 实例）', { toolCount: this.toolRegistry.size });
+        return;
+      }
 
-    // 注册 Shell 工具（需要工作目录）
-    this.toolRegistry.register(
-      createExecTool(this.config.workspace ?? process.cwd()),
-      'builtin'
-    );
+      // IPC 模式：从工具路径动态加载
+      if (provider.getToolsPath) {
+        const toolsPath = provider.getToolsPath();
+        if (toolsPath && existsSync(toolsPath)) {
+          await this.loadToolsFromPath(toolsPath);
+          return;
+        }
+      }
+    }
 
-    // 注册 Web 工具
-    this.toolRegistry.register(WebFetchTool, 'builtin');
+    // 没有 Provider，跳过工具注册
+    log.info('未注册 BuiltinToolProvider，跳过内置工具加载');
+  }
 
-    // 注册消息工具
-    this.toolRegistry.register(MessageTool, 'builtin');
+  /**
+   * 从路径加载工具模块
+   */
+  private async loadToolsFromPath(toolsPath: string): Promise<void> {
+    if (!this.toolRegistry) return;
 
-    log.info('内置工具注册完成', { toolCount: this.toolRegistry.size });
+    try {
+      const module = await import(toolsPath);
+      const tools = module.coreTools || module.tools || [];
+
+      for (const tool of tools) {
+        if (tool && tool.name) {
+          this.toolRegistry.register(tool, 'builtin');
+        }
+      }
+
+      log.info('内置工具注册完成（从路径加载）', {
+        toolCount: this.toolRegistry.size,
+        path: toolsPath
+      });
+    } catch (error) {
+      log.error('加载内置工具失败', {
+        path: toolsPath,
+        error: (error as Error).message
+      });
+    }
   }
 
   /**
@@ -1228,8 +1278,11 @@ class AgentServiceImpl {
   private handleConfigUpdate(params: unknown, requestId: string): void {
     const { config } = params as { config: Record<string, unknown> };
     
+    let needsOrchestratorUpdate = false;
+    
     if (config.workspace) {
       this.config.workspace = config.workspace as string;
+      needsOrchestratorUpdate = true;
     }
     if (config.systemPrompt) {
       this.systemPrompt = config.systemPrompt as string;
@@ -1237,6 +1290,11 @@ class AgentServiceImpl {
     if (config.models) {
       // 更新模型配置
       log.info('模型配置已更新', { models: config.models });
+    }
+    
+    // 如果 workspace 变更，需要更新 orchestrator
+    if (needsOrchestratorUpdate) {
+      this.updateOrchestrator();
     }
     
     process.send?.({
@@ -1267,16 +1325,23 @@ class AgentServiceImpl {
 
   /**
    * 处理注册工具
+   *
+   * 从 CLI 接收工具配置。支持两种模式：
+   * 1. 工具路径模式（IPC）：接收 toolsPath，动态加载工具
+   * 2. 工具名称模式：仅确认已注册的工具
    */
-  private handleRegisterTools(params: unknown, requestId: string): void {
-    const { tools } = params as { tools: Array<{
-      name: string;
-      description?: string;
-      enabled?: boolean;
-      inputSchema?: Record<string, unknown>;
-      metadata?: Record<string, unknown>;
-    }> };
-    
+  private async handleRegisterTools(params: unknown, requestId: string): Promise<void> {
+    const { tools, toolsPath } = params as {
+      tools?: Array<{
+        name: string;
+        description?: string;
+        enabled?: boolean;
+        inputSchema?: Record<string, unknown>;
+        metadata?: Record<string, unknown>;
+      }>;
+      toolsPath?: string;
+    };
+
     if (!this.toolRegistry) {
       process.send?.({
         jsonrpc: '2.0',
@@ -1285,100 +1350,69 @@ class AgentServiceImpl {
       });
       return;
     }
-    
+
+    // IPC 模式：从工具路径动态加载
+    if (toolsPath && existsSync(toolsPath)) {
+      await this.loadToolsFromPath(toolsPath);
+
+      process.send?.({
+        jsonrpc: '2.0',
+        id: requestId,
+        result: {
+          success: true,
+          count: this.toolRegistry.size,
+          loadedFromPath: toolsPath,
+        },
+      });
+
+      log.info('工具注册完成（从路径加载）', {
+        toolCount: this.toolRegistry.size,
+        path: toolsPath
+      });
+      return;
+    }
+
+    // 确认模式：检查已注册工具
     const registeredTools: string[] = [];
     const skippedTools: string[] = [];
-    
-    for (const toolConfig of tools) {
-      // 跳过禁用的工具
-      if (toolConfig.enabled === false) {
-        skippedTools.push(toolConfig.name);
-        continue;
-      }
-      
-      // 检查工具是否已存在
-      if (this.toolRegistry.has(toolConfig.name)) {
-        log.debug('工具已存在，跳过注册', { name: toolConfig.name });
-        registeredTools.push(toolConfig.name);
-        continue;
-      }
-      
-      // 动态创建工具
-      try {
-        const dynamicTool = this.createDynamicTool(toolConfig);
-        if (dynamicTool) {
-          this.toolRegistry.register(dynamicTool, 'dynamic');
-          registeredTools.push(toolConfig.name);
-          log.info('动态工具已注册', { 
-            name: toolConfig.name, 
-            description: toolConfig.description 
-          });
-        } else {
+
+    if (tools) {
+      for (const toolConfig of tools) {
+        // 跳过禁用的工具
+        if (toolConfig.enabled === false) {
           skippedTools.push(toolConfig.name);
-          log.warn('无法创建动态工具', { name: toolConfig.name });
+          continue;
         }
-      } catch (error) {
+
+        // 检查工具是否已存在
+        if (this.toolRegistry.has(toolConfig.name)) {
+          registeredTools.push(toolConfig.name);
+          continue;
+        }
+
+        // 工具不存在，记录警告
         skippedTools.push(toolConfig.name);
-        log.error('动态工具注册失败', { 
-          name: toolConfig.name, 
-          error: (error as Error).message 
-        });
+        log.warn('工具未注册', { name: toolConfig.name });
       }
     }
-    
+
     process.send?.({
       jsonrpc: '2.0',
       id: requestId,
-      result: { 
-        success: true, 
+      result: {
+        success: true,
         count: registeredTools.length,
         tools: registeredTools,
         skipped: skippedTools,
         totalInRegistry: this.toolRegistry.size,
       },
     });
-    
-    log.info('工具注册完成', { 
-      registered: registeredTools.length, 
+
+    log.info('工具注册完成', {
+      registered: registeredTools.length,
       skipped: skippedTools.length,
       totalInRegistry: this.toolRegistry.size,
     });
-  }
-  
-  /**
-   * 创建动态工具
-   */
-  private createDynamicTool(config: {
-    name: string;
-    description?: string;
-    inputSchema?: Record<string, unknown>;
-    metadata?: Record<string, unknown>;
-  }): Tool | null {
-    // 如果没有 inputSchema，使用默认的空 schema
-    const schema = config.inputSchema ?? {
-      type: 'object',
-      properties: {},
-    };
-    
-    return {
-      name: config.name,
-      description: config.description ?? `动态工具: ${config.name}`,
-      inputSchema: schema as any,
-      execute: async (input: unknown, ctx: ToolContext) => {
-        // 动态工具的默认执行逻辑：记录并返回
-        log.debug('执行动态工具', { 
-          name: config.name, 
-          input: JSON.stringify(input).slice(0, 200) 
-        });
-        
-        return {
-          content: [{
-            type: 'text' as const,
-            text: `动态工具 ${config.name} 已收到请求。此工具需要具体实现。`,
-          }],
-        };
-      },
-    };
   }
 
   /**

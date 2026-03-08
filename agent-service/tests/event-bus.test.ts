@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'bun:test';
-import { EventBus } from '@micro-agent/sdk';
+import { EventBus } from '../runtime/infrastructure/event-bus';
 
 describe('EventBus', () => {
   let bus: EventBus;

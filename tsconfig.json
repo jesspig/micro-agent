@@ -21,6 +21,8 @@
       "@micro-agent/runtime": ["./agent-service/runtime"],
       "@micro-agent/runtime/*": ["./agent-service/runtime/*"],
       "@micro-agent/sdk": ["./sdk/src"],
+      "@micro-agent/sdk/client": ["./sdk/src/index.ts"],
+      "@micro-agent/sdk/runtime": ["./sdk/src/runtime.ts"],
       "@micro-agent/sdk/*": ["./sdk/src/*"]
     },
     "types": ["bun"]
