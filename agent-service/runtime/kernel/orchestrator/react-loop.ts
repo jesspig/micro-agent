@@ -95,7 +95,17 @@ export class ReActLoop {
 
         try {
           const result = await this.tools.execute(tc.name, tc.arguments, toolContext);
-          const resultText = result.content ? JSON.stringify(result.content) : JSON.stringify(result);
+          // 正确提取工具结果内容
+          const resultText = typeof result.content === 'string'
+            ? result.content
+            : Array.isArray(result.content)
+              ? result.content
+                  .filter((block): block is { type: 'text'; text: string } => 
+                    block && typeof block === 'object' && block.type === 'text'
+                  )
+                  .map(block => block.text)
+                  .join('\n')
+              : JSON.stringify(result.content);
 
           steps.push({
             type: 'observation',
