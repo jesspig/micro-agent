@@ -1,11 +1,12 @@
 /**
  * 工具注册表
  *
- * 管理已注册工具的生命周期
+ * 管理已注册工具的生命周期，提供参数验证和执行能力
  */
 
 import { getLogger } from '@logtape/logtape';
-import type { Tool, ToolDefinition, ToolContext, ToolResult } from '../../../types';
+import type { Tool, ToolDefinition, ToolContext, ToolResult, StructuredToolError } from '../../../types';
+import { validateAgainstSchema, type ValidationResult } from './schema-validator';
 
 // 重新导出类型供外部使用
 export type { ToolContext } from '../../../types';
@@ -107,28 +108,84 @@ export class ToolRegistry {
 
   /**
    * 执行工具
+   *
+   * @param name - 工具名称
+   * @param input - 输入参数
+   * @param ctx - 执行上下文
+   * @returns 执行结果
    */
   async execute(name: string, input: unknown, ctx: ToolContext): Promise<ToolResult> {
     const registered = this.tools.get(name);
     if (!registered) {
-      return {
-        content: [{ type: 'text', text: `工具不存在: ${name}` }],
-        isError: true,
-      };
+      return this.createErrorResult(
+        'NOT_FOUND',
+        `工具不存在: ${name}`,
+        `请检查工具名称是否正确，可用工具: ${this.getToolNames().join(', ')}`
+      );
+    }
+
+    // 参数验证
+    const validation = validateAgainstSchema(input, registered.tool.inputSchema);
+    if (!validation.valid) {
+      const errorMessages = validation.errors
+        .map(e => e.path ? `${e.path}: ${e.message}` : e.message)
+        .join('; ');
+      log.warn('工具参数验证失败: {name} - {errors}', { name, errors: errorMessages });
+      return this.createErrorResult(
+        'VALIDATION_ERROR',
+        `参数验证失败: ${errorMessages}`,
+        '请检查参数格式和必填字段',
+        { errors: validation.errors }
+      );
     }
 
     try {
-      log.debug('执行工具: {name}', { name });
-      const result = await registered.tool.execute(input, ctx);
-      log.debug('工具执行完成: {name}', { name });
-      return result;
-    } catch (error) {
-      log.error('工具执行失败: {name} - {error}', { name, error: String(error) });
+      log.debug('执行工具: {name}', { name, input: validation.data });
+      const startTime = Date.now();
+      const result = await registered.tool.execute(validation.data, ctx);
+      const duration = Date.now() - startTime;
+
+      log.debug('工具执行完成: {name} (耗时 {duration}ms)', { name, duration });
+
       return {
-        content: [{ type: 'text', text: `工具执行失败: ${String(error)}` }],
-        isError: true,
+        ...result,
+        metadata: { ...result.metadata, duration },
       };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      log.error('工具执行失败: {name} - {error}', { name, error: errorMessage });
+      return this.createErrorResult(
+        'EXECUTION_ERROR',
+        `工具执行失败: ${errorMessage}`,
+        undefined,
+        { error: errorMessage },
+        error instanceof Error ? error : undefined
+      );
     }
+  }
+
+  /**
+   * 创建错误结果
+   */
+  private createErrorResult(
+    type: StructuredToolError['type'],
+    message: string,
+    suggestion?: string,
+    details?: Record<string, unknown>,
+    cause?: Error
+  ): ToolResult {
+    return {
+      content: [{ type: 'text', text: message }],
+      isError: true,
+      error: { type, message, suggestion, details, cause },
+    };
+  }
+
+  /**
+   * 获取所有工具名称
+   */
+  private getToolNames(): string[] {
+    return Array.from(this.tools.keys());
   }
 
   /**
