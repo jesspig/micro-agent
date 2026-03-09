@@ -4,8 +4,11 @@
  * 用于 Windows 系统的进程间通信。
  */
 
+import { getLogger } from '@logtape/logtape';
 import type { EventBus } from '../../runtime/infrastructure/event-bus';
 import type { IPCConfig, IPCServer } from './index';
+
+const log = getLogger(['ipc', 'named-pipe']);
 
 export class NamedPipeServer implements IPCServer {
   private config: IPCConfig;
@@ -30,7 +33,7 @@ export class NamedPipeServer implements IPCServer {
       },
     });
 
-    console.log(`Named Pipe 服务启动: ${pipeName}`);
+    log.info('Named Pipe 服务启动: {pipeName}', { pipeName });
   }
 
   async stop(): Promise<void> {
@@ -42,7 +45,7 @@ export class NamedPipeServer implements IPCServer {
 
   send(message: unknown): void {
     // Named Pipe 是点对点通信
-    console.log('发送消息:', JSON.stringify(message));
+    log.debug('发送消息: {message}', { message: JSON.stringify(message) });
   }
 
   broadcast(message: unknown): void {

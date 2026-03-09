@@ -4,9 +4,7 @@
  * 根据配置自动选择合适的 Provider
  */
 
-import type { LLMConfig, ProviderVendor } from './types';
-import type { ProviderCapabilities } from '../../../../types/provider';
-import { BaseProvider } from './base';
+import type { LLMConfig } from './types';
 import { OpenAIProvider, createOpenAIProvider } from './openai';
 import { DeepSeekProvider, createDeepSeekProvider } from './deepseek';
 import { GLMProvider, createGLMProvider } from './glm';
@@ -124,7 +122,7 @@ export function detectVendor(baseUrl?: string, model?: string): LLMConfig['vendo
 /**
  * 获取模型能力
  */
-export function getModelCapabilities(provider: Provider, modelId: string): ProviderCapabilities {
+export function getModelCapabilities(provider: Provider, modelId: string): ReturnType<Provider['getModelCapabilities']> {
   return provider.getModelCapabilities(modelId);
 }
 

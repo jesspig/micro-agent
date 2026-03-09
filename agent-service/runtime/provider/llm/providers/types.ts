@@ -2,9 +2,8 @@
  * Provider 厂商特定类型定义
  */
 
-import type { LLMMessage, LLMResponse } from '../../../../types/message';
-import type { LLMToolDefinition, ToolCall } from '../../../../types/tool';
-import type { GenerationConfig, ProviderCapabilities, ProviderVendor } from '../../../../types/provider';
+import type { LLMResponse } from '../../../../types/message';
+import type { GenerationConfig, ProviderVendor } from '../../../../types/provider';
 
 // 重新导出 ProviderVendor
 export type { ProviderVendor } from '../../../../types/provider';

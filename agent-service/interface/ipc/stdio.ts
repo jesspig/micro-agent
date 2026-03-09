@@ -4,18 +4,21 @@
  * 通过标准输入/输出进行进程间通信。
  */
 
+import { getLogger } from '@logtape/logtape';
 import type { EventBus } from '../../runtime/infrastructure/event-bus';
 import type { IPCConfig, IPCServer } from './index';
 
+const log = getLogger(['ipc', 'stdio']);
+
 export class StdioServer implements IPCServer {
-  private config: IPCConfig;
-  private eventBus: EventBus;
+  private _config: IPCConfig;
+  private _eventBus: EventBus;
   private buffer = '';
   private running = false;
 
   constructor(config: IPCConfig, eventBus: EventBus) {
-    this.config = config;
-    this.eventBus = eventBus;
+    this._config = config;
+    this._eventBus = eventBus;
   }
 
   async start(): Promise<void> {
@@ -31,7 +34,7 @@ export class StdioServer implements IPCServer {
       this.running = false;
     });
 
-    console.log('Stdio IPC 服务启动');
+    log.info('Stdio IPC 服务启动');
   }
 
   async stop(): Promise<void> {
@@ -56,14 +59,14 @@ export class StdioServer implements IPCServer {
 
       try {
         const message = JSON.parse(line);
-        this.eventBus.emit('ipc:message', {
+        this._eventBus.emit('ipc:message', {
           message,
           reply: (response: unknown) => {
             this.send(response);
           },
         });
       } catch (error) {
-        console.error('解析消息失败:', error);
+        log.error('解析消息失败: {error}', { error });
       }
     }
   }

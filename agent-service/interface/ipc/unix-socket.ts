@@ -5,9 +5,12 @@
  * 使用共享的 JsonRpcHandler 处理 JSON-RPC 协议。
  */
 
+import { getLogger } from '@logtape/logtape';
 import type { EventBus } from '../../runtime/infrastructure/event-bus';
 import { JsonRpcHandler } from '../../runtime/infrastructure/ipc/json-rpc';
 import type { IPCConfig, IPCServer } from './index';
+
+const log = getLogger(['ipc', 'unix-socket']);
 
 /** 默认 Socket 路径 */
 const DEFAULT_PATH = '/tmp/micro-agent.sock';
@@ -17,14 +20,14 @@ type Socket = Bun.Socket<undefined>;
 
 export class UnixSocketServer implements IPCServer {
   private config: IPCConfig;
-  private eventBus: EventBus;
+  private _eventBus: EventBus;
   private listener: Bun.UnixSocketListener<undefined> | null = null;
   private clients = new Set<Socket>();
   private rpcHandler: JsonRpcHandler<Socket>;
 
   constructor(config: IPCConfig, eventBus: EventBus) {
     this.config = config;
-    this.eventBus = eventBus;
+    this._eventBus = eventBus;
 
     // 创建 JSON-RPC 处理器，传入消息发送器
     this.rpcHandler = new JsonRpcHandler(eventBus, {
@@ -52,24 +55,24 @@ export class UnixSocketServer implements IPCServer {
     this.listener = Bun.listen({
       unix: path,
       socket: {
-        data: (socket, data) => {
-          this.rpcHandler.handleData(socket, data);
+        data: (_socket, data) => {
+          this.rpcHandler.handleData(_socket, data);
         },
-        open: (socket) => {
-          this.clients.add(socket);
-          console.log(`[IPC] 客户端连接，当前连接数: ${this.clients.size}`);
+        open: (_socket) => {
+          this.clients.add(_socket);
+          log.info('客户端连接，当前连接数: {count}', { count: this.clients.size });
         },
-        close: (socket) => {
-          this.clients.delete(socket);
-          console.log(`[IPC] 客户端断开，当前连接数: ${this.clients.size}`);
+        close: (_socket) => {
+          this.clients.delete(_socket);
+          log.info('客户端断开，当前连接数: {count}', { count: this.clients.size });
         },
-        error: (socket, error) => {
-          console.error('[IPC] Socket 错误:', error);
+        error: (_socket, error) => {
+          log.error('Socket 错误: {error}', { error });
         },
       },
     });
 
-    console.log(`[IPC] Unix Socket 服务启动: ${path}`);
+    log.info('Unix Socket 服务启动: {path}', { path });
   }
 
   async stop(): Promise<void> {

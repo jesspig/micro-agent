@@ -2,7 +2,6 @@
  * Anthropic Claude Provider
  */
 
-import { getLogger } from '@logtape/logtape';
 import type {
   LLMProvider,
   LLMMessage,
@@ -12,8 +11,6 @@ import type {
   ProviderCapabilities,
   ContentPart,
 } from '../../../types';
-
-const log = getLogger(['provider', 'anthropic']);
 
 /** Anthropic API 响应格式 */
 interface AnthropicResponse {

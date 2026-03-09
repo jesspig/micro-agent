@@ -4,7 +4,10 @@
  * 提供可选的 HTTP 调试接口。
  */
 
+import { getLogger } from '@logtape/logtape';
 import type { EventBus } from '../../runtime/infrastructure/event-bus';
+
+const log = getLogger(['http-server']);
 
 export interface HTTPServerConfig {
   port?: number;
@@ -52,7 +55,7 @@ export class HTTPServer {
       },
     });
 
-    console.log(`HTTP 服务启动: http://${host}:${port}`);
+    log.info(`HTTP 服务启动: http://${host}:${port}`);
   }
 
   async stop(): Promise<void> {

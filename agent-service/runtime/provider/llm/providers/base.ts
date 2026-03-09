@@ -8,7 +8,7 @@ import { getLogger } from '../../../infrastructure/logging/logger';
 import type { LLMMessage, LLMResponse } from '../../../../types/message';
 import type { LLMToolDefinition, ToolCall } from '../../../../types/tool';
 import type { GenerationConfig, ProviderCapabilities, LLMProvider } from '../../../../types/provider';
-import type { BaseProviderConfig, APIResponse, APIResponseMessage, ProviderVendor } from './types';
+import type { BaseProviderConfig, APIResponse, ProviderVendor } from './types';
 
 const log = getLogger('provider.base');
 
@@ -87,7 +87,7 @@ export function toOpenAITools(tools?: LLMToolDefinition[]): LLMToolDefinition[] 
  */
 export function parseAPIResponse(
   data: unknown,
-  vendor: ProviderVendor
+  _vendor: ProviderVendor
 ): LLMResponse {
   if (!data || typeof data !== 'object') {
     log.warn('LLM 响应数据无效', { dataType: typeof data });
@@ -173,7 +173,7 @@ export abstract class BaseProvider implements LLMProvider {
     return true;
   }
 
-  getModelCapabilities(modelId: string): ProviderCapabilities {
+  getModelCapabilities(_modelId: string): ProviderCapabilities {
     return { vision: false, think: false, tool: true };
   }
 

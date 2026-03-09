@@ -5,9 +5,12 @@
  * 使用共享的 JsonRpcHandler 处理 JSON-RPC 协议。
  */
 
+import { getLogger } from '@logtape/logtape';
 import type { EventBus } from '../../runtime/infrastructure/event-bus';
 import { JsonRpcHandler } from '../../runtime/infrastructure/ipc/json-rpc';
 import type { IPCConfig, IPCServer } from './index';
+
+const log = getLogger(['ipc', 'tcp']);
 
 /** 默认端口 */
 const DEFAULT_PORT = 3927;
@@ -23,14 +26,14 @@ type Socket = Bun.Socket<undefined>;
 
 export class TCPLoopbackServer implements IPCServer {
   private config: IPCConfig;
-  private eventBus: EventBus;
+  private _eventBus: EventBus;
   private server: TCPServer | null = null;
   private clients = new Set<Socket>();
   private rpcHandler: JsonRpcHandler<Socket>;
 
   constructor(config: IPCConfig, eventBus: EventBus) {
     this.config = config;
-    this.eventBus = eventBus;
+    this._eventBus = eventBus;
     
     // 创建 JSON-RPC 处理器，传入消息发送器
     this.rpcHandler = new JsonRpcHandler(eventBus, {
@@ -59,19 +62,19 @@ export class TCPLoopbackServer implements IPCServer {
       hostname: '127.0.0.1',
       port,
       socket: {
-        data: (socket, data) => {
-          this.rpcHandler.handleData(socket, data);
+        data: (_socket, data) => {
+          this.rpcHandler.handleData(_socket, data);
         },
-        open: (socket) => {
-          this.clients.add(socket);
-          console.log(`[IPC] 客户端连接，当前连接数: ${this.clients.size}`);
+        open: (_socket) => {
+          this.clients.add(_socket);
+          log.info('客户端连接，当前连接数: {count}', { count: this.clients.size });
         },
-        close: (socket) => {
-          this.clients.delete(socket);
-          console.log(`[IPC] 客户端断开，当前连接数: ${this.clients.size}`);
+        close: (_socket) => {
+          this.clients.delete(_socket);
+          log.info('客户端断开，当前连接数: {count}', { count: this.clients.size });
         },
-        error: (socket, error) => {
-          console.error('[IPC] Socket 错误:', error);
+        error: (_socket, error) => {
+          log.error('Socket 错误: {error}', { error });
         },
       },
     });
@@ -81,7 +84,7 @@ export class TCPLoopbackServer implements IPCServer {
       stop: () => (listener as unknown as { stop: () => void }).stop(),
     };
 
-    console.log(`[IPC] TCP Loopback 服务启动: 127.0.0.1:${port}`);
+    log.info('TCP Loopback 服务启动: 127.0.0.1:{port}', { port });
   }
 
   async stop(): Promise<void> {

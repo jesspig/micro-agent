@@ -2,10 +2,6 @@
  * OpenAI Embedding Provider
  */
 
-import { getLogger } from '@logtape/logtape';
-
-const log = getLogger(['provider', 'embedding', 'openai']);
-
 /** Embedding 结果 */
 export interface EmbeddingResult {
   /** 嵌入向量 */
