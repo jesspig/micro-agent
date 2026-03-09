@@ -325,6 +325,8 @@ export class MemoryStore {
       accessedAt: new Date(record.updatedAt as number),
       accessCount: 0,
       importance: 0.5,
+      stability: 1.0,
+      status: 'active',
     };
   }
 

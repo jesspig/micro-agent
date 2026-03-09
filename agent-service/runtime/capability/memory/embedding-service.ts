@@ -21,16 +21,22 @@ export class OpenAIEmbedding implements EmbeddingService {
   ) {}
 
   isAvailable(): boolean {
-    return !!this.apiKey && !!this.baseUrl;
+    // 本地服务（如 ollama）不需要 apiKey，只需要 baseUrl
+    return !!this.baseUrl;
   }
 
   async embed(text: string): Promise<number[]> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    // 本地服务可能不需要 Authorization
+    if (this.apiKey) {
+      headers['Authorization'] = `Bearer ${this.apiKey}`;
+    }
+
     const response = await fetch(`${this.baseUrl}/embeddings`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.apiKey}`,
-      },
+      headers,
       body: JSON.stringify({
         model: this.model,
         input: text,
@@ -46,12 +52,17 @@ export class OpenAIEmbedding implements EmbeddingService {
   }
 
   async embedBatch(texts: string[]): Promise<number[][]> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    // 本地服务可能不需要 Authorization
+    if (this.apiKey) {
+      headers['Authorization'] = `Bearer ${this.apiKey}`;
+    }
+
     const response = await fetch(`${this.baseUrl}/embeddings`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.apiKey}`,
-      },
+      headers,
       body: JSON.stringify({
         model: this.model,
         input: texts,
@@ -92,11 +103,12 @@ export function createEmbeddingService(
   baseUrl: string,
   apiKey: string
 ): EmbeddingService {
-  if (!modelId || !baseUrl || !apiKey) {
+  // 本地服务（如 ollama）不需要 apiKey，只需要 modelId 和 baseUrl
+  if (!modelId || !baseUrl) {
     log.debug('未配置嵌入模型，使用降级方案');
     return new NoEmbedding();
   }
 
-  log.debug('创建嵌入服务', { model: modelId });
+  log.debug('创建嵌入服务', { model: modelId, baseUrl, hasApiKey: !!apiKey });
   return new OpenAIEmbedding(modelId, baseUrl, apiKey);
 }

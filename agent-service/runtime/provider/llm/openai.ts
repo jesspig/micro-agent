@@ -134,37 +134,3 @@ export function createLLMProvider(config: LLMProviderConfig, name?: string): LLM
     listModels: provider.listModels.bind(provider),
   };
 }
-
-/**
- * 创建 OpenAI Compatible Provider（兼容旧 API）
- * @deprecated 使用 createLLMProvider 代替
- */
-export function createOpenAICompatibleProvider(config: LLMProviderConfig, name?: string): LLMProvider {
-  return createLLMProvider({ ...config, vendor: 'openai-compatible' }, name);
-}
-
-/**
- * OpenAICompatibleProvider 类（兼容旧 API）
- * @deprecated 使用 createLLMProvider 代替
- */
-export class OpenAICompatibleProvider implements LLMProvider {
-  readonly name: string;
-  readonly type = 'llm' as const;
-  private provider: LLMProvider;
-
-  constructor(config: LLMProviderConfig, name?: string) {
-    this.provider = createLLMProvider(config, name);
-    this.name = this.provider.name;
-  }
-
-  chat = (messages: LLMMessage[], tools?: LLMToolDefinition[], model?: string, config?: GenerationConfig) => 
-    this.provider.chat(messages, tools, model, config);
-  
-  getDefaultModel = () => this.provider.getDefaultModel();
-  
-  isAvailable = () => this.provider.isAvailable();
-  
-  getModelCapabilities = (modelId: string) => this.provider.getModelCapabilities(modelId);
-  
-  listModels = () => this.provider.listModels();
-}
