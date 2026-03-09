@@ -192,16 +192,8 @@ export type {
 } from '../../agent-service/runtime/capability/memory';
 
 // Memory System - SDK 高级封装
-export {
-  MemoryManager,
-  ConversationSummarizer,
-  classifyMemory,
-} from '../../agent-service/runtime/capability/memory';
-export type {
-  MemoryManagerConfig,
-  Summary,
-  SummarizerConfig,
-} from '../../agent-service/runtime/capability/memory';
+// 注：MemoryManager、ConversationSummarizer、classifyMemory 等高级封装
+// 由 SDK 层提供，详见 @micro-agent/sdk/memory 模块
 
 // Knowledge System - 基础能力
 export {
@@ -212,6 +204,7 @@ export {
 } from '../../agent-service/runtime/capability/knowledge';
 export type {
   KnowledgeBaseConfig,
+  BackgroundBuildConfig,
   KnowledgeDocument,
   KnowledgeChunk,
   KnowledgeSearchResult,
@@ -255,3 +248,30 @@ export type { ExecutionEngineConfig, ExecutionResult } from '../../agent-service
 
 export { ContextManager } from '../../agent-service/runtime/kernel/context-manager';
 export type { ContextManagerConfig, ContextState } from '../../agent-service/runtime/kernel/context-manager';
+
+// ============ Tool Helpers ============
+// 工具结果创建辅助函数（通过 export * 已导出类型，此处仅导出函数）
+export {
+  createSuccessResult,
+  createErrorResult,
+  createToolError,
+} from '../../agent-service/types';
+
+// ============ Extension Types ============
+// 插件系统类型定义（来自 @micro-agent/types）
+export type {
+  ExtensionType,
+  ExtensionDescriptor,
+  ExtensionContext,
+  Extension,
+  LoadedExtension,
+  ExtensionDiscoveryResult,
+  ExtensionChangeEvent,
+} from '../../agent-service/types';
+
+export {
+  EXTENSION_TYPES,
+  EXTENSION_TYPE_LABELS,
+  getExtensionTypeDir,
+  isValidExtensionType,
+} from '../../agent-service/types';

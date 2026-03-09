@@ -40,6 +40,7 @@ export type {
 // 从 agent-service types 导入额外类型
 export type {
   KnowledgeBaseConfig,
+  BackgroundBuildConfig,
 } from '../../../agent-service/types/config';
 
 // 导出 SchemaConfig 作为 Config 的别名（用于内部区分）

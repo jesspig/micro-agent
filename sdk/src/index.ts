@@ -358,6 +358,7 @@ export type {
   KnowledgeChunk,
   KnowledgeSearchResult as KnowledgeSearchResultType,
   KnowledgeBaseConfig,
+  BackgroundBuildConfig,
   KnowledgeBaseStats,
   EmbeddingServiceProvider,
 } from './knowledge/types';

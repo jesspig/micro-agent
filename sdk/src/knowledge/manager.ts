@@ -22,6 +22,7 @@ const log = getLogger(['sdk', 'knowledge', 'manager']);
 
 /** 默认配置 */
 const DEFAULT_CONFIG: KnowledgeBaseConfig = {
+  enabled: true,
   basePath: USER_KNOWLEDGE_DIR,
   chunkSize: 1000,
   chunkOverlap: 200,

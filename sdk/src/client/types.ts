@@ -1,6 +1,48 @@
 /**
  * SDK 公共类型定义
+ *
+ * 设计原则：
+ * 1. 类型定义单一来源 - 核心类型从 agent-service 重导出
+ * 2. SDK 特有类型 - 仅在此定义传输层、配置等 SDK 专属类型
  */
+
+// ============================================================
+// 从 agent-service 重导出的核心类型
+// 避免重复定义，保持类型一致性
+// ============================================================
+
+// 会话类型
+export type { SessionKey } from '../runtime';
+
+// 消息类型
+export type { LLMMessage, MessageRole, MessageContent } from '../runtime';
+
+// 工具类型
+export type { ToolCall } from '../runtime';
+
+// 记忆类型
+export type {
+  MemoryEntry,
+  MemoryType,
+  MemoryStatus,
+  MemoryMetadata,
+  MemorySearchResult,
+  MemorySearchOptions,
+  MemoryFilter,
+  MemoryStats,
+} from '../runtime';
+
+// 执行上下文类型
+export type {
+  ExecutionContext,
+  ExecutionContextConfig,
+  ExecutionContextState,
+  ExecutionContextSnapshot,
+} from '../runtime';
+
+// ============================================================
+// SDK 特有类型 - 传输层、配置等
+// ============================================================
 
 /** 传输类型 */
 export type TransportType = 'ipc' | 'http' | 'websocket';
@@ -73,9 +115,6 @@ export interface StreamChunk {
 
 /** 流式处理器 */
 export type StreamHandler = (chunk: StreamChunk) => void;
-
-/** 会话键类型 */
-export type SessionKey = `${string}:${string}`;
 
 /** 工具配置 */
 export interface ToolConfig {
@@ -200,72 +239,6 @@ export interface PromptTemplate {
     default?: unknown;
     required?: boolean;
   }>;
-}
-
-/** LLM 消息 */
-export interface LLMMessage {
-  /** 角色 */
-  role: 'system' | 'user' | 'assistant' | 'tool';
-  /** 内容 */
-  content: string;
-  /** 时间戳 */
-  timestamp?: Date;
-  /** 工具调用 */
-  toolCalls?: ToolCall[];
-}
-
-/** 工具调用 */
-export interface ToolCall {
-  /** 调用 ID */
-  id: string;
-  /** 工具名称 */
-  name: string;
-  /** 参数 */
-  arguments: Record<string, unknown>;
-  /** 结果 */
-  result?: unknown;
-}
-
-/** 记忆条目 */
-export interface MemoryEntry {
-  /** 记忆 ID */
-  id: string;
-  /** 记忆类型 */
-  type: string;
-  /** 记忆内容 */
-  content: string;
-  /** 创建时间 */
-  createdAt?: Date;
-  /** 重要性分数（0-1） */
-  importance?: number;
-  /** 关联的会话键 */
-  sessionKey?: string;
-  /** 元数据 */
-  metadata?: Record<string, unknown>;
-}
-
-/** 记忆检索结果 */
-export interface MemorySearchResult {
-  /** 匹配的记忆条目 */
-  entry: MemoryEntry;
-  /** 相似度分数（0-1） */
-  score: number;
-}
-
-/** 执行上下文 */
-export interface ExecutionContext {
-  /** 会话键 */
-  sessionKey: SessionKey;
-  /** 工作目录 */
-  workspace?: string;
-  /** 当前状态 */
-  state?: 'idle' | 'thinking' | 'executing' | 'waiting' | 'completed' | 'error';
-  /** 创建时间 */
-  createdAt?: Date;
-  /** 最后活动时间 */
-  lastActivityAt?: Date;
-  /** 配置 */
-  config?: RuntimeConfig;
 }
 
 /** 任务状态 */
