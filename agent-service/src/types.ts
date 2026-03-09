@@ -9,15 +9,13 @@ import type { LLMProvider } from '../runtime/provider/llm';
 import type { ToolRegistry } from '../runtime/capability/tool-system';
 import type { SkillRegistry } from '../runtime/capability/skill-system';
 import type { AgentOrchestrator } from '../runtime/kernel/orchestrator';
-import type { KnowledgeRetriever, KnowledgeBaseConfig } from '../runtime/capability/knowledge';
+import type { KnowledgeRetriever, KnowledgeBaseConfig, KnowledgeDocument } from '../runtime/capability/knowledge';
 import type { SessionStore } from '../runtime/infrastructure/database/session/store';
-// 从 SDK 重导出高级封装
-import type { KnowledgeBaseManager } from '@micro-agent/sdk';
-import type { MemoryManager, EmbeddingService } from '../runtime/capability/memory';
+import type { EmbeddingService, SimpleMemoryManager } from '../runtime/capability/memory';
 import {
   USER_KNOWLEDGE_DIR,
   DEFAULT_EXECUTOR_CONFIG,
-} from '@micro-agent/sdk';
+} from '../runtime/infrastructure/config';
 
 /** Agent Service 配置 */
 export interface AgentServiceConfig {
@@ -45,6 +43,66 @@ export interface SkillConfig {
   allowedTools?: string[];
 }
 
+/**
+ * 简化版知识库管理器
+ *
+ * Agent Service 内部使用的轻量级知识库管理器
+ */
+export class SimpleKnowledgeBaseManager {
+  private documents: Map<string, KnowledgeDocument> = new Map();
+  private _config: KnowledgeBaseConfig;
+  private isInitialized = false;
+
+  constructor(config: KnowledgeBaseConfig) {
+    this._config = config;
+  }
+
+  async initialize(): Promise<void> {
+    if (this.isInitialized) return;
+    this.isInitialized = true;
+  }
+
+  getDocumentMap(): Map<string, KnowledgeDocument> {
+    return this.documents;
+  }
+
+  getDocuments(): KnowledgeDocument[] {
+    return Array.from(this.documents.values());
+  }
+
+  getDocument(path: string): KnowledgeDocument | undefined {
+    return this.documents.get(path);
+  }
+
+  setDocument(path: string, doc: KnowledgeDocument): void {
+    this.documents.set(path, doc);
+  }
+
+  deleteDocument(path: string): void {
+    this.documents.delete(path);
+  }
+
+  getStats() {
+    const docs = Array.from(this.documents.values());
+    const indexedDocs = docs.filter(d => d.status === 'indexed');
+    const pendingDocs = docs.filter(d => d.status === 'pending');
+
+    return {
+      totalDocuments: docs.length,
+      indexedDocuments: indexedDocs.length,
+      pendingDocuments: pendingDocs.length,
+      errorDocuments: docs.filter(d => d.status === 'error').length,
+      totalChunks: indexedDocs.reduce((sum, d) => sum + (d.chunks?.length ?? 0), 0),
+      totalSize: docs.reduce((sum, d) => sum + d.metadata.fileSize, 0),
+      lastUpdated: Math.max(...docs.map(d => d.updatedAt), 0),
+    };
+  }
+
+  isReady(): boolean {
+    return this.isInitialized;
+  }
+}
+
 /** 服务组件容器 */
 export interface ServiceComponents {
   appConfig: Config | null;
@@ -52,8 +110,8 @@ export interface ServiceComponents {
   toolRegistry: ToolRegistry | null;
   skillRegistry: SkillRegistry | null;
   orchestrator: AgentOrchestrator | null;
-  memoryManager: MemoryManager | null;
-  knowledgeBaseManager: KnowledgeBaseManager | null;
+  memoryManager: SimpleMemoryManager | null;
+  knowledgeBaseManager: SimpleKnowledgeBaseManager | null;
   knowledgeRetriever: KnowledgeRetriever | null;
   embeddingService: EmbeddingService | null;
   knowledgeConfig: KnowledgeBaseConfig | null;

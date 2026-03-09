@@ -4,12 +4,9 @@
  * 处理会话相关的 IPC 消息
  */
 
-import { getLogger } from '../../runtime/infrastructure/logging/logger';
 import { logSessionLifecycle } from '../logger';
 import type { AgentServiceConfig, SessionData } from '../types';
 import type { ServiceComponents } from '../types';
-
-const log = getLogger(['agent-service', 'handlers', 'session']);
 
 /**
  * 会话管理器
@@ -78,7 +75,7 @@ export function handleStatus(
 export async function handleExecute(
   params: unknown,
   components: ServiceComponents,
-  config: AgentServiceConfig
+  _config: AgentServiceConfig
 ): Promise<unknown> {
   const { sessionId, content } = params as {
     sessionId: string;

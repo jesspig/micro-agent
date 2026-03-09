@@ -5,6 +5,9 @@
 import type { ChannelType } from './interfaces';
 import type { ContentPart, ToolCall } from './tool';
 
+// 从 session 模块重导出 SessionKey（统一类型定义）
+export type { SessionKey } from './session';
+
 /** 消息角色 */
 export type MessageRole = 'system' | 'user' | 'assistant' | 'tool';
 
@@ -45,9 +48,6 @@ export interface OutboundMessage {
   /** 广播目标通道（可选） */
   targetChannels?: Array<{ channel: ChannelType; chatId: string }>;
 }
-
-/** 会话键 */
-export type SessionKey = `${string}:${string}`;
 
 /** 消息内容类型（支持纯文本或多模态数组） */
 export type MessageContent = string | ContentPart[];

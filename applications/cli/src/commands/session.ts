@@ -2,10 +2,17 @@
  * session 命令实现
  *
  * 会话管理命令，支持创建、查看、归档、星标会话等操作。
+ *
+ * 架构说明：
+ * 此模块直接使用 bun:sqlite 访问数据库，而非通过 SDK API。
+ * 这是有意为之的设计决策，原因如下：
+ * 1. 这是离线管理/调试工具，需要在 Agent Service 未运行时也能工作
+ * 2. 需要直接访问原始数据库记录进行复杂查询和统计
+ * 3. SDK API 主要用于与运行中的 Agent Service 交互
  */
 
 import { homedir } from 'os';
-import { join, resolve } from 'path';
+import { join } from 'path';
 import { existsSync } from 'fs';
 import { Database } from 'bun:sqlite';
 import { getLogger } from '@logtape/logtape';

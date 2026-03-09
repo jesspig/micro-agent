@@ -7,7 +7,7 @@
 
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import type { Tool, BuiltinToolProvider } from '@micro-agent/types';
+import type { Tool, BuiltinToolProvider } from '@micro-agent/sdk/runtime';
 import {
   coreTools,
   ReadTool,

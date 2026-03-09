@@ -4,7 +4,7 @@
  * 在 CLI 启动时检查配置完整性，显示缺失项警告
  */
 
-import { loadConfig, getConfigStatus, type ConfigStatus } from '@micro-agent/sdk/runtime';
+import { loadConfig, getConfigStatus, type ConfigStatus } from '@micro-agent/sdk';
 
 /** 配置项的中文显示名称映射 */
 const CONFIG_ITEM_LABELS: Record<string, string> = {

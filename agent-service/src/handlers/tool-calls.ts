@@ -4,12 +4,11 @@
  * 处理 LLM 工具调用的执行和结果处理
  */
 
-import { getLogger, getTracer } from '../../runtime/infrastructure/logging/logger';
+import { getTracer } from '../../runtime/infrastructure/logging/logger';
 import type { ServiceComponents } from '../types';
 import type { ToolContext } from '../../runtime/capability/tool-system/registry';
-import { USER_KNOWLEDGE_DIR } from '@micro-agent/sdk';
+import { USER_KNOWLEDGE_DIR } from '../../runtime/infrastructure/config';
 
-const log = getLogger(['agent-service', 'handlers', 'tool-calls']);
 const tracer = getTracer();
 
 /**

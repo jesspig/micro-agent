@@ -408,7 +408,7 @@ export class SkillsLoader {
 // BuiltinSkillProvider 实现
 // ============================================================================
 
-import type { BuiltinSkillProvider } from '@micro-agent/types';
+import type { BuiltinSkillProvider } from '@micro-agent/sdk/runtime';
 
 /**
  * CLI 技能提供者实现

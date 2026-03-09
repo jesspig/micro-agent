@@ -3,7 +3,7 @@
  */
 
 import type { LLMMessage } from './message';
-import type { Tool, ToolResult, ToolContext } from './tool';
+import type { Tool, ToolResult } from './tool';
 
 /** Agent 状态 */
 export type AgentState = 'idle' | 'thinking' | 'executing' | 'waiting' | 'error';
@@ -63,20 +63,6 @@ export interface AgentResult {
   toolCallCount: number;
   /** 使用的模型 */
   usedModel?: string;
-}
-
-/** Agent 检查点 */
-export interface AgentCheckpoint {
-  /** 检查点 ID */
-  id: string;
-  /** 会话键 */
-  sessionKey: string;
-  /** 时间戳 */
-  timestamp: number;
-  /** 消息历史快照 */
-  messages: LLMMessage[];
-  /** 待处理的工具调用 */
-  pendingToolCalls?: unknown[];
 }
 
 /** Agent 接口 */

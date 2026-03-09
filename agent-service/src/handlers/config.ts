@@ -6,7 +6,6 @@
 
 import { getLogger } from '../../runtime/infrastructure/logging/logger';
 import { existsSync } from 'fs';
-import { join } from 'path';
 import type { AgentServiceConfig, ServiceComponents, SkillConfig } from '../types';
 import type { SkillDefinition } from '../../runtime/capability/skill-system/registry';
 
@@ -77,7 +76,7 @@ export function handleSetSystemPrompt(
 export function handleConfigReload(
   requestId: string,
   components: ServiceComponents,
-  config: AgentServiceConfig,
+  _config: AgentServiceConfig,
   reloadConfig: () => Promise<void>,
   updateOrchestrator: () => void
 ): void {

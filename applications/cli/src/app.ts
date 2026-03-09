@@ -5,7 +5,7 @@
  */
 
 import { homedir } from 'os';
-import { join, resolve, dirname } from 'path';
+import { join, resolve } from 'path';
 import { loadConfig, createDefaultUserConfig, expandPath } from '@micro-agent/sdk/runtime';
 import {
   USER_WORKSPACE_DIR,
@@ -30,7 +30,6 @@ import { ensureUserConfigFiles, loadSystemPrompt } from './modules/system-prompt
 import { getLogger } from '@logtape/logtape';
 import { registerBuiltinToolProvider, registerBuiltinSkillProvider } from '@micro-agent/sdk/runtime';
 import { existsSync, mkdirSync, watch, type FSWatcher } from 'fs';
-import { fileURLToPath } from 'url';
 
 const log = getLogger(['cli', 'app']);
 

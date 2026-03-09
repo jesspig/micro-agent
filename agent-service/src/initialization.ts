@@ -8,14 +8,14 @@ import { getLogger } from '../runtime/infrastructure/logging/logger';
 import { loadConfig, type Config } from '../runtime/infrastructure/config';
 import { createLLMProvider, type LLMProvider } from '../runtime/provider/llm/openai';
 import { ToolRegistry } from '../runtime/capability/tool-system/registry';
-import { SkillRegistry, type SkillDefinition } from '../runtime/capability/skill-system/registry';
+import { SkillRegistry } from '../runtime/capability/skill-system/registry';
 import { AgentOrchestrator, type OrchestratorConfig } from '../runtime/kernel/orchestrator';
 import { getBuiltinToolProvider } from '../runtime/capability/tool-system/builtin-registry';
 import { getBuiltinSkillProvider } from '../runtime/capability/skill-system/builtin-registry';
 import { SessionStore } from '../runtime/infrastructure/database/session/store';
 import { loadSkillFromPath } from './skill-loader';
 import { existsSync, readdirSync, statSync } from 'fs';
-import { join, resolve } from 'path';
+import { join } from 'path';
 import type { AgentServiceConfig, ServiceComponents } from './types';
 import {
   USER_WORKSPACE_DIR,
@@ -23,7 +23,7 @@ import {
   USER_SKILLS_DIR,
   USER_SESSIONS_DIR,
   DEFAULT_GENERATION_CONFIG,
-} from '@micro-agent/sdk';
+} from '../runtime/infrastructure/config';
 
 const log = getLogger(['agent-service', 'initialization']);
 
@@ -59,10 +59,10 @@ function createDefaultConfig(config: AgentServiceConfig): Config {
 /**
  * 初始化 LLM Provider
  */
-export function initializeLLMProvider(
+export async function initializeLLMProvider(
   appConfig: Config,
-  config: AgentServiceConfig
-): { provider: LLMProvider; defaultModel: string } {
+  _config: AgentServiceConfig
+): Promise<{ provider: LLMProvider; defaultModel: string }> {
   const providers = appConfig?.providers || {};
   const agentConfig = appConfig?.agents;
 
@@ -257,7 +257,7 @@ function loadSkillsFromDir(skillRegistry: SkillRegistry, dir: string, source: st
 /**
  * 初始化 Session Store
  */
-export function initializeSessionStore(config: AgentServiceConfig): SessionStore {
+export function initializeSessionStore(_config: AgentServiceConfig): SessionStore {
   // 使用 ~/.micro-agent/data 目录存储会话数据库
   const sessionStore = new SessionStore({ sessionsDir: USER_SESSIONS_DIR });
   log.info('SessionStore 已初始化', { sessionsDir: USER_SESSIONS_DIR });
@@ -268,7 +268,7 @@ export function initializeSessionStore(config: AgentServiceConfig): SessionStore
  * 初始化 Orchestrator
  */
 export function initializeOrchestrator(
-  config: AgentServiceConfig,
+  _config: AgentServiceConfig,
   components: Partial<ServiceComponents>
 ): AgentOrchestrator | null {
   if (!components.llmProvider || !components.toolRegistry) {
@@ -277,15 +277,15 @@ export function initializeOrchestrator(
   }
 
   const knowledgeBasePath = components.knowledgeConfig?.basePath
-    ?? config.knowledgeBase
+    ?? _config.knowledgeBase
     ?? USER_KNOWLEDGE_DIR;
 
   const orchestratorConfig: OrchestratorConfig = {
     llmProvider: components.llmProvider,
     defaultModel: components.defaultModel ?? 'gpt-4',
-    maxIterations: config.maxIterations ?? 20,
+    maxIterations: _config.maxIterations ?? 20,
     systemPrompt: components.systemPrompt ?? '',
-    workspace: config.workspace ?? process.cwd(),
+    workspace: _config.workspace ?? process.cwd(),
     knowledgeBase: knowledgeBasePath,
   };
 

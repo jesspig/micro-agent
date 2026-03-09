@@ -37,7 +37,6 @@ const FILE_CONSTANTS = {
 
 import { 
   configure, 
-  getConsoleSink, 
   reset, 
   type LogRecord, 
   type Sink,

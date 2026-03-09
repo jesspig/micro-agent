@@ -11,7 +11,7 @@ import { homedir } from 'os';
 import { Database } from 'bun:sqlite';
 import { getLogger } from '@logtape/logtape';
 import type { ContentPart } from '../../../../types';
-import type { SessionMessage, SessionMetadata, Session, SessionStoreConfig, SessionKey } from './types';
+import type { SessionMessage, Session, SessionStoreConfig, SessionKey } from './types';
 
 const log = getLogger(['session']);
 

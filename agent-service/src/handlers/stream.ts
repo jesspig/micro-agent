@@ -11,7 +11,7 @@ import type { AgentServiceConfig, ServiceComponents, SessionData } from '../type
 import type { InboundMessage } from '../../types/message';
 import type { ChannelType } from '../../types/interfaces';
 import type { StreamCallbacks } from '../../runtime/kernel/orchestrator';
-import { USER_KNOWLEDGE_DIR } from '@micro-agent/sdk';
+import { USER_KNOWLEDGE_DIR } from '../../runtime/infrastructure/config';
 
 const log = getLogger(['agent-service', 'handlers', 'stream']);
 const tracer = getTracer();

@@ -5,13 +5,13 @@
  */
 
 import { homedir } from 'os';
-import { resolve, join, basename } from 'path';
+import { resolve, join } from 'path';
 import { existsSync, readdirSync, statSync, readFileSync } from 'fs';
 import {
   type ExtensionType,
   EXTENSION_TYPE_LABELS,
   getExtensionTypeDir,
-} from '@micro-agent/types';
+} from '@micro-agent/sdk/runtime';
 
 /** CLI 展示用的扩展类型（目录名） */
 type CliExtensionType = 'tool' | 'channel' | 'skills';

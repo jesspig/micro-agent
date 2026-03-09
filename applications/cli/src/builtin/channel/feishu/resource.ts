@@ -5,7 +5,7 @@ import { Client } from '@larksuiteoapi/node-sdk';
 import { getLogger } from '@logtape/logtape';
 import { createWriteStream, mkdtempSync, unlinkSync, readdirSync, rmdirSync } from 'fs';
 import { tmpdir } from 'os';
-import { join, basename } from 'path';
+import { join } from 'path';
 
 const log = getLogger(['feishu', 'resource']);
 

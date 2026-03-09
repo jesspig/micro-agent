@@ -7,7 +7,7 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { createApp } from './app';
 import { performConfigCheck } from './modules/config-check';
-import { initLogging, getLogFilePath } from '@micro-agent/runtime';
+import { initLogging, getLogFilePath } from '@micro-agent/sdk/runtime';
 import { runExtCommand } from './commands';
 
 // 版本号
@@ -181,12 +181,83 @@ async function startService(verbose: boolean, quiet: boolean, configPath?: strin
 async function showStatus(): Promise<void> {
   console.log();
   console.log('MicroAgent 状态');
-  console.log('─'.repeat(30));
-  
-  // TODO: 通过 IPC 查询 Agent Service 状态
-  console.log('  Agent Service: 未知（需要 IPC 连接）');
-  console.log('  通道: 请使用 start 命令启动');
-  console.log();
+  console.log('─'.repeat(50));
+
+  // 从 SDK 导入配置相关模块
+  const { loadConfig, getConfigStatus, USER_CONFIG_DIR } = await import('@micro-agent/sdk');
+  const { existsSync } = await import('fs');
+  const { join } = await import('path');
+  const { homedir } = await import('os');
+
+  const configPath = join(USER_CONFIG_DIR, 'settings.yaml');
+  const configExists = existsSync(configPath);
+  const displayPath = configPath.replace(homedir(), '~');
+
+  console.log(`  配置文件: ${configExists ? '\x1b[32m✓\x1b[0m' : '\x1b[31m✗\x1b[0m'} ${displayPath}`);
+
+  if (!configExists) {
+    console.log();
+    console.log('  \x1b[33m提示:\x1b[0m 请运行 \x1b[36mmicro-agent start\x1b[0m 初始化配置');
+    console.log();
+    return;
+  }
+
+  // 加载并显示配置状态
+  try {
+    const config = loadConfig({});
+    const status = getConfigStatus(config);
+
+    console.log();
+
+    // 显示 Provider 状态
+    const providerNames = Object.keys(config.providers || {});
+    if (providerNames.length > 0) {
+      console.log(`  Provider: \x1b[32m✓\x1b[0m ${providerNames.join(', ')}`);
+    } else {
+      console.log('  Provider: \x1b[33m未配置\x1b[0m');
+    }
+
+    // 显示模型配置
+    const models = config.agents?.models;
+    if (models?.chat) {
+      console.log(`  对话模型: \x1b[32m✓\x1b[0m ${models.chat}`);
+    } else {
+      console.log('  对话模型: \x1b[33m未配置\x1b[0m');
+    }
+    if (models?.embed) {
+      console.log(`  嵌入模型: \x1b[32m✓\x1b[0m ${models.embed}`);
+    }
+
+    // 显示通道状态
+    const channels = Object.entries(config.channels || {})
+      .filter(([, ch]) => ch && typeof ch === 'object' && 'enabled' in ch && (ch as { enabled?: boolean }).enabled)
+      .map(([name]) => name);
+
+    console.log();
+    if (channels.length > 0) {
+      console.log(`  启用通道: \x1b[32m✓\x1b[0m ${channels.join(', ')}`);
+    } else {
+      console.log('  启用通道: \x1b[33m无\x1b[0m');
+    }
+
+    // 显示配置缺失警告
+    if (status.missingRequired.length > 0) {
+      console.log();
+      console.log('  \x1b[33m⚠ 配置不完整:\x1b[0m');
+      for (const item of status.missingRequired) {
+        console.log(`    \x1b[31m•\x1b[0m 未配置 ${item}`);
+      }
+    }
+
+    console.log();
+    console.log('─'.repeat(50));
+    console.log('  运行 \x1b[36mmicro-agent start\x1b[0m 启动服务');
+    console.log();
+  } catch (error) {
+    console.log();
+    console.log(`  \x1b[31m配置加载失败:\x1b[0m ${(error as Error).message}`);
+    console.log();
+  }
 }
 
 /** CLI 主入口 */

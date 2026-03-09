@@ -2,10 +2,10 @@
  * 会话存储类型定义
  */
 
-import type { ContentPart } from '../../../../types';
+import type { ContentPart, SessionKey } from '../../../../types';
 
-/** 会话键（channel:chatId 格式） */
-export type SessionKey = string;
+// 重导出 SessionKey 以便此模块的使用者可以直接导入
+export type { SessionKey };
 
 /** 会话消息 */
 export interface SessionMessage {

@@ -6,16 +6,19 @@
 
 import { getLogger } from '../../runtime/infrastructure/logging';
 import {
-  MemoryManager,
+  SimpleMemoryManager,
   MemoryStore,
   MemorySearcher,
+  FTSSearcher,
   createEmbeddingService,
   type EmbeddingService,
   type MemoryStoreAdapter,
   type MemorySearcherAdapter,
 } from '../../runtime/capability/memory';
 import type { LLMProvider } from '../../runtime/provider/llm';
-import { USER_MEMORY_DIR } from '@micro-agent/sdk';
+import {
+  USER_MEMORY_DIR,
+} from '../../runtime/infrastructure/config';
 
 const log = getLogger(['agent-service', 'handlers', 'memory']);
 
@@ -36,11 +39,11 @@ export interface MemoryConfigParams {
  * 处理配置记忆系统
  */
 export async function handleConfigureMemory(
-  params: unknown,
+  _params: unknown,
   requestId: string,
   config: MemoryConfigParams,
   components: {
-    memoryManager: MemoryManager | null;
+    memoryManager: SimpleMemoryManager | null;
     embeddingService: EmbeddingService | null;
     llmProvider: LLMProvider | null;
   },
@@ -89,7 +92,14 @@ export async function handleConfigureMemory(
 
     // 创建底层存储和检索器
     const memoryStore = new MemoryStore({ storagePath, embeddingService });
-    const memorySearcher = new MemorySearcher(memoryStore);
+
+    // 创建 FTS 全文检索器
+    const ftsSearcher = new FTSSearcher({
+      dbPath: `${storagePath}/fts.db`,
+      tableName: 'memory_fts',
+    });
+
+    const memorySearcher = new MemorySearcher(memoryStore, ftsSearcher);
 
     // 创建适配器包装
     const storeAdapter: MemoryStoreAdapter = {
@@ -108,8 +118,8 @@ export async function handleConfigureMemory(
       search: (query, options) => memorySearcher.search(query, options),
     };
 
-    // 创建记忆管理器
-    components.memoryManager = new MemoryManager({
+    // 创建简化版记忆管理器
+    components.memoryManager = new SimpleMemoryManager({
       store: storeAdapter,
       searcher: searcherAdapter,
       config: {

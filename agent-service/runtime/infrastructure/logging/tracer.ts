@@ -88,7 +88,7 @@ export class Tracer {
   /**
    * 创建追踪上下文
    */
-  createContext(category: string, method: string): TraceContext {
+  createContext(_category: string, _method: string): TraceContext {
     return {
       traceId: this.currentTraceId ?? this.generateId(),
       spanId: this.generateSpanId(),

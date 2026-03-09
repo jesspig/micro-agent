@@ -30,6 +30,19 @@ export {
   expandPath,
   findTemplateFile,
   createDefaultUserConfig,
+  // 路径常量
+  USER_CONFIG_DIR,
+  USER_DATA_DIR,
+  USER_KNOWLEDGE_DIR,
+  USER_MEMORY_DIR,
+  USER_WORKSPACE_DIR,
+  USER_SESSIONS_DIR,
+  USER_SKILLS_DIR,
+  // 默认配置
+  DEFAULT_GENERATION_CONFIG,
+  DEFAULT_EXECUTOR_CONFIG,
+  DEFAULT_MEMORY_CONFIG,
+  DEFAULT_CONTEXT_BUDGET,
 } from './infrastructure/config';
 export type {
   Config,
@@ -129,11 +142,9 @@ export type {
 } from './provider/vector-db';
 
 // Storage Provider
-export type { StorageProvider, StorageConfig } from './provider/storage';
+export type { StorageProvider } from './provider/storage';
 export {
-  FileStorageProvider,
   MemoryStorageProvider,
-  createFileStorageProvider,
   createMemoryStorageProvider,
 } from './provider/storage';
 
@@ -168,6 +179,10 @@ export {
   createEmbeddingService,
   MemorySearcher,
   forgettingCurve,
+  SimpleMemoryManager,
+  type MemoryStoreAdapter,
+  type MemorySearcherAdapter,
+  type SimpleMemoryManagerConfig,
 } from './capability/memory';
 export type {
   MemoryEntry,
@@ -175,16 +190,6 @@ export type {
   MemoryStats,
   SearchOptions,
   MemoryFilter,
-} from './capability/memory';
-
-// Memory System - SDK 高级封装（重导出）
-export {
-  MemoryManager,
-  ConversationSummarizer,
-  classifyMemory,
-  type MemoryManagerConfig,
-  type Summary,
-  type SummarizerConfig,
 } from './capability/memory';
 
 // Knowledge System - 基础能力
@@ -196,18 +201,12 @@ export {
 } from './capability/knowledge';
 export type {
   KnowledgeBaseConfig,
+  BackgroundBuildConfig,
   KnowledgeDocument,
   KnowledgeChunk,
   KnowledgeSearchResult,
   RetrieverConfig,
 } from './capability/knowledge';
-
-// Knowledge System - SDK 高级封装（重导出）
-export {
-  KnowledgeBaseManager,
-  setKnowledgeBase,
-  getKnowledgeBase,
-} from '@micro-agent/sdk';
 
 // Plugin System
 export {

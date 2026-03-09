@@ -5,7 +5,7 @@
  */
 
 import { getLogger } from '../runtime/infrastructure/logging/logger';
-import type { ServiceLifecycleLog, SessionLifecycleLog, LLMCallLog, IPCMessageLog } from '../runtime/infrastructure/logging/logger';
+import type { ServiceLifecycleLog, SessionLifecycleLog, IPCMessageLog } from '../runtime/infrastructure/logging/logger';
 
 const log = getLogger(['agent-service']);
 

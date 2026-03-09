@@ -17,7 +17,7 @@ const log = getLogger(['agent-service', 'skill-loader']);
  */
 export function loadSkillFromPath(
   skillPath: string,
-  name?: string,
+  _name?: string,
   description?: string
 ): SkillDefinition | null {
   const skillMdPath = join(skillPath, 'SKILL.md');

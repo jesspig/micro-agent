@@ -13,13 +13,9 @@ import {
   type KnowledgeBaseConfig,
   type RetrieverConfig,
 } from '../../runtime/capability/knowledge';
-// 从 SDK 重导出高级封装
-import {
-  KnowledgeBaseManager,
-  setKnowledgeBase,
-  USER_KNOWLEDGE_DIR,
-} from '@micro-agent/sdk';
+import { USER_KNOWLEDGE_DIR } from '../../runtime/infrastructure/config';
 import type { EmbeddingService } from '../../runtime/capability/memory';
+import type { SimpleKnowledgeBaseManager } from '../types';
 
 const log = getLogger(['agent-service', 'handlers', 'knowledge']);
 
@@ -46,11 +42,11 @@ export interface KnowledgeConfigParams {
  * 处理配置知识库
  */
 export async function handleConfigureKnowledge(
-  params: unknown,
+  _params: unknown,
   requestId: string,
   config: KnowledgeConfigParams,
   components: {
-    knowledgeBaseManager: KnowledgeBaseManager | null;
+    knowledgeBaseManager: SimpleKnowledgeBaseManager | null;
     knowledgeRetriever: KnowledgeRetriever | null;
     knowledgeConfig: KnowledgeBaseConfig | null;
     embeddingService: EmbeddingService | null;
@@ -79,6 +75,7 @@ export async function handleConfigureKnowledge(
   try {
     // 构建知识库配置
     const knowledgeConfig: KnowledgeBaseConfig = {
+      enabled: config.enabled ?? true,
       basePath: config.basePath ?? USER_KNOWLEDGE_DIR,
       embedModel: config.embedModel,
       chunkSize: config.chunkSize ?? 1000,
@@ -122,17 +119,12 @@ export async function handleConfigureKnowledge(
       }
     }
 
-    // 创建知识库管理器
-    components.knowledgeBaseManager = new KnowledgeBaseManager(
-      knowledgeConfig,
-      effectiveEmbeddingService ?? undefined
-    );
+    // 创建知识库管理器（使用内部简化版）
+    const { SimpleKnowledgeBaseManager } = await import('../types');
+    components.knowledgeBaseManager = new SimpleKnowledgeBaseManager(knowledgeConfig);
 
     // 初始化知识库
     await components.knowledgeBaseManager.initialize();
-
-    // 设置全局实例
-    setKnowledgeBase(components.knowledgeBaseManager);
 
     // 扫描文档目录
     const scanner = createDocumentScanner(

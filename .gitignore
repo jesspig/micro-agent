@@ -5,7 +5,6 @@
 # 依赖
 node_modules/
 .pnpm-store/
-bun.lock
 
 # 构建输出
 dist/
@@ -18,7 +17,6 @@ dist/
 
 # IDE
 .idea/
-.vscode/
 *.swp
 *.swo
 
@@ -36,24 +34,29 @@ logs/
 coverage/
 
 # ===========================================
-# 测试相关
+# 调试输出（临时文件）
 # ===========================================
 
-# 测试输出文件
-test_output.txt
-test-output.txt
-test-error.txt
-test-results*.txt
-
 # 类型检查输出
+tsc-errors*.txt
 typecheck-errors*.txt
 typecheck-results.txt
 
-# 测试临时目录（通用模式）
+# 代码分析输出
+unused-vars*.txt
+
+# 测试输出
+test-output.txt
+test-results*.txt
+
+# ===========================================
+# 测试相关
+# ===========================================
+
+# 测试临时目录
 test-*-temp/
 test-*-workspace/
 test-*-dir/
-test-*-test/
 *-test-temp/
 *-test-workspace/
 

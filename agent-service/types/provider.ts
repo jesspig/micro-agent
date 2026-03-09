@@ -3,11 +3,12 @@
  */
 
 import type { LLMMessage, LLMResponse } from './message';
-import type { LLMToolDefinition, ToolCall } from './tool';
+import type { LLMToolDefinition } from './tool';
+import type { MemoryTypeString } from './memory';
 
 // 重新导出 LLM 相关类型，方便外部使用
 export type { LLMMessage, LLMResponse } from './message';
-export type { ToolCall, LLMToolDefinition } from './tool';
+export type { LLMToolDefinition } from './tool';
 
 /** Provider 类型 */
 export type ProviderType = 'llm' | 'acp' | 'a2a' | 'mcp';
@@ -39,14 +40,6 @@ export type ProviderVendor =
   | 'minimax' 
   | 'ollama'
   | 'openai-compatible';
-
-/** 思考模式配置 */
-export interface ThinkingConfig {
-  /** 是否启用思考模式 */
-  enabled: boolean;
-  /** 思考内容的最大长度（用于截断） */
-  maxLength?: number;
-}
 
 /** Provider 能力配置 */
 export interface ProviderCapabilities {
@@ -107,17 +100,21 @@ export interface LLMProvider extends Provider {
   readonly type: 'llm';
 }
 
-/** ACP Provider 接口 */
+// ============================================================================
+// 预留 Provider 接口（用于未来扩展）
+// ============================================================================
+
+/** ACP Provider 接口 - 预留，用于 Agent Communication Protocol */
 export interface ACPProvider extends Provider {
   readonly type: 'acp';
 }
 
-/** A2A Provider 接口 */
+/** A2A Provider 接口 - 预留，用于 Agent-to-Agent 通信 */
 export interface A2AProvider extends Provider {
   readonly type: 'a2a';
 }
 
-/** MCP Provider 接口 */
+/** MCP Provider 接口 - 预留，用于 Model Context Protocol */
 export interface MCPProvider extends Provider {
   readonly type: 'mcp';
 }
@@ -125,17 +122,6 @@ export interface MCPProvider extends Provider {
 // ============================================================================
 // 意图识别类型（从 providers 提升，遵循依赖倒置原则）
 // ============================================================================
-
-/** 记忆类型（字符串形式） */
-export type MemoryTypeString =
-  | 'preference'
-  | 'fact'
-  | 'decision'
-  | 'entity'
-  | 'conversation'
-  | 'summary'
-  | 'document'
-  | 'other';
 
 /** 预处理结果 */
 export interface PreflightResult {

@@ -92,9 +92,6 @@ export interface ResourceContentPart {
 /** 内容部分联合类型 */
 export type ContentPart = TextContentPart | ImageContentPart | ImageUrlContentPart | ResourceContentPart;
 
-/** Provider 内容部分（ContentPart 别名，兼容旧代码） */
-export type ProviderContentPart = ContentPart;
-
 /** 工具调用示例（用于 LLM 理解工具用法） */
 export interface ToolExample {
   /** 示例描述（说明示例场景） */
@@ -248,6 +245,8 @@ export interface ToolContext {
   knowledgeBase: string;
   /** 发送消息到总线 */
   sendToBus: (msg: unknown) => Promise<void>;
+  /** 中止信号（用于取消执行） */
+  abortSignal?: AbortSignal;
 }
 
 /** 工具定义（MCP 兼容） */

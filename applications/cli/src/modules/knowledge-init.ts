@@ -8,44 +8,9 @@
  * 通过 RAG (Retrieval-Augmented Generation) 技术实现智能检索。
  */
 
-import type { Config } from '@micro-agent/sdk/runtime';
+import type { Config, KnowledgeBaseConfig } from '@micro-agent/sdk/runtime';
 import { resolve } from 'path';
 import { homedir } from 'os';
-
-/**
- * 知识库配置接口
- *
- * 包含 Agent Service 初始化知识库系统所需的完整配置信息
- */
-export interface KnowledgeBaseConfig {
-  /** 是否启用知识库 */
-  enabled: boolean;
-  /** 知识库存储路径（已展开） */
-  basePath: string;
-  /** 嵌入模型 ID（格式：provider/model） */
-  embedModel?: string;
-  /** 支持的文件格式列表 */
-  supportedFormats: string[];
-  /** 分块大小（字符数） */
-  chunkSize: number;
-  /** 分块重叠（字符数） */
-  chunkOverlap: number;
-  /** 最大检索结果数 */
-  maxSearchResults: number;
-  /** 相似度阈值 */
-  minSimilarityScore: number;
-  /** 后台构建配置 */
-  backgroundBuild: {
-    /** 是否启用 */
-    enabled: boolean;
-    /** 构建间隔（毫秒） */
-    interval: number;
-    /** 每次处理的最大文档数 */
-    batchSize: number;
-    /** 空闲等待时间（毫秒） */
-    idleDelay: number;
-  };
-}
 
 /**
  * 知识库文档类型
@@ -160,7 +125,6 @@ export function getKnowledgeBaseConfig(config: Config): KnowledgeBaseConfig {
     enabled,
     basePath: knowledgePath,
     embedModel: embedModel || undefined,
-    supportedFormats: Object.keys(KNOWLEDGE_FILE_EXTENSIONS),
     chunkSize: 1000,
     chunkOverlap: 200,
     maxSearchResults: 5,

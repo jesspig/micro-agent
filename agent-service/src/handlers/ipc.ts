@@ -14,7 +14,7 @@ const log = getLogger(['agent-service', 'handlers', 'ipc']);
 export type IPCMethodHandler = (
   params: unknown,
   requestId: string,
-  components: ServiceComponents,
+  _components: ServiceComponents,
   sendResponse: (response: unknown) => void
 ) => void | Promise<void>;
 
@@ -39,7 +39,7 @@ export function createIPCMethodMap(): IPCMethodMap {
  */
 export async function dispatchIPCMessage(
   message: unknown,
-  components: ServiceComponents,
+  _components: ServiceComponents,
   handlers: Map<string, (params: unknown, requestId: string) => Promise<void> | void>
 ): Promise<void> {
   const request = typeof message === 'string' ? JSON.parse(message) : message;
@@ -47,7 +47,7 @@ export async function dispatchIPCMessage(
 
   logIPCMessage('in', method, { requestId: id });
 
-  const sendResponse = (response: unknown) => {
+  const _sendResponse = (response: unknown) => {
     process.send?.(response);
     logIPCMessage('out', method, { requestId: id });
   };
@@ -77,7 +77,7 @@ export async function dispatchIPCMessage(
  * 创建基础 IPC 处理器
  */
 export function createBaseIPCHandlers(
-  components: ServiceComponents,
+  _components: ServiceComponents,
   handleStatus: () => Record<string, unknown>,
   handleExecute: (params: unknown) => Promise<unknown>
 ): Map<string, (params: unknown, requestId: string) => Promise<void> | void> {

@@ -12,8 +12,6 @@ import type {
   StreamEventParams,
   MethodHandler,
   StreamMethodHandler,
-  SocketContext,
-  StreamMethodContext,
 } from './types';
 import { JSONRPC_ERROR_CODES } from './types';
 

@@ -34,7 +34,7 @@ import {
 } from './handlers';
 import { loadSkillFromPath } from './skill-loader';
 import type { AgentServiceConfig, ServiceComponents, SkillConfig } from './types';
-import { USER_KNOWLEDGE_DIR, DEFAULT_EXECUTOR_CONFIG } from '@micro-agent/sdk';
+import { USER_KNOWLEDGE_DIR, DEFAULT_EXECUTOR_CONFIG } from '../runtime/infrastructure/config';
 
 const log = getLogger(['agent-service']);
 
@@ -107,7 +107,7 @@ class AgentServiceImpl {
   private async initializeComponents(): Promise<void> {
     this.components.appConfig = await loadAppConfig(this.config);
 
-    const { provider, defaultModel } = initializeLLMProvider(this.components.appConfig, this.config);
+    const { provider, defaultModel } = await initializeLLMProvider(this.components.appConfig, this.config);
     this.components.llmProvider = provider;
     this.components.defaultModel = defaultModel;
 
@@ -200,7 +200,7 @@ class AgentServiceImpl {
 
     try {
       this.components.appConfig = await loadAppConfig(this.config);
-      const { provider, defaultModel } = initializeLLMProvider(this.components.appConfig, this.config);
+      const { provider, defaultModel } = await initializeLLMProvider(this.components.appConfig, this.config);
       this.components.llmProvider = provider;
       this.components.defaultModel = defaultModel;
       this.updateOrchestrator();

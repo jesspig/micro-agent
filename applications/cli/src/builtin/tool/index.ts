@@ -17,8 +17,8 @@ import { resolve, isAbsolute, normalize, join, relative } from 'path';
 import { homedir, platform } from 'os';
 import { which } from 'bun';
 import { defineTool, TODO_STORAGE_PATH } from '@micro-agent/sdk';
-import type { Tool, JSONSchema, ToolContext } from '@micro-agent/types';
-import { createSuccessResult, createErrorResult } from '@micro-agent/types';
+import type { Tool, JSONSchema, ToolContext } from '@micro-agent/sdk/runtime';
+import { createSuccessResult, createErrorResult } from '@micro-agent/sdk/runtime';
 
 // ============================================================================
 // 路径处理
