@@ -8,7 +8,7 @@ import * as lancedb from '@lancedb/lancedb';
 import { mkdir, appendFile, stat } from 'fs/promises';
 import { join } from 'path';
 import type { MemoryEntry, MemoryStats } from '../../../types/memory';
-import type { MemoryStoreConfig, EmbeddingService, CleanupResult, MemoryFilter } from './types';
+import type { MemoryStoreConfig, CleanupResult, MemoryFilter } from './types';
 import { getLogger } from '@logtape/logtape';
 
 const log = getLogger(['memory', 'store']);

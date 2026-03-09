@@ -4,9 +4,9 @@
  * 监听扩展目录变化，实现优雅重载
  */
 
-import { resolve } from 'path';
+import { resolve, join } from 'path';
+import { existsSync, statSync, readdirSync } from 'fs';
 import { getLogger } from '@logtape/logtape';
-import type { ExtensionType } from './types';
 import { ExtensionLoader } from './loader';
 
 const log = getLogger(['extension', 'hot-reload']);
@@ -35,13 +35,21 @@ interface PendingChange {
   timestamp: number;
 }
 
+/** 文件状态记录 */
+interface FileState {
+  mtime: number;
+  size: number;
+}
+
 /**
  * 热重载管理器
  */
 export class HotReloadManager {
   private config: HotReloadConfig;
   private loader: ExtensionLoader;
-  private watchers: { path: string; watcher: ReturnType<typeof Bun.file> }[] = [];
+  private fileStates = new Map<string, FileState>();
+  private watchedPaths = new Set<string>();
+  private checkInterval?: ReturnType<typeof setInterval>;
   private pendingChanges = new Map<string, PendingChange>();
   private debounceTimer?: ReturnType<typeof setTimeout>;
   private activeCalls = 0;
@@ -65,6 +73,11 @@ export class HotReloadManager {
       this.watchPath(path);
     }
 
+    // 启动定期检查
+    this.checkInterval = setInterval(() => {
+      this.checkAllPaths();
+    }, this.config.debounceMs);
+
     log.info('热重载已启动，监听 {count} 个路径', { count: paths.length });
   }
 
@@ -72,7 +85,13 @@ export class HotReloadManager {
    * 停止监听
    */
   stop(): void {
-    this.watchers = [];
+    if (this.checkInterval) {
+      clearInterval(this.checkInterval);
+      this.checkInterval = undefined;
+    }
+
+    this.fileStates.clear();
+    this.watchedPaths.clear();
 
     if (this.debounceTimer) {
       clearTimeout(this.debounceTimer);
@@ -104,39 +123,181 @@ export class HotReloadManager {
    */
   private watchPath(path: string): void {
     const absolutePath = resolve(path);
-    
-    // 使用 Bun 的文件监听
-    // 注意：Bun 没有内置的文件监听 API，这里使用轮询作为替代
-    // 在生产环境中，可以考虑使用 fs.watch 或其他库
-    this.watchers.push({ path: absolutePath, watcher: Bun.file(absolutePath) });
-    
-    // 简单实现：定期检查文件变更
-    const checkInterval = setInterval(() => {
-      this.checkForChanges(absolutePath);
-    }, this.config.debounceMs);
+    this.watchedPaths.add(absolutePath);
 
-    // 存储定时器引用以便清理
-    (this.watchers[this.watchers.length - 1] as { path: string; watcher: ReturnType<typeof Bun.file>; interval?: ReturnType<typeof setInterval> }).interval = checkInterval;
+    // 初始化文件状态
+    this.initializeFileStates(absolutePath);
+  }
+
+  /**
+   * 初始化路径下所有文件的状态
+   */
+  private initializeFileStates(rootPath: string): void {
+    if (!existsSync(rootPath)) {
+      return;
+    }
+
+    const stats = statSync(rootPath);
+
+    if (stats.isFile()) {
+      this.fileStates.set(rootPath, {
+        mtime: stats.mtimeMs,
+        size: stats.size,
+      });
+      return;
+    }
+
+    if (stats.isDirectory()) {
+      try {
+        const entries = readdirSync(rootPath, { withFileTypes: true });
+        for (const entry of entries) {
+          const fullPath = join(rootPath, entry.name);
+          if (entry.isDirectory()) {
+            // 递归处理子目录（排除 node_modules）
+            if (entry.name !== 'node_modules' && !entry.name.startsWith('.')) {
+              this.initializeFileStates(fullPath);
+            }
+          } else if (entry.isFile() && this.isWatchableFile(entry.name)) {
+            const fileStats = statSync(fullPath);
+            this.fileStates.set(fullPath, {
+              mtime: fileStats.mtimeMs,
+              size: fileStats.size,
+            });
+          }
+        }
+      } catch (error) {
+        log.debug('无法读取目录', { path: rootPath, error: String(error) });
+      }
+    }
+  }
+
+  /**
+   * 判断是否是可监听的文件
+   */
+  private isWatchableFile(filename: string): boolean {
+    const watchableExtensions = ['.ts', '.js', '.json', '.yaml', '.yml'];
+    return watchableExtensions.some(ext => filename.endsWith(ext));
+  }
+
+  /**
+   * 检查所有监听路径的变更
+   */
+  private checkAllPaths(): void {
+    for (const rootPath of this.watchedPaths) {
+      this.checkForChanges(rootPath);
+    }
   }
 
   /**
    * 检查文件变更
    */
-  private async checkForChanges(path: string): Promise<void> {
-    // 简单实现：实际项目中应该使用更精确的文件监听机制
-    // 这里只是占位符，真正的实现需要比较文件的 mtime 或 hash
-    log.debug('检查路径变更: {path}', { path });
+  private checkForChanges(rootPath: string): void {
+    if (!existsSync(rootPath)) {
+      // 路径被删除
+      for (const [filePath] of this.fileStates) {
+        if (filePath.startsWith(rootPath)) {
+          this.handleChange('delete', filePath);
+          this.fileStates.delete(filePath);
+        }
+      }
+      return;
+    }
+
+    const stats = statSync(rootPath);
+
+    if (stats.isFile()) {
+      this.checkFileChange(rootPath, stats);
+      return;
+    }
+
+    if (stats.isDirectory()) {
+      // 检查目录下的文件
+      this.checkDirectoryChanges(rootPath);
+    }
+  }
+
+  /**
+   * 检查目录变更
+   */
+  private checkDirectoryChanges(dirPath: string): void {
+    try {
+      const entries = readdirSync(dirPath, { withFileTypes: true });
+      const currentFiles = new Set<string>();
+
+      for (const entry of entries) {
+        const fullPath = join(dirPath, entry.name);
+
+        if (entry.isDirectory()) {
+          // 递归处理子目录（排除 node_modules）
+          if (entry.name !== 'node_modules' && !entry.name.startsWith('.')) {
+            this.checkDirectoryChanges(fullPath);
+          }
+        } else if (entry.isFile() && this.isWatchableFile(entry.name)) {
+          currentFiles.add(fullPath);
+
+          try {
+            const fileStats = statSync(fullPath);
+            this.checkFileChange(fullPath, fileStats);
+          } catch (error) {
+            log.debug('无法检查文件状态', { path: fullPath, error: String(error) });
+          }
+        }
+      }
+
+      // 检查是否有文件被删除
+      for (const [filePath] of this.fileStates) {
+        if (filePath.startsWith(dirPath) && !currentFiles.has(filePath) && !existsSync(filePath)) {
+          this.handleChange('delete', filePath);
+          this.fileStates.delete(filePath);
+        }
+      }
+    } catch (error) {
+      log.debug('无法检查目录变更', { path: dirPath, error: String(error) });
+    }
+  }
+
+  /**
+   * 检查单个文件变更
+   */
+  private checkFileChange(filePath: string, stats: { mtimeMs: number; size: number }): void {
+    const previousState = this.fileStates.get(filePath);
+
+    if (!previousState) {
+      // 新文件
+      this.fileStates.set(filePath, {
+        mtime: stats.mtimeMs,
+        size: stats.size,
+      });
+      this.handleChange('add', filePath);
+      return;
+    }
+
+    // 检查 mtime 或 size 变化
+    if (previousState.mtime !== stats.mtimeMs || previousState.size !== stats.size) {
+      this.fileStates.set(filePath, {
+        mtime: stats.mtimeMs,
+        size: stats.size,
+      });
+      this.handleChange('change', filePath);
+    }
   }
 
   /**
    * 处理文件变更
    */
   private handleChange(event: 'add' | 'change' | 'delete', path: string): void {
+    // 忽略临时文件和备份文件
+    if (path.includes('.tmp') || path.includes('.bak') || path.includes('~')) {
+      return;
+    }
+
     this.pendingChanges.set(path, {
       type: event,
       path,
       timestamp: Date.now(),
     });
+
+    log.debug('检测到文件变更', { event, path });
 
     this.scheduleProcess();
   }
@@ -239,3 +400,4 @@ export class HotReloadManager {
 export function createHotReloadManager(loader: ExtensionLoader, config?: Partial<HotReloadConfig>): HotReloadManager {
   return new HotReloadManager(loader, config);
 }
+

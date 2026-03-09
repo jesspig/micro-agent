@@ -6,9 +6,9 @@
 
 import { resolve, join } from 'path';
 import { getLogger } from '@logtape/logtape';
-import type { ExtensionDescriptor, ExtensionDiscoveryResult } from './types';
+import type { ExtensionDescriptor } from '@micro-agent/types';
 import { ExtensionDiscovery } from './discovery';
-import { ExtensionRegistry, type RegistryConfig } from './registry';
+import { ExtensionRegistry } from './registry';
 
 const log = getLogger(['extension', 'loader']);
 

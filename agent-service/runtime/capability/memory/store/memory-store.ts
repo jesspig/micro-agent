@@ -9,7 +9,7 @@ import { mkdir, appendFile, stat } from 'fs/promises';
 import { join } from 'path';
 import { getLogger } from '@logtape/logtape';
 import type { MemoryEntry, MemoryStats, MemoryType } from '../../../../types/memory';
-import type { MemoryStoreConfig, EmbeddingService, CleanupResult, MemoryFilter } from '../types';
+import type { MemoryStoreConfig, CleanupResult, MemoryFilter } from '../types';
 
 const log = getLogger(['memory', 'store']);
 
@@ -54,12 +54,6 @@ export class MemoryVectorStore {
   private table: lancedb.Table | null = null;
   private config: MemoryStoreConfig;
   private initialized = false;
-  private pendingEmbeddings: Array<{
-    id: string;
-    content: string;
-    resolve: (vector: number[]) => void;
-    reject: (error: Error) => void;
-  }> = [];
   private embeddingTimer: Timer | null = null;
 
   constructor(config: MemoryStoreConfig) {

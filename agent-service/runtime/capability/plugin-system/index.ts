@@ -2,8 +2,23 @@
  * 插件系统模块入口
  */
 
-// Types
-export * from './types';
+// Types - 从 @micro-agent/types 重导出
+export type {
+  ExtensionType,
+  ExtensionDescriptor,
+  ExtensionContext,
+  Extension,
+  LoadedExtension,
+  ExtensionDiscoveryResult,
+  ExtensionChangeEvent,
+} from '@micro-agent/types';
+
+export {
+  EXTENSION_TYPES,
+  EXTENSION_TYPE_LABELS,
+  getExtensionTypeDir,
+  isValidExtensionType,
+} from '@micro-agent/types';
 
 // Registry
 export { ExtensionRegistry, createExtensionRegistry } from './registry';

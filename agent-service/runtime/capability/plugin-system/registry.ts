@@ -11,7 +11,7 @@ import type {
   ExtensionContext,
   LoadedExtension,
   ExtensionType,
-} from './types';
+} from '@micro-agent/types';
 
 const log = getLogger(['extension', 'registry']);
 

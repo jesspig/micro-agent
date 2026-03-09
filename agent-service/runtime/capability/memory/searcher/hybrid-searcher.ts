@@ -6,7 +6,7 @@
 
 import { getLogger } from '@logtape/logtape';
 import type { MemoryEntry, MemorySearchOptions, MemorySearchResult } from '../../../../types/memory';
-import { FTSSearcher, type FTSSearchResult } from './fts-searcher';
+import { FTSSearcher } from './fts-searcher';
 import { RRFFusion, type SearchResult } from './rrf-fusion';
 import { TemporalDecayScorer } from './temporal-decay';
 

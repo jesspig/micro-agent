@@ -70,7 +70,7 @@ export class MigrationService {
   private migrations: Map<string, MigrationState> = new Map();
   private currentMigration: MigrationState | null = null;
   private eventHandlers: Set<MigrationEventHandler> = new Set();
-  private isRunning = false;
+  private _isRunning = false;
 
   constructor(
     vectorAdapter: VectorAdapter,
@@ -178,7 +178,7 @@ export class MigrationService {
     migration.status = 'running';
     migration.startedAt = new Date();
 
-    this.isRunning = true;
+    this._isRunning = true;
 
     try {
       // 获取源向量
@@ -254,7 +254,7 @@ export class MigrationService {
         error: String(error),
       });
     } finally {
-      this.isRunning = false;
+      this._isRunning = false;
     }
   }
 

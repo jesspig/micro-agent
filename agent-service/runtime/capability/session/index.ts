@@ -3,7 +3,8 @@
  *
  * 提供会话基础能力：会话管理、会话搜索。
  *
- * 注意：高级封装功能已迁移到 SDK：
+ * ========== 模块迁移记录 (完成于 2026-03-09) ==========
+ * 状态: 已完成
  * - TitleGenerator → @micro-agent/sdk/session
  * - SessionContextInjector → @micro-agent/sdk/session
  */

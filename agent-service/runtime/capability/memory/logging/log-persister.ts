@@ -11,10 +11,9 @@ import {
   readdirSync, 
   createWriteStream,
   unlinkSync,
-  renameSync,
   createReadStream,
 } from 'node:fs';
-import { join, basename } from 'node:path';
+import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { createGzip, createGunzip } from 'node:zlib';
 import { pipeline } from 'node:stream/promises';

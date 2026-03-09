@@ -61,10 +61,10 @@ interface RegisteredSkill {
  */
 export class SkillRegistry {
   private skills = new Map<string, RegisteredSkill>();
-  private config: SkillRegistryConfig;
+  private _config: SkillRegistryConfig;
 
   constructor(config: SkillRegistryConfig = {}) {
-    this.config = config;
+    this._config = config;
   }
 
   /**

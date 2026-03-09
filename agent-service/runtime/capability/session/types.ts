@@ -1,7 +1,8 @@
 /**
  * 会话能力类型定义
  *
- * 注意：高级封装类型已迁移到 SDK：
+ * ========== 模块迁移记录 (完成于 2026-03-09) ==========
+ * 状态: 已完成
  * - ContextInjectorConfig → @micro-agent/sdk/session
  * - ContextInjectionResult → @micro-agent/sdk/session
  * - TitleGeneratorConfig → @micro-agent/sdk/session

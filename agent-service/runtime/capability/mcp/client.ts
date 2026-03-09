@@ -35,7 +35,7 @@ type MCPClientState = 'disconnected' | 'connecting' | 'connected' | 'error';
  * MCP 客户端
  */
 export class MCPClient {
-  private state: MCPClientState = 'disconnected';
+  private _state: MCPClientState = 'disconnected';
   private serverCapabilities: MCPServerCapabilities | null = null;
   private serverInfo: { name: string; version: string } | null = null;
   private instructions: string | null = null;
@@ -60,7 +60,7 @@ export class MCPClient {
    * 连接到 MCP 服务器
    */
   async connect(): Promise<MCPInitializeResult> {
-    this.state = 'connecting';
+    this._state = 'connecting';
 
     try {
       // 根据传输类型建立连接
@@ -92,14 +92,14 @@ export class MCPClient {
       this.serverCapabilities = result.capabilities;
       this.serverInfo = result.serverInfo;
       this.instructions = result.instructions ?? null;
-      this.state = 'connected';
+      this._state = 'connected';
 
       // 发送 initialized 通知
       await this.sendNotification('notifications/initialized');
 
       return result;
     } catch (error) {
-      this.state = 'error';
+      this._state = 'error';
       throw error;
     }
   }
@@ -116,7 +116,7 @@ export class MCPClient {
       this.ws.close();
       this.ws = null;
     }
-    this.state = 'disconnected';
+    this._state = 'disconnected';
   }
 
   /**

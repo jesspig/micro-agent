@@ -2,6 +2,9 @@
  * 知识库类型定义
  */
 
+// 从统一类型定义导入配置类型
+export type { KnowledgeBaseConfig, BackgroundBuildConfig } from '../../../types/config';
+
 /** 知识库文档类型 */
 export type KnowledgeDocType =
   | 'markdown'
@@ -72,22 +75,6 @@ export interface KnowledgeSearchResult {
   chunks: KnowledgeChunk[];
   score: number;
   preview: string;
-}
-
-/** 知识库配置 */
-export interface KnowledgeBaseConfig {
-  basePath: string;
-  embedModel?: string;
-  chunkSize: number;
-  chunkOverlap: number;
-  maxSearchResults: number;
-  minSimilarityScore: number;
-  backgroundBuild: {
-    enabled: boolean;
-    interval: number;
-    batchSize: number;
-    idleDelay: number;
-  };
 }
 
 /** 知识库统计信息 */

@@ -6,14 +6,19 @@
  * - 嵌入（embedding）
  * - 检索（searcher）
  * - 工作内存（working-memory）
+ * - 简化版管理器（simple-manager）
  *
- * 高级封装从 SDK 重导出：
- * - 记忆管理器（manager）
- * - 摘要器（summarizer）
- * - 分类器（classifiers）
- * - 评分器（scoring）
- * - 偏好处理（handlers）
- * - 遗忘机制（forgetting）
+ * ========== 模块迁移记录 (完成于 2026-03-09) ==========
+ * 状态: 已完成
+ * 高级封装功能已迁移至 SDK：
+ * - Summarizer → sdk/src/memory/consolidation/summarizer.ts
+ * - MemoryClassifier → sdk/src/memory/classifiers/memory-classifier.ts
+ * - PreferenceClassifier → sdk/src/memory/classifiers/preference-classifier.ts
+ * - ForgettingEngine → sdk/src/memory/forgetting/forgetting-engine.ts
+ * - ForgettingScheduler → sdk/src/memory/forgetting/forgetting-scheduler.ts
+ * - ImportanceScorer → sdk/src/memory/scoring/importance-scorer.ts
+ * - MetricsCollector → sdk/src/memory/metrics/metrics-collector.ts
+ * - ConsolidationExecutor → sdk/src/memory/consolidation/consolidation-executor.ts
  */
 
 // ============ 基础类型 ============
@@ -91,99 +96,10 @@ export {
   type UpdateSubTaskParams,
 } from './working-memory-manager';
 
-// ============ SDK 高级封装 - 记忆管理器 ============
+// ============ 简化版管理器 ============
 export {
-  MemoryManager,
-  createMemoryManager,
-  MemoryManagerConfigSchema,
-  type MemoryManagerConfig,
+  SimpleMemoryManager,
   type MemoryStoreAdapter,
   type MemorySearcherAdapter,
-  type ClassifyFunction,
-  type SummarizerAdapter,
-} from '@micro-agent/sdk';
-
-// ============ SDK 高级封装 - 摘要器 ============
-export {
-  ConversationSummarizer,
-  createSummarizer,
-  SUMMARIZER_DEFAULT_CONFIG,
-  type Summary,
-  type SummaryType,
-  type TodoItem,
-  type TimeRange,
-  type SummarizerConfig,
-  type SummarizeOptions,
-} from '@micro-agent/sdk';
-
-// ============ SDK 高级封装 - 分类器 ============
-export {
-  MemoryClassifier,
-  classifyMemory,
-  getMemoryTypeDescription,
-  getMemoryTypeIcon,
-  ClassificationResultSchema,
-  type ClassificationResult,
-  type ClassifyOptions,
-  PreferenceClassifier,
-  detectPreference,
-  detectPreferencesBatch,
-  PreferenceDetectionResultSchema,
-  type PreferenceType,
-  type PreferenceDetectionResult,
-  type BatchDetectionResult,
-} from '@micro-agent/sdk';
-
-// ============ SDK 高级封装 - 评分器 ============
-export {
-  ImportanceScorer,
-  calculateImportance,
-  getDefaultImportance,
-  ImportanceScorerConfigSchema,
-  type ImportanceScorerConfig,
-  type ImportanceFactors,
-  type ScoringWeights,
-} from '@micro-agent/sdk';
-
-// ============ SDK 高级封装 - 偏好处理 ============
-export {
-  PreferenceHandler,
-  createPreferenceHandler,
-  PreferenceHandlerConfigSchema,
-  type PreferenceRecord,
-  type PreferenceHandlerConfig,
-  type HandleResult,
-  type BatchHandleResult,
-  type PreferenceStoreAdapter,
-} from '@micro-agent/sdk';
-
-// ============ SDK 高级封装 - 遗忘机制 ============
-export {
-  // 遗忘引擎
-  ForgettingEngine,
-  ForgettingEngineConfigSchema,
-  createForgettingEngine,
-  type ForgettingEngineConfig,
-  type ForgettingCandidate,
-  type ForgettingResult,
-  type MemoryStoreAdapter as ForgettingMemoryStoreAdapter,
-  type ProtectionManagerAdapter,
-  // 遗忘调度器
-  ForgettingScheduler,
-  ForgettingSchedulerConfigSchema,
-  createForgettingScheduler,
-  type ForgettingSchedulerConfig,
-  type SchedulerStatus,
-  type ExecutionRecord,
-  type SchedulerState,
-  // 保护管理器
-  ProtectionManager,
-  ProtectionManagerConfigSchema,
-  createProtectionManager,
-  isStatusProtected,
-  type ProtectionReason,
-  type ProtectionRecord,
-  type ProtectionManagerConfig,
-  type ProtectionEvent,
-  type ProtectionEventHandler,
-} from '@micro-agent/sdk';
+  type SimpleMemoryManagerConfig,
+} from './simple-manager';

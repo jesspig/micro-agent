@@ -14,8 +14,8 @@ import type { EmbeddingVector, VectorSearchOptions } from '../../../../types/emb
 
 const log = getLogger(['memory', 'embedding', 'vector-adapter']);
 
-/** 向量记录结构 */
-interface VectorRecord {
+/** 向量记录接口 */
+interface EmbeddingVectorRecord {
   /** 向量 ID */
   id: string;
   /** 关联记忆 ID */
@@ -518,18 +518,6 @@ export class VectorAdapter {
 
   private escape(value: string): string {
     return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-  }
-
-  private async getBatch(ids: string[]): Promise<EmbeddingVector[]> {
-    if (ids.length === 0) return [];
-
-    const idList = ids.map(id => `"${this.escape(id)}"`).join(', ');
-    const results = await this.table
-      ?.query()
-      .where(`id IN (${idList})`)
-      .toArray();
-
-    return results?.map(r => recordToVector(r)) ?? [];
   }
 }
 

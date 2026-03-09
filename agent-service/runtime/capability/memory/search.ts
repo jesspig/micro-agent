@@ -5,6 +5,7 @@
 import type { MemoryEntry, MemorySearchResult, MemorySearchOptions } from '../../../types/memory';
 import type { SearchMode, MemoryFilter } from './types';
 import { MemoryStore } from './store';
+import { FTSSearcher } from './searcher/fts-searcher';
 import { getLogger } from '@logtape/logtape';
 
 const log = getLogger(['memory', 'search']);
@@ -19,8 +20,14 @@ const log = getLogger(['memory', 'search']);
  */
 export class MemorySearcher {
   private lastSearchMode: SearchMode = 'auto';
+  private ftsSearcher: FTSSearcher | null = null;
 
-  constructor(private store: MemoryStore) {}
+  constructor(
+    private store: MemoryStore,
+    ftsSearcher?: FTSSearcher
+  ) {
+    this.ftsSearcher = ftsSearcher ?? null;
+  }
 
   /**
    * 搜索记忆
@@ -88,11 +95,59 @@ export class MemorySearcher {
     limit: number,
     filter?: MemoryFilter
   ): Promise<Array<{ entry: MemoryEntry; score: number }>> {
-    // 简化实现：基于关键词匹配
-    // 实际实现可使用 SQLite FTS5
     this.lastSearchMode = 'fulltext';
-    log.warn('全文检索尚未完全实现');
-    return [];
+
+    // 如果有 FTS 检索器，使用它进行全文检索
+    if (this.ftsSearcher) {
+      try {
+        const results = this.ftsSearcher.search({
+          query,
+          limit,
+          types: filter?.types,
+          sessionKey: filter?.sessionKey,
+        });
+        log.debug('FTS 全文检索完成', { query, resultCount: results.length });
+        return results;
+      } catch (error) {
+        log.warn('FTS 检索失败，回退到内存搜索', { error: String(error) });
+      }
+    }
+
+    // 回退：使用存储层的简单关键词搜索
+    log.debug('FTS 检索器不可用，使用内存关键词匹配');
+    return this.fallbackFulltextSearch(query, limit, filter);
+  }
+
+  /**
+   * 回退全文检索（内存关键词匹配）
+   */
+  private async fallbackFulltextSearch(
+    query: string,
+    limit: number,
+    filter?: MemoryFilter
+  ): Promise<Array<{ entry: MemoryEntry; score: number }>> {
+    // 使用存储层的搜索接口（可能返回向量结果）
+    // 如果没有嵌入服务，这是一个空操作
+    const results = await this.store.search(query, { limit: limit * 2, filter });
+
+    // 对结果进行关键词匹配打分
+    const queryTerms = query.toLowerCase().split(/\s+/).filter(t => t.length > 0);
+
+    return results
+      .map(r => {
+        const content = r.entry.content.toLowerCase();
+        let matchCount = 0;
+        for (const term of queryTerms) {
+          if (content.includes(term)) {
+            matchCount++;
+          }
+        }
+        const score = queryTerms.length > 0 ? matchCount / queryTerms.length : 0;
+        return { entry: r.entry, score };
+      })
+      .filter(r => r.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, limit);
   }
 
   /**

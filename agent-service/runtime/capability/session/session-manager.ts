@@ -7,7 +7,6 @@
 import { Database } from 'bun:sqlite';
 import { existsSync, mkdirSync } from 'fs';
 import { dirname } from 'path';
-import { z } from 'zod';
 import { getLogger } from '@logtape/logtape';
 import {
   type SessionManagerConfig,

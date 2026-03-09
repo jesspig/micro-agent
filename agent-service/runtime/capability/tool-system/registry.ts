@@ -6,7 +6,7 @@
 
 import { getLogger } from '@logtape/logtape';
 import type { Tool, ToolDefinition, ToolContext, ToolResult, StructuredToolError } from '../../../types';
-import { validateAgainstSchema, type ValidationResult } from './schema-validator';
+import { validateAgainstSchema } from './schema-validator';
 
 // 重新导出类型供外部使用
 export type { ToolContext } from '../../../types';
@@ -33,10 +33,10 @@ interface RegisteredTool {
  */
 export class ToolRegistry {
   private tools = new Map<string, RegisteredTool>();
-  private config: ToolRegistryConfig;
+  private _config: ToolRegistryConfig;
 
   constructor(config: ToolRegistryConfig = {}) {
-    this.config = config;
+    this._config = config;
   }
 
   /**

@@ -5,7 +5,7 @@
 import { readdir, stat } from 'fs/promises';
 import { join, basename, extname, relative } from 'path';
 import { createHash } from 'crypto';
-import type { KnowledgeDocument, KnowledgeDocType } from './types';
+import type { KnowledgeDocument } from './types';
 import { getKnowledgeDocType, isKnowledgeFileSupported } from './types';
 import { extractDocumentContent } from './extractor';
 import { getLogger } from '@logtape/logtape';

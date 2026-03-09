@@ -8,9 +8,9 @@ import * as lancedb from '@lancedb/lancedb';
 import { mkdir } from 'fs/promises';
 import { z } from 'zod';
 import { getLogger } from '@logtape/logtape';
-import type { KnowledgeDocument, KnowledgeChunk } from '../types';
+import type { KnowledgeDocument } from '../types';
 import type { EmbeddingService } from '../../memory/types';
-import { KNOWLEDGE_VECTORS_PATH } from '../../../../../sdk/src/config/defaults';
+import { KNOWLEDGE_VECTORS_PATH } from '../../../infrastructure/config';
 
 const log = getLogger(['knowledge', 'indexer', 'chunk']);
 

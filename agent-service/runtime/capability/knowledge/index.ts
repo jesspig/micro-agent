@@ -13,6 +13,7 @@ export type {
   KnowledgeChunk,
   KnowledgeSearchResult,
   KnowledgeBaseConfig,
+  BackgroundBuildConfig,
   KnowledgeBaseStats,
 } from './types';
 
@@ -68,7 +69,8 @@ export {
   type IndexStats,
 } from './indexer/chunk-indexer';
 
-// ========== 以下模块已迁移至 SDK ==========
+// ========== 模块迁移记录 (完成于 2026-03-09) ==========
+// 状态: 已完成
 // KnowledgeBaseManager → sdk/src/knowledge/manager.ts
 // KnowledgeSearcher → sdk/src/knowledge/searcher/knowledge-searcher.ts
 // SourceAnnotator → sdk/src/knowledge/searcher/source-annotator.ts

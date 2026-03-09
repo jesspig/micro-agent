@@ -6,8 +6,8 @@
 
 import { join, resolve } from 'path';
 import { getLogger } from '@logtape/logtape';
-import type { ExtensionDescriptor, ExtensionDiscoveryResult, ExtensionType } from './types';
-import { EXTENSION_TYPES, isValidExtensionType } from './types';
+import type { ExtensionDescriptor, ExtensionDiscoveryResult, ExtensionType } from '@micro-agent/types';
+import { EXTENSION_TYPES, isValidExtensionType } from '@micro-agent/types';
 
 const log = getLogger(['extension', 'discovery']);
 
