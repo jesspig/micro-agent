@@ -31,7 +31,7 @@ agents:
   # └──────────┴─────────────────────────────────┴───────────────────────────┘
   # ─────────────────────────────────────────────────────────────────────────
   models:
-    chat: ollama/qwen3.5:0.8b # 必填，格式：<provider>/<model>
+    chat: ollama/qwen3.5:2b # 必填，格式：<provider>/<model>
     # tool: ollama/qwen3        # 可选，工具调用模型
     embed: ollama/qwen3-embedding:0.6b # 可选，嵌入模型
     # vision: ollama/qwen3-vl   # 可选，视觉模型
@@ -160,7 +160,7 @@ providers:
   ollama:
     baseUrl: http://localhost:11434/v1
     models:
-      - qwen3.5:0.8b
+      - qwen3.5:2b
       - qwen3-embedding:0.6b
 
   # ═════════════════════════════════════════════════════════════════════════

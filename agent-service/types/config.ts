@@ -135,6 +135,18 @@ export interface ExecutorConfig {
   loopDetection?: LoopDetectionConfig;
 }
 
+/** 后台构建配置 */
+export interface BackgroundBuildConfig {
+  /** 是否启用后台构建 */
+  enabled: boolean;
+  /** 构建间隔（毫秒） */
+  interval: number;
+  /** 每次处理的最大文档数 */
+  batchSize: number;
+  /** 空闲等待时间（毫秒） */
+  idleDelay: number;
+}
+
 /** 知识库配置 */
 export interface KnowledgeBaseConfig {
   /** 是否启用知识库 */
@@ -149,8 +161,8 @@ export interface KnowledgeBaseConfig {
   maxSearchResults: number;
   /** 最小相似度阈值 */
   minSimilarityScore: number;
-  /** 后台构建间隔（毫秒） */
-  buildInterval: number;
+  /** 后台构建配置 */
+  backgroundBuild: BackgroundBuildConfig;
   /** 嵌入模型 ID */
   embedModel?: string;
 }

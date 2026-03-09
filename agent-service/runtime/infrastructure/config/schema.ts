@@ -75,6 +75,18 @@ export const LoopDetectionConfigSchema = z.object({
   criticalThreshold: z.number().default(5),
 });
 
+/** 后台构建配置 Schema */
+export const BackgroundBuildConfigSchema = z.object({
+  /** 是否启用后台构建 */
+  enabled: z.boolean().default(true),
+  /** 构建间隔（毫秒） */
+  interval: z.number().min(1000).default(60000),
+  /** 每次处理的最大文档数 */
+  batchSize: z.number().min(1).max(100).default(3),
+  /** 空闲等待时间（毫秒） */
+  idleDelay: z.number().min(0).default(5000),
+});
+
 /** 知识库配置 Schema */
 export const KnowledgeBaseConfigSchema = z.object({
   /** 是否启用知识库 */
@@ -89,8 +101,13 @@ export const KnowledgeBaseConfigSchema = z.object({
   maxSearchResults: z.number().min(1).max(50).default(5),
   /** 最小相似度阈值 */
   minSimilarityScore: z.number().min(0).max(1).default(0.5),
-  /** 后台构建间隔（毫秒） */
-  buildInterval: z.number().min(1000).default(5000),
+  /** 后台构建配置 */
+  backgroundBuild: BackgroundBuildConfigSchema.default({
+    enabled: true,
+    interval: 60000,
+    batchSize: 3,
+    idleDelay: 5000,
+  }),
   /** 嵌入模型 ID */
   embedModel: z.string().optional(),
 });
@@ -194,7 +211,7 @@ export const ConfigSchema = z.object({
   /** 工作区列表（隔离环境，只能读写工作区内的文件） */
   workspaces: z.array(z.union([z.string(), WorkspaceConfigSchema])).default([]),
   providers: ProviderConfigSchema.default({}),
-  channels: ChannelConfigSchema.default({}),
+  channels: ChannelConfigSchema.nullish().transform(v => v ?? {}),
   /** 知识库配置 */
   knowledgeBase: KnowledgeBaseConfigSchema.optional(),
 }).passthrough(); // 允许额外字段（如 $schema, _docs 等）
@@ -207,6 +224,7 @@ export type MemoryConfig = z.infer<typeof MemoryConfigSchema>;
 export type ExecutorConfig = z.infer<typeof ExecutorConfigSchema>;
 export type LoopDetectionConfig = z.infer<typeof LoopDetectionConfigSchema>;
 export type ProviderConfig = z.infer<typeof ProviderConfigSchema>;
+export type BackgroundBuildConfig = z.infer<typeof BackgroundBuildConfigSchema>;
 export type KnowledgeBaseConfig = z.infer<typeof KnowledgeBaseConfigSchema>;
 export type CitationConfig = z.infer<typeof CitationConfigSchema>;
 
