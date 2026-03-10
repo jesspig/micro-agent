@@ -6,85 +6,58 @@
 
 <p align="center">
   <a href="https://github.com/jesspig/micro-agent"><img src="https://img.shields.io/badge/Version-0.3.0-blue.svg" alt="Version"></a>
-  <a href="https://bun.sh/"><img src="https://img.shields.io/badge/Bun-1.3.9-black?logo=bun" alt="Bun"></a>
+  <a href="https://bun.sh/"><img src="https://img.shields.io/badge/Bun-1.3.10-black?logo=bun" alt="Bun"></a>
   <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-5.9.3-blue?logo=typescript" alt="TypeScript"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License"></a>
   <a href="https://github.com/jesspig/micro-agent/stargazers"><img src="https://img.shields.io/github/stars/jesspig/micro-agent?style=flat" alt="GitHub Stars"></a>
-  <a href="https://www.npmjs.com/package/@micro-agent/core"><img src="https://img.shields.io/npm/dt/@micro-agent/core" alt="npm Downloads"></a>
 </p>
 
-<p align="center">基于 <strong>Bun + TypeScript</strong> 的超轻量级个人 AI 助手框架，核心代码简洁高效。</p>
+<p align="center">基于 <strong>Bun + TypeScript</strong> 的超轻量级个人 AI 助手框架，三层架构设计。</p>
 
 <p align="center"><a href="https://jesspig.github.io/micro-agent/">📖 在线文档</a> · <a href="https://jesspig.github.io/micro-agent/guide/changelog/">📦 更新日志</a> · <a href="https://github.com/jesspig/micro-agent/discussions">💬 讨论区</a></p>
 
+---
+
 ## 特性
 
-🪶 **轻量高效**：Bun 原生性能，核心代码简洁，8 层 Monorepo 架构
+- 🪶 **轻量高效** — Bun 原生性能，三层架构（Applications → SDK → Agent Service）
+- 🧠 **长期记忆** — LanceDB 向量存储、混合检索、遗忘引擎、AI 分类
+- 🎯 **意图识别** — 分阶段意图识别管道，支持上下文重试
+- 📚 **知识库** — PDF/Word/Excel 文档解析，RAG 检索，引用溯源
+- 💬 **多通道** — CLI、飞书，消息聚合与响应广播
+- 🔌 **MCP 兼容** — Model Context Protocol 工具接口，热重载支持
+- 📊 **结构化日志** — 调用链追踪，LLM/工具/记忆检索可观测
 
-🧠 **长期记忆**：LanceDB 向量存储、语义检索、自动摘要、跨会话上下文保持
-
-🎯 **意图识别**：分阶段意图识别管道，支持上下文重试
-
-📚 **知识库**：PDF/Word/Excel 文档解析，向量存储，RAG 检索
-
-🔗 **引用溯源**：RAG 级别引用溯源，支持多格式引用展示
-
-💬 **多通道**：CLI、飞书（更多通道开发中），消息聚合与响应广播
-
-🔌 **MCP 兼容**：Model Context Protocol 工具接口，热重载支持
-
-📊 **结构化日志**：调用链追踪，LLM/工具/记忆检索日志可观测
+---
 
 ## 📢 最新更新
 
-- **2026-03-07** 🏗️ 发布 **v0.3.0** — 架构重构
-  - 📦 新分层架构：Applications → SDK → Agent Service
-  - 🔧 Agent Service：Interface Layer + Runtime Layer + Infrastructure
-  - 🛠️ SDK：轻量级客户端 API，支持 HTTP/WebSocket/IPC
-  - 🧠 Kernel：Orchestrator、Planner、ExecutionEngine、ContextManager
-  - 🔌 Capability：Tool/Skill/Memory/Knowledge/MCP 系统
+- **2026-03-10** 🏗️ **v0.3.0** — 架构重构
+  - 三层架构：Applications → SDK → Agent Service
+  - Kernel：Orchestrator（ReAct）、Planner、ExecutionEngine、ContextManager
+  - Provider：7 个 LLM 厂商适配（OpenAI/DeepSeek/GLM/Kimi/MiniMax/Ollama/Compatible）
+  - 记忆系统：混合检索（向量+全文+RRF）、遗忘引擎、AI 分类
+  - SDK：MicroAgentClient 统一入口，IPC/HTTP/WebSocket 传输
+  - Interface Layer：4 种 IPC 协议 + HTTP Server + SSE Streaming
 
-- **2026-03-02** 🚀 发布 **v0.2.2** — 意图识别管道、知识库系统、引用溯源
-  - 🎯 意图识别管道，分阶段识别 + 上下文重试
-  - 📚 知识库系统，PDF/Word/Excel 文档解析
-  - 🔗 RAG 级别引用溯源
+- **2026-03-02** 🚀 **v0.2.2** — 意图识别、知识库、引用溯源
+- **2026-02-27** 📦 **v0.2.1** — 项目重命名与代码清理
+- **2026-02-24** 🏗️ **v0.2.0** — 架构重构 + 多协议支持
 
-- **2026-02-27** 📦 发布 **v0.2.1** — 项目重命名与代码清理
-  - 🏷️ microbot → micro-agent 命名空间变更
-  - 🔧 类型系统统一，新增 LLMMessage/ContentPart 类型
-  - 🗑️ 移除 A2A 客户端和 ReAct 提示词
+---
 
-- **2026-02-24** 🏗️ 发布 **v0.2.0** — 架构重构 + 多协议支持
-  - 📦 8 层 Monorepo 拆分
-  - 🧠 全新记忆系统，LanceDB 向量存储
-  - 🔌 MCP/ACP 协议支持
-
-<details>
-<summary>更多更新</summary>
-
-- **2026-02-20** v0.1.1 — 优化版本，精简代码
-- **2026-02-19** v0.1.0 — 首个内测版本
-
-</details>
-
-## 运行环境要求
+## 运行环境
 
 > **注意**：本项目专为 [Bun](https://bun.sh/) 运行时设计，**不支持 Node.js**。
 
 | 要求 | 版本 |
 |------|------|
-| Bun | >= 1.0.0 |
-| TypeScript | >= 5.0 |
+| Bun | 1.3.10 |
+| TypeScript | 5.9.3 |
 
-**不兼容 Node.js 的原因**：
-- 使用 `Bun.serve()`、`Bun.spawn()` 等 Bun 特有 API
-- 使用 `bun:test` 测试框架
-- TypeScript 配置针对 Bun 优化（`moduleResolution: bundler`）
+---
 
 ## 安装
-
-> [!TIP]
-> 确保已安装 [Bun](https://bun.sh/) 运行时（>= 1.0.0）
 
 ```bash
 # 克隆项目
@@ -98,29 +71,9 @@ bun install
 bun start
 ```
 
-## 快速开始
-
-> [!TIP]
-> 推荐使用本地 [Ollama](https://ollama.com/) 运行 qwen3 模型
-
-```bash
-# 1. 拉取模型
-ollama pull qwen3
-
-# 2. 启动 MicroAgent
-bun start
-
-# 3. 开始对话
-# 发送消息到已配置的通道（CLI/飞书）
-```
-
-### 启动
-
-```bash
-bun start
-```
-
 首次启动自动创建 `~/.micro-agent/settings.yaml` 配置文件。
+
+---
 
 ## CLI 命令
 
@@ -135,80 +88,84 @@ Commands:
 Options:
   -c, --config <path>   配置文件路径
   -v, --verbose         详细日志模式
-  -q, --quiet           静默模式（仅显示警告和错误）
+  -q, --quiet           静默模式
   -h, --help            显示帮助
   --version             显示版本
 ```
 
+---
+
 ## 架构
 
+```mermaid
+flowchart TB
+    subgraph APP["Applications Layer"]
+        CLI["CLI Application"]
+    end
+
+    subgraph SDK["SDK Layer"]
+        CLIENT["MicroAgentClient"]
+    end
+
+    subgraph AS["Agent Service Layer"]
+        IF["Interface Layer"]
+        RT["Runtime Layer"]
+    end
+
+    APP -->|"单向依赖"| SDK
+    SDK -->|"单向依赖"| AS
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                   Applications Layer                         │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
-│  │     CLI     │  │     Web     │  │    Extensions       │  │
-│  │  (apps/cli) │  │  (web app)  │  │  (tool/skill/ch)    │  │
-│  └─────────────┘  └─────────────┘  └─────────────────────┘  │
-├─────────────────────────────────────────────────────────────┤
-│                        SDK Layer                             │
-│  ┌─────────────────────────────────────────────────────┐    │
-│  │  MicroAgentClient  │  ToolBuilder  │  Define APIs   │    │
-│  └─────────────────────────────────────────────────────┘    │
-├─────────────────────────────────────────────────────────────┤
-│                    Agent Service                             │
-│  ┌─────────────────────────────────────────────────────┐    │
-│  │                   Interface Layer                    │    │
-│  │          IPC / HTTP / Streaming                      │    │
-│  ├─────────────────────────────────────────────────────┤    │
-│  │                    Runtime Layer                     │    │
-│  │  ┌───────────┐ ┌───────────┐ ┌───────────────────┐  │    │
-│  │  │  Kernel   │ │Capability │ │    Provider       │  │    │
-│  │  │Orchestrator│ │Tool/Skill │ │LLM/Embed/VectorDB│  │    │
-│  │  │Planner    │ │Memory     │ │                   │  │    │
-│  │  │Execution  │ │Knowledge  │ │                   │  │    │
-│  │  │Context    │ │MCP Client │ │                   │  │    │
-│  │  └───────────┘ └───────────┘ └───────────────────┘  │    │
-│  ├─────────────────────────────────────────────────────┤    │
-│  │               Infrastructure Layer                   │    │
-│  │   Container / EventBus / Database / Cache / Logging  │    │
-│  └─────────────────────────────────────────────────────┘    │
-├─────────────────────────────────────────────────────────────┤
-│                         Types                                │
-│            核心类型定义（MCP 兼容）                           │
-└─────────────────────────────────────────────────────────────┘
-```
+
+| 层级 | 职责 | 可引入第三方库 |
+|------|------|---------------|
+| Applications | CLI、Web、配置管理、提示词模板 | ✓ |
+| SDK | 客户端 API、高级能力封装 | ✓ |
+| Agent Service | Interface Layer + Runtime Layer | ✗ |
+
+---
 
 ## 核心包
 
-| 包 | 路径 | 说明 |
+| 包名 | 路径 | 说明 |
 |------|------|------|
-| @micro-agent/core | `/` | 根包，统一入口 |
-| @micro-agent/types | `agent-service/types/` | 核心类型定义（MCP 兼容） |
-| @micro-agent/runtime | `agent-service/runtime/` | 运行时引擎（Kernel、Capability、Provider、Infrastructure） |
-| @micro-agent/sdk | `sdk/` | 开发者 SDK，客户端 API 和工具定义 |
-| @micro-agent/config | `packages/config/` | 三级配置系统（user < project < directory） |
-| @micro-agent/providers | `packages/providers/` | LLM Provider 抽象、Gateway、路由 |
-| @micro-agent/storage | `packages/storage/` | 会话存储（SQLite） |
-| @micro-agent/extension-system | `packages/extension-system/` | 扩展发现、加载、热重载 |
+| `@micro-agent/core` | `/` | 根包，统一入口 |
+| `@micro-agent/agent-service` | `agent-service/` | Agent 运行时服务 |
+| `@micro-agent/client-sdk` | `sdk/` | 开发者 SDK |
 
-## 扩展模块
+### Agent Service 内部结构
 
-| 模块 | 路径 | 说明 |
-|------|------|------|
-| 工具 | `extensions/tool/` | 文件、Shell、Web、消息工具 |
-| 技能 | `extensions/skills/` | time、sysinfo、skill-creator |
-| 通道 | `extensions/channel/` | 飞书 |
+```
+agent-service/
+├── interface/          # Interface Layer - 通信接口
+│   ├── ipc/           # 进程间通信（stdio/named-pipe/unix-socket/tcp-loopback）
+│   ├── http/          # HTTP 服务
+│   └── streaming/     # 流式响应（SSE）
+├── runtime/           # Runtime Layer - 运行时核心
+│   ├── kernel/        # 内核（Orchestrator/Planner/ExecutionEngine/ContextManager）
+│   ├── capability/    # 能力（Tool/Skill/Memory/Knowledge/MCP/Plugin）
+│   ├── provider/      # 提供者（LLM/Embedding/VectorDB/Storage）
+│   └── infrastructure/ # 基础设施（Container/EventBus/Database/Config/Logging）
+└── types/             # 核心类型定义（MCP 兼容）
+```
+
+---
 
 ## 内置工具
 
 | 工具 | 说明 |
 |------|------|
-| `read_file` | 读取文件 |
-| `write_file` | 写入文件 |
-| `list_dir` | 列出目录 |
+| `read` | 读取文件内容 |
+| `write` | 创建或覆盖文件 |
+| `edit` | 精确编辑文件（查找替换） |
 | `exec` | 执行 Shell 命令 |
-| `web_fetch` | 获取网页内容 |
-| `message` | 发送消息 |
+| `glob` | 文件模式匹配查找 |
+| `grep` | 内容正则搜索 |
+| `list_directory` | 列出目录内容 |
+| `todo_write` | 任务列表管理 |
+| `todo_read` | 读取任务列表 |
+| `ask_user` | 用户交互提问 |
+
+---
 
 ## 内置技能
 
@@ -216,34 +173,30 @@ Options:
 |------|------|------|
 | `time` | 时间查询、格式转换、时区处理 | - |
 | `sysinfo` | CPU、内存、磁盘、网络、进程状态 | bun>=1.0 |
-| `skill-creator` | 创建或更新 Agent Skills | - |
+| `docx` | Word 文档处理 | mammoth |
+| `pdf` | PDF 文档处理 | pdf-parse |
+| `xlsx` | Excel 处理 | xlsx |
+| `pptx` | PowerPoint 处理 | pptxgenjs |
+| `doc-coauthoring` | 文档协作 | - |
+| `skill-creator` | 创建或更新技能 | - |
 
-## 通道配置
-
-<details>
-<summary>飞书</summary>
-
-使用 WebSocket 长连接，无需公网 IP。
-
-1. 创建飞书应用 → 启用机器人能力
-2. 权限：添加 `im:message` 和 `im:resource`
-3. 事件订阅：选择「使用长连接接收事件」，添加 `im.message.receive_v1`
-4. 获取 App ID 和 App Secret
-
-```yaml
-channels:
-  feishu:
-    enabled: true
-    appId: cli_xxx
-    appSecret: xxx
-    allowFrom: []
-```
-
-</details>
+---
 
 ## LLM Provider
 
 **模型格式**: `provider/model`（如 `ollama/qwen3`、`deepseek/deepseek-chat`）
+
+### 支持的厂商
+
+| 厂商 | 思考模型 | 特殊处理 |
+|------|----------|----------|
+| OpenAI | o1, o3 系列 | `reasoning_effort` 参数 |
+| DeepSeek | deepseek-reasoner, r1 | `thinking` 参数 |
+| GLM (智谱) | glm-4-plus | `enable_cot` 参数 |
+| Kimi (Moonshot) | kimi-thinking | `reasoning.effort` 参数 |
+| MiniMax | m2.x 系列 | `thinking` + `groupId` |
+| Ollama | deepseek-r1, qwen3 | 自动解析 `<think/>` 标签 |
+| OpenAI Compatible | 视模型 | 通用适配 |
 
 ### Ollama（本地运行）
 
@@ -259,7 +212,7 @@ agents:
     vision: ollama/qwen3-vl
 ```
 
-### DeepSeek（深度推理）
+### DeepSeek
 
 ```yaml
 providers:
@@ -274,31 +227,28 @@ agents:
     coder: deepseek/deepseek-chat
 ```
 
-### GLM 智谱 / MiniMax / Kimi
+---
+
+## 通道配置
+
+### 飞书
+
+使用 WebSocket 长连接，无需公网 IP。
+
+1. 创建飞书应用 → 启用机器人能力
+2. 权限：添加 `im:message` 和 `im:resource`
+3. 事件订阅：选择「使用长连接接收事件」，添加 `im.message.receive_v1`
+4. 获取 App ID 和 App Secret
 
 ```yaml
-providers:
-  glm:
-    baseUrl: https://open.bigmodel.cn/api/paas/v4
-    apiKey: ${GLM_API_KEY}
-    models: [glm-4-flash]
-  
-  minimax:
-    baseUrl: https://api.minimax.chat/v1
-    apiKey: ${MINIMAX_API_KEY}
-    models: [abab6.5s-chat]
-  
-  kimi:
-    baseUrl: https://api.moonshot.cn/v1
-    apiKey: ${MOONSHOT_API_KEY}
-    models: [moonshot-v1-128k]
+channels:
+  feishu:
+    enabled: true
+    appId: cli_xxx
+    appSecret: xxx
 ```
 
-**Gateway 特性**:
-
-- 自动路由：根据 `provider/model` 格式路由
-- 智能路由：根据任务复杂度选择合适模型
-- 故障转移：主 Provider 失败时自动切换备用
+---
 
 ## 数据目录
 
@@ -315,8 +265,10 @@ providers:
 ├── knowledge/             # 知识库文档
 ├── logs/                  # 日志文件
 ├── skills/                # 用户技能
-└── workspace/             # 工作空间
+└── extensions/            # 用户插件
 ```
+
+---
 
 ## 开发
 
@@ -325,6 +277,8 @@ bun run dev          # 开发模式
 bun run typecheck    # 类型检查
 bun test             # 运行测试
 ```
+
+---
 
 ## 项目结构
 
@@ -337,38 +291,34 @@ micro-agent/
 │   │   ├── capability/      # 工具、技能、记忆、知识库
 │   │   ├── provider/        # LLM、Embedding、VectorDB
 │   │   └── infrastructure/  # 容器、事件总线、数据库
-│   └── types/               # 核心类型定义
+│   ├── types/               # 核心类型定义
+│   └── tests/               # 测试
 ├── sdk/                     # 开发者 SDK
 │   └── src/
-│       ├── api/             # 客户端 API
+│       ├── api/             # 客户端 API（Chat/Memory/Session/Config）
 │       ├── client/          # 客户端核心
-│       ├── transport/       # 传输层（HTTP/WebSocket/IPC）
-│       ├── tool/            # 工具构建器
+│       ├── transport/       # 传输层（IPC/HTTP/WebSocket）
+│       ├── memory/          # 记忆高级封装
+│       ├── knowledge/       # 知识库高级封装
 │       └── define/          # 扩展定义函数
 ├── applications/            # 应用层
-│   ├── cli/                 # CLI 应用
-│   ├── web/                 # Web 应用
-│   ├── config/              # 应用配置
-│   ├── extensions/          # 应用扩展
-│   └── templates/           # 模板文件
-├── packages/                # 兼容层（旧包结构）
-│   ├── config/              # 配置系统
-│   ├── providers/           # LLM 提供商
-│   ├── runtime/             # 运行时兼容层
-│   ├── storage/             # 存储层
-│   └── types/               # 类型兼容层
-├── extensions/              # 扩展模块
-│   ├── tool/                # 工具扩展
-│   ├── channel/             # 通道扩展
-│   └── skills/              # 技能扩展
-├── tests/                   # 测试
-├── docs/                    # 文档
-└── templates/               # 模板文件
+│   └── cli/                 # CLI 应用
+│       └── src/
+│           ├── app.ts       # 应用入口
+│           ├── modules/     # 功能模块
+│           ├── commands/    # CLI 命令
+│           ├── builtin/     # 内置扩展
+│           │   ├── tool/    # 内置工具
+│           │   ├── skills/  # 内置技能
+│           │   └── channel/ # 内置通道
+│           ├── plugins/     # 插件系统
+│           └── templates/   # 提示词模板
+├── docs/                    # 在线文档（VitePress）
+├── assets/                  # 静态资源
+└── package.json             # 根包配置
 ```
 
-## Stars History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=jesspig/micro-agent&type=date&legend=top-left)](https://www.star-history.com/#jesspig/micro-agent&type=date&legend=top-left)
+---
 
 ## License
 
