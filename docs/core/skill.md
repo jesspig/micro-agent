@@ -58,5 +58,45 @@ const skill = skillsLoader.get('skill-name');
 
 ## 源码位置
 
-- 加载器: `packages/extension-system/src/skill/loader.ts`
-- 类型定义: `packages/types/src/skill.ts`
+- 技能加载器: `agent-service/runtime/capability/skill-system/`
+- SDK 封装: `sdk/src/skill/`
+
+## SDK 定义
+
+SDK 提供 `defineSkill` 函数用于代码定义技能：
+
+```typescript
+import { defineSkill } from '@micro-agent/sdk';
+
+const mySkill = defineSkill({
+  name: 'my-skill',
+  description: '我的自定义技能',
+  dependencies: ['bun>=1.0'],
+  compatibility: 'bun',
+  always: false,
+  allowedTools: ['read', 'write'],
+  content: `
+# My Skill
+
+这个技能可以做什么...
+
+## 使用方式
+
+\`\`\`bash
+bun scripts/index.ts
+\`\`\`\n  `,
+});
+```
+
+### 字段说明
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| name | string | 技能名称（小写字母、数字、连字符） |
+| description | string | 技能描述 |
+| dependencies | string[] | 依赖包列表 |
+| license | string | 许可证 |
+| compatibility | string | 环境兼容性要求 |
+| always | boolean | 是否自动加载完整内容 |
+| allowedTools | string[] | 预批准工具列表 |
+| content | string | 技能内容（Markdown） |

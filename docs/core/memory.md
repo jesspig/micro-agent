@@ -342,8 +342,122 @@ const systemPrompt = `${basePrompt}\n\n相关记忆:\n${context}`;
 
 ## 源码位置
 
-- 记忆存储: `packages/runtime/src/memory/store.ts`
-- 嵌入服务: `packages/runtime/src/memory/embedding.ts`
-- 对话摘要: `packages/runtime/src/memory/summarizer.ts`
-- 执行器集成: `packages/runtime/src/executor/index.ts`
-- 配置定义: `packages/config/src/schema.ts`
+- 记忆存储: `agent-service/runtime/capability/memory/`
+- 嵌入服务: `agent-service/runtime/provider/embedding/`
+- SDK 封装: `sdk/src/memory/`
+
+## SDK 高级封装
+
+SDK 层对基础记忆系统进行了高级封装，提供更强大的功能。
+
+### MemoryManager
+
+```typescript
+import { MemoryManager } from '@micro-agent/sdk/memory';
+
+const memory = new MemoryManager({
+  vectorDb: lancedb,
+  sessionStore: sessionStore,
+  embedService: embeddingService,
+});
+
+// 存储记忆
+await memory.store({
+  content: '用户喜欢蓝色',
+  type: 'preference',
+});
+
+// 检索记忆
+const results = await memory.search('用户颜色偏好');
+```
+
+### 自动整合 (Consolidation)
+
+SDK 提供自动整合功能，将短期对话整合为长期记忆：
+
+| 组件 | 功能 |
+|------|------|
+| `ConsolidationExecutor` | 协调整合流程，确保记忆增长不超过原始消息的 20% |
+| `ConsolidationTrigger` | 触发策略管理（阈值/空闲/事件） |
+| `IdleDetector` | 会话空闲检测 |
+| `FactExtractor` | 从对话中提取事实、决策、偏好 |
+| `ConversationSummarizer` | 生成结构化摘要 |
+
+```typescript
+import { ConsolidationExecutor } from '@micro-agent/sdk/memory';
+
+const executor = new ConsolidationExecutor({
+  messageThreshold: 20,        // 触发消息数
+  idleTimeout: 300000,         // 空闲超时 (ms)
+  maxMemoryGrowthRate: 0.2,    // 最大增长率 20%
+  summaryTokenBudget: 500,      // 摘要 token 预算
+});
+```
+
+### 遗忘曲线 (Forgetting)
+
+基于艾宾浩斯遗忘曲线自动清理低价值记忆：
+
+```typescript
+import { ForgettingEngine } from '@micro-agent/sdk/memory';
+
+const engine = new ForgettingEngine({
+  retentionThreshold: 0.1,    // 保持率阈值
+  minAgeDays: 7,              // 最小存活天数
+  maxAgeDays: 365,            // 最大存活天数
+  defaultHalfLifeDays: 30,    // 半衰期
+  considerImportance: true,    // 考虑重要性
+  importanceWeight: 0.3,      // 重要性权重
+});
+```
+
+### AI 分类器 (Classifiers)
+
+自动分类记忆内容：
+
+```typescript
+import { MemoryClassifier, PreferenceClassifier } from '@micro-agent/sdk/memory';
+
+// 记忆分类
+const result = await classifier.classify('用户说他喜欢蓝色');
+// { type: 'preference', confidence: 0.95 }
+
+// 偏好检测
+const preferences = await prefClassifier.detectPreferences(messages);
+```
+
+### 重要性评分 (Scoring)
+
+自动评估记忆的重要性：
+
+```typescript
+import { ImportanceScorer } from '@micro-agent/sdk/memory';
+
+const scorer = new ImportanceScorer();
+
+// 计算重要性分数
+const score = await scorer.calculateImportance(memoryEntry);
+// 考虑因素：记忆类型、访问频率、时间衰减
+```
+
+### 安全模块
+
+自动检测和脱敏敏感信息：
+
+```typescript
+import { SensitiveDetector } from '@micro-agent/sdk/memory';
+
+const detector = new SensitiveDetector();
+
+// 检测敏感信息
+const result = detector.detect('我的邮箱是 test@example.com');
+// { type: 'email', value: 'test@example.com', action: 'redact' }
+
+// 支持的检测类型
+// - api_key: API 密钥
+// - email: 邮箱地址
+// - phone: 手机号码
+// - id_card: 身份证号
+// - bank_card: 银行卡号
+// - password: 密码字段
+```

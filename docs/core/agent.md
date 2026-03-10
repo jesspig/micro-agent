@@ -2,143 +2,303 @@
 
 ## 概述
 
-Agent 核心执行器（AgentExecutor）采用 **Function Calling 模式**，利用主流 LLM 的原生工具调用能力实现 Agent 行为。
+AgentOrchestrator 是 Agent 核心编排器，采用 **ReAct（Reasoning + Acting）循环**模式实现智能代理行为。
 
-同时提供独立的 ReAct Agent 实现（`ReActAgent`），基于 JSON 结构化输出的推理-行动循环。
+ReAct 循环通过推理-行动-观察的迭代过程，让 Agent 能够自主决定是否需要调用工具，并在必要时持续迭代直到获得满意答案。
 
 ## 工作流程
+
+### ReAct 循环流程
+
+```mermaid
+flowchart TB
+    subgraph ReAct[ReAct 循环]
+        direction TB
+        Think[Think: 调用 LLM 推理] --> Decision{有工具调用?}
+        Decision -->|否| Return[返回答案]
+        Decision -->|是| Execute[Execute: 执行工具]
+        Execute --> Observe[Observe: 获取结果]
+        Observe --> Check{达到最大迭代?}
+        Check -->|否| Think
+        Check -->|是| Return
+    end
+```
 
 ### 整体流程
 
 ```mermaid
 flowchart LR
-    Start([用户消息]) --> Preflight[意图预处理]
-    Preflight --> Route[任务类型路由]
-    Route --> Context[构建上下文]
-    Context --> Execute[Function Calling 执行]
-    Execute --> Loop{循环检测?}
-    Loop -->|是| Execute
-    Loop -->|否| Cite[引用溯源]
-    Cite --> Save[保存会话]
-    Save --> End([返回响应])
+    Start([用户消息]) --> Context[构建上下文]
+    Context --> ReAct[ReAct 循环]
+    ReAct --> Knowledge[知识检索]
+    Knowledge --> Memory[记忆存储]
+    Memory --> End([返回响应])
 ```
 
-### 上下文构建
+### 核心组件
 
 ```mermaid
 flowchart TB
-    subgraph Context[上下文构建]
-        direction TB
-        C1[记忆搜索] --> C2[技能加载]
-        C2 --> C3[历史会话]
-        C3 --> C4[系统提示]
+    subgraph Kernel[Kernel 层]
+        Orchestrator[AgentOrchestrator]
+        Planner[AgentPlanner]
+        ExecutionEngine[ExecutionEngine]
+        ContextManager[ContextManager]
     end
+    
+    Orchestrator --> Planner
+    Orchestrator --> ExecutionEngine
+    Orchestrator --> ContextManager
 ```
-
-### 任务类型识别
-
-```mermaid
-flowchart LR
-    subgraph Router[任务类型路由]
-        direction LR
-        R1[图片识别] --> R2[代码编写]
-        R2 --> R3[常规对话]
-    end
-```
-
-### Function Calling 循环
-
-```mermaid
-flowchart TB
-    subgraph FC[Function Calling 循环]
-        direction TB
-        FC1[调用LLM] --> FC2{有工具调用?}
-        FC2 -->|是| Execute[执行工具]
-        FC2 -->|否| Check{循环检测?}
-        Check -->|是| FC1
-        Check -->|否| Return[返回响应]
-        Execute --> FC1
-    end
-```
-
-### 循环检测
-
-AgentExecutor 内置循环检测机制，防止 Agent 陷入无限循环：
-
-| 配置项 | 默认值 | 说明 |
-|--------|--------|------|
-| `warningThreshold` | 3 | 警告阈值，相同调用次数达到此值时发出警告 |
-| `criticalThreshold` | 5 | 临界阈值，达到此值时中断执行 |
-| `globalCircuitBreaker` | 30 | 全局熔断，累计调用次数上限 |
-
-```yaml
-agents:
-  executor:
-    loopDetection:
-      enabled: true
-      warningThreshold: 3
-      criticalThreshold: 5
-```
-
-### 引用溯源
-
-启用引用溯源后，Agent 响应会包含来源文档的引用：
-
-```yaml
-agents:
-  executor:
-    citationEnabled: true
-```
-
-引用格式支持：
-- `numbered` - 编号格式 [1], [2]
-- `bracket` - 括号格式
-- `footnote` - 脚注格式
 
 ## 配置
 
 ```typescript
 interface AgentConfig {
-  workspace: string;
-  models?: {
-    chat: string;      // 常规对话模型（默认）
-    vision?: string;   // 图片识别模型（默认使用 chat）
-    coder?: string;    // 编程模型（默认使用 chat）
-    intent?: string;   // 意图识别模型（默认使用 chat）
-    embed?: string;    // 嵌入模型（用于记忆检索）
-  };
-  maxIterations: number;
-  maxHistoryMessages?: number;  // 消息历史保留数量
-  memoryEnabled?: boolean;      // 启用记忆系统
-  knowledgeEnabled?: boolean;   // 启用知识库
-  citationEnabled?: boolean;    // 启用引用溯源
-  loopDetection?: {
-    enabled: boolean;
-    warningThreshold: number;   // 警告阈值（默认 3）
-    criticalThreshold: number;  // 临界阈值（默认 5）
-  };
+  maxIterations: number;      // 最大迭代次数（默认 10）
+  model: string;              // 模型名称（格式: provider/model）
+  systemPrompt?: string;      // 系统提示词
+  temperature?: number;       // 温度参数
+  tools?: Tool[];             // 可用工具
+  skills?: Skill[];           // 加载的技能
+  memoryEnabled?: boolean;    // 启用记忆系统
+  knowledgeEnabled?: boolean; // 启用知识库
 }
 ```
 
-## 上下文构建
+## ReAct 循环实现
 
-Agent 使用 ContextBuilder 构建 LLM 上下文：
+```typescript
+// AgentOrchestrator 核心逻辑
+class AgentOrchestrator {
+  async processMessage(msg: InboundMessage): Promise<OutboundMessage> {
+    let iterations = 0;
+    
+    while (iterations < this.maxIterations) {
+      // 1. 思考阶段：调用 LLM
+      const response = await this.llmProvider.chat(messages, tools);
+      
+      // 2. 判断是否需要工具调用
+      if (!response.hasToolCalls) {
+        return response.content;  // 直接返回答案
+      }
+      
+      // 3. 执行阶段：执行工具
+      for (const toolCall of response.toolCalls) {
+        const result = await this.executionEngine.execute(toolCall);
+        messages.push({ role: 'tool', content: result });
+      }
+      
+      iterations++;
+    }
+  }
+}
+```
 
-1. 加载 always=true 的技能
-2. 搜索相关记忆
-3. 获取会话历史
-4. 合并系统提示
+### 困惑检测
 
-## 任务类型路由
+AgentOrchestrator 内置困惑检测机制，防止陷入无限循环：
 
-Agent 通过意图识别判断任务类型，选择对应模型：
+| 配置项 | 默认值 | 说明 |
+|--------|--------|------|
+| `maxIterations` | 10 | 最大迭代次数 |
+| 连续失败阈值 | 3 | 连续工具调用失败次数达到此值时停止 |
 
-| 任务类型 | 触发条件 | 使用模型 |
-|----------|----------|----------|
-| 图片识别 | 用户消息包含图片或请求识别图片 | models.vision（必须配置）|
-| 代码编写 | 用户请求编写、调试、修复代码 | models.coder（默认 chat）|
-| 常规对话 | 其他所有情况 | models.chat |
+### 知识检索
+
+集成 KnowledgeRetriever 支持 RAG 检索：
+
+```typescript
+const knowledgeResults = await this.knowledgeRetriever.retrieve(query);
+```
+
+### 记忆管理
+
+集成 SimpleMemoryManager 存储对话记忆：
+
+```typescript
+// 存储重要信息
+await this.memoryManager.store(sessionId, {
+  content: '用户偏好',
+  type: 'preference',
+});
+
+// 检索相关记忆
+const memories = await this.memoryManager.search(query);
+```
+
+## 上下文管理
+
+ContextManager 负责管理 Token 预算和上下文构建：
+
+1. 计算可用 Token 空间
+2. 压缩/截断历史消息
+3. 优先保留关键上下文
+
+## 流式响应
+
+支持流式输出，通过 `processMessageStream` 方法：
+
+```typescript
+await orchestrator.processMessageStream(
+  message,
+  (chunk) => process.stdout.write(chunk),
+  toolContext,
+  (state) => console.log(state)
+);
+```
 
 ## 源码位置
 
-`packages/runtime/src/executor/`
+`agent-service/runtime/kernel/orchestrator/`
+
+## Handlers - 消息处理器
+
+Handlers 是 Agent Service 的消息处理层，负责接收外部请求并分发给相应的组件处理。
+
+### 处理器目录结构
+
+```
+agent-service/src/handlers/
+├── index.ts      # 统一导出入口
+├── ipc.ts        # IPC 消息分发
+├── stream.ts     # 流式聊天处理
+├── tool-calls.ts # 工具调用执行
+├── session.ts    # 会话管理
+├── knowledge.ts  # 知识库配置
+├── memory.ts     # 记忆系统配置
+├── config.ts     # 配置更新/工具/技能加载
+└── standalone.ts # 独立模式启动
+```
+
+### 消息处理流程
+
+```mermaid
+flowchart TB
+    subgraph Client[客户端请求]
+        HTTP[HTTP 请求]
+        IPC[IPC 消息]
+    end
+    
+    subgraph AgentService[Agent Service]
+        Handler[handleIPCMessage]
+        
+        subgraph Handlers[处理器层]
+            Stream[stream.ts]
+            ToolCalls[tool-calls.ts]
+            Session[session.ts]
+            Config[config.ts]
+            Knowledge[knowledge.ts]
+            Memory[memory.ts]
+        end
+        
+        subgraph Runtime[运行时]
+            Orch[AgentOrchestrator]
+            LLM[LLM Provider]
+            ToolReg[ToolRegistry]
+            MemMgr[MemoryManager]
+            KnowRet[KnowledgeRetriever]
+        end
+    end
+    
+    HTTP --> Handler
+    IPC --> Handler
+    Handler --> Stream
+    Handler --> Session
+    Handler --> Config
+    
+    Stream --> Orch
+    Orch --> LLM
+    Orch --> ToolReg
+    Orch --> MemMgr
+    Orch --> KnowRet
+    
+    ToolCalls --> ToolReg
+    ToolReg --> LLM
+```
+
+### IPC 方法映射
+
+| 方法 | 处理器文件 | 描述 |
+|------|-----------|------|
+| `ping` | ipc.ts | 心跳检测 |
+| `status` | session.ts | 服务状态查询 |
+| `execute` | session.ts | 单次执行（非流式）|
+| `chat` | stream.ts | 流式聊天 |
+| `config.update` | config.ts | 更新配置 |
+| `config.setSystemPrompt` | config.ts | 设置系统提示词 |
+| `config.registerTools` | config.ts | 注册工具 |
+| `config.loadSkills` | config.ts | 加载技能 |
+| `config.configureMemory` | memory.ts | 配置记忆系统 |
+| `config.configureKnowledge` | knowledge.ts | 配置知识库 |
+| `config.reload` | index.ts | 重载配置 |
+
+### 流式处理策略
+
+Handler 层支持多种流式处理策略，按优先级 fallback：
+
+1. **Orchestrator 模式**: 使用 AgentOrchestrator 进行完整 ReAct 循环
+2. **直接 LLM 模式**: 直接调用 LLM Provider 流式响应
+3. **模拟响应模式**: 无 LLM 时返回模拟响应（调试用）
+
+```typescript
+// 策略选择逻辑
+if (components.orchestrator) {
+  await streamWithOrchestrator(sessionId, content.text, requestId, components, config);
+  return;
+}
+if (components.llmProvider) {
+  await streamFromLLM(session, content.text, requestId, components, config);
+  return;
+}
+await streamMockResponse(content.text, requestId);
+```
+
+### 工具调用处理
+
+Tool-calls Handler 负责执行 LLM 产生的工具调用：
+
+1. 遍历工具调用列表
+2. 构建 ToolContext（channel/chatId/workspace/currentDir/knowledgeBase）
+3. 通过 ToolRegistry 执行工具
+4. 将工具结果添加到消息历史
+5. 重新调用 LLM 获取最终响应
+
+```typescript
+// 工具调用流程
+for (const tc of toolCalls) {
+  const toolContext: ToolContext = {
+    channel: 'ipc',
+    chatId: requestId,
+    workspace: workspace ?? process.cwd(),
+    currentDir: workspace ?? process.cwd(),
+    knowledgeBase: knowledgeBase ?? USER_KNOWLEDGE_DIR,
+  };
+  
+  const result = await components.toolRegistry.execute(tc.name, tc.arguments, toolContext);
+  messages.push({ role: 'user', content: `工具 ${tc.name} 结果: ${resultContent}` });
+}
+
+const finalResponse = await components.llmProvider.chat(messages, undefined, components.defaultModel);
+```
+
+### 会话管理
+
+SessionHandler 维护会话状态：
+
+```typescript
+class SessionManager {
+  private _sessions = new Map<string, SessionData>();
+  
+  getOrCreate(sessionId: string): SessionData  // 懒创建
+  get(sessionId: string): SessionData | undefined
+  addMessage(sessionId: string, role: string, content: string): void
+  get size(): number
+  clear(): void
+}
+```
+
+### 源码位置
+
+- Handlers: `agent-service/src/handlers/`
+- Orchestrator: `agent-service/runtime/kernel/orchestrator/`

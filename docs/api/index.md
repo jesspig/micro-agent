@@ -1,11 +1,52 @@
 # API 参考
 
+## SDK 客户端
+
+### 创建客户端
+
+```typescript
+import { createClient } from '@micro-agent/sdk';
+
+const client = createClient({
+  transport: 'http',  // http | websocket | ipc
+  http: {
+    baseUrl: 'http://localhost:3000',
+    timeout: 30000,
+  },
+});
+```
+
+### 传输层
+
+```typescript
+import { HTTPTransport, WebSocketTransport, IPCTransport } from '@micro-agent/sdk';
+
+// HTTP 传输
+const httpTransport = new HTTPTransport({
+  baseUrl: 'http://localhost:3000',
+  timeout: 30000,
+});
+
+// WebSocket 传输
+const wsTransport = new WebSocketTransport({
+  url: 'ws://localhost:3000/ws',
+});
+
+// IPC 传输
+const ipcTransport = new IPCTransport({
+  path: '/tmp/micro-agent.sock',
+});
+```
+
 ## Core 模块
 
 ### Container
 
 ```typescript
-import { Container, container } from '@micro-agent/sdk';
+import { Container } from '@micro-agent/sdk/runtime';
+
+// 创建容器实例
+const container = new Container();
 
 // 注册瞬态依赖
 container.register('service', () => new Service());
@@ -20,7 +61,7 @@ const service = container.resolve<Service>('service');
 ### EventBus
 
 ```typescript
-import { EventBus, eventBus } from '@micro-agent/sdk';
+import { EventBus } from '@micro-agent/sdk/runtime';
 
 // 订阅事件
 eventBus.on('message:received', (msg) => {
@@ -34,7 +75,10 @@ eventBus.emit('message:received', { content: 'hello' });
 ### HookSystem
 
 ```typescript
-import { HookSystem, hookSystem } from '@micro-agent/sdk';
+import { HookSystem } from '@micro-agent/sdk/runtime';
+
+// 创建钩子系统实例
+const hookSystem = new HookSystem();
 
 // 注册钩子
 hookSystem.registerHook('pre:chat', async (ctx) => {
@@ -43,12 +87,124 @@ hookSystem.registerHook('pre:chat', async (ctx) => {
 });
 ```
 
-## MCP Server API
+## Provider 模块
+
+### LLM Provider
+
+```typescript
+import { createLLMProvider } from '@micro-agent/sdk/llm';
+
+const provider = createLLMProvider({
+  baseUrl: 'https://api.deepseek.com/v1',
+  apiKey: 'your-key',
+  vendor: 'deepseek',
+});
+
+// 聊天
+const response = await provider.chat([
+  { role: 'user', content: 'Hello' }
+], undefined, 'deepseek-chat');
+```
+
+### Embedding Provider
+
+```typescript
+import { createEmbeddingProvider } from '@micro-agent/sdk/llm';
+
+const embeddingProvider = createEmbeddingProvider({
+  baseUrl: 'http://localhost:11434/v1',
+  vendor: 'ollama',
+});
+
+const embeddings = await embeddingProvider.embed(['Hello world']);
+```
+
+## Capability 模块
+
+### Tool Registry
+
+```typescript
+import { ToolRegistry } from '@micro-agent/sdk/runtime';
+
+const registry = new ToolRegistry();
+
+// 注册工具
+registry.register({
+  name: 'my_tool',
+  description: '我的自定义工具',
+  inputSchema: zodSchema,
+  execute: async (input, ctx) => {
+    return { result: `处理: ${input}` };
+  },
+});
+```
+
+### Memory Manager
+
+```typescript
+import { MemoryManager } from '@micro-agent/sdk/memory';
+
+const memory = new MemoryManager({
+  vectorDb: lancedb,
+  sessionStore: sessionStore,
+});
+
+// 存储记忆
+await memory.store({
+  content: '用户喜欢蓝色',
+  type: 'preference',
+});
+
+// 检索记忆
+const results = await memory.search('用户颜色偏好');
+```
+
+### Knowledge Base
+
+```typescript
+import { KnowledgeBaseManager } from '@micro-agent/sdk/knowledge';
+
+const kb = new KnowledgeBaseManager({
+  storagePath: '~/.micro-agent/knowledge',
+});
+
+// 添加文档
+await kb.addDocument({
+  content: 'MicroAgent 是一个 AI 助手框架',
+  metadata: { source: 'about' },
+});
+
+// 检索
+const results = await kb.search('什么是 MicroAgent');
+```
+
+## Kernel 模块
+
+### Agent Orchestrator
+
+```typescript
+import { AgentOrchestrator } from '@micro-agent/sdk/runtime';
+
+const orchestrator = new AgentOrchestrator({
+  llmProvider,
+  toolRegistry,
+  memoryManager,
+  knowledgeRetriever,
+});
+
+// 处理消息
+const response = await orchestrator.processMessage({
+  sessionId: 'session-1',
+  content: '你好',
+});
+```
+
+## MCP Server
 
 MCP (Model Context Protocol) 服务器，支持 IDE 集成。
 
 ```typescript
-import { createMCPServer } from '@micro-agent/sdk';
+import { createMCPServer } from '@micro-agent/agent-service/interface';
 
 const server = createMCPServer({
   serverInfo: {
@@ -78,12 +234,12 @@ await server.startStdio();
 micro-agent mcp  # 启动 MCP 服务器（stdio 模式）
 ```
 
-## ACP Server API
+## ACP Server
 
 ACP (Agent Client Protocol) 服务器，提供完整的 Agent 能力。
 
 ```typescript
-import { createACPServer } from '@micro-agent/sdk';
+import { createACPServer } from '@micro-agent/agent-service/interface';
 
 const server = createACPServer({
   agent: myAgent,  // ACPAgent 实现
@@ -105,7 +261,7 @@ await server.sendComplete(sessionId);
 micro-agent acp  # 启动 ACP 服务器
 ```
 
-## Server HTTP API
+## HTTP API
 
 ### 基础信息
 
@@ -118,6 +274,7 @@ micro-agent acp  # 启动 ACP 服务器
 |------|------|------|
 | POST | /v1/chat/completions | OpenAI 兼容的对话补全 |
 | GET | /v1/models | 获取可用模型列表 |
+| POST | /v1/embeddings | 获取嵌入向量 |
 
 ### Chat Completions
 
@@ -141,39 +298,49 @@ curl -X GET http://127.0.0.1:3000/v1/models \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
-## Provider 模块
+## IPC API
+
+### Unix Socket
 
 ```typescript
-import { createLLMProvider } from '@micro-agent/sdk/providers';
+import { UnixSocketIPC } from '@micro-agent/agent-service/interface/ipc';
 
-const provider = createLLMProvider({
-  baseUrl: 'https://api.deepseek.com/v1',
-  apiKey: 'your-key',
-  vendor: 'deepseek',
+const ipc = new UnixSocketIPC({
+  path: '/tmp/micro-agent.sock',
 });
 
-// 聊天
-const response = await provider.chat([
-  { role: 'user', content: 'Hello' }
-], undefined, 'deepseek-chat');
+// 发送消息
+const response = await ipc.send('chat', {
+  content: '你好',
+});
 ```
 
-## Storage 模块
-
-### SessionStore
+### TCP Loopback
 
 ```typescript
-import { SessionStore } from '@micro-agent/sdk/storage';
+import { TCPLoopbackIPC } from '@micro-agent/agent-service/interface/ipc';
 
-const store = new SessionStore('~/.micro-agent/data');
+const ipc = new TCPLoopbackIPC({
+  port: 3001,
+});
+```
 
-// 添加消息
-await store.appendMessage('channel:chatId', {
-  role: 'user',
-  content: 'Hello',
-  timestamp: Date.now(),
+## Streaming API
+
+### Server-Sent Events
+
+```typescript
+import { createSSEHandler } from '@micro-agent/agent-service/interface/streaming';
+
+const handler = createSSEHandler({
+  orchestrator,
 });
 
-// 获取消息历史
-const history = await store.getHistory('channel:chatId', 100);
+// 流式响应
+for await (const chunk of handler.stream({
+  sessionId: 'session-1',
+  content: '你好',
+})) {
+  console.log(chunk);
+}
 ```

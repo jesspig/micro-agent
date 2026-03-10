@@ -278,9 +278,48 @@ interface RoutingResult {
 
 意图识别支持上下文重试机制，当识别结果置信度较低时会进行二次确认。
 
+## SDK 封装
+
+SDK 层对 Provider 进行了高级封装，提供更便捷的 API。
+
+### LLM 模块 (sdk/src/llm/)
+
+```typescript
+import { createLLMProvider, ModelRouter } from '@micro-agent/sdk';
+
+// 创建 LLM Provider
+const provider = createLLMProvider({
+  type: 'openai',
+  baseUrl: 'https://api.openai.com/v1',
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
+// 模型路由
+const router = new ModelRouter({
+  providers: {
+    chat: 'openai/gpt-4o-mini',
+    coder: 'openai/gpt-4o',
+    vision: 'openai/gpt-4o',
+  },
+  fallback: 'openai/gpt-4o-mini',
+});
+```
+
+### Embedding 模块
+
+```typescript
+import { createEmbeddingProvider } from '@micro-agent/sdk';
+
+// 创建嵌入服务
+const embedding = createEmbeddingProvider({
+  provider: 'openai',
+  model: 'text-embedding-3-small',
+});
+```
+
 ## 源码位置
 
-- 接口定义: `packages/providers/src/base.ts`
-- OpenAI 兼容: `packages/providers/src/openai-compatible.ts`
-- 模型网关: `packages/providers/src/gateway.ts`
-- 智能路由: `packages/providers/src/router.ts`
+- 接口定义: `agent-service/runtime/provider/llm/`
+- Embedding: `agent-service/runtime/provider/embedding/`
+- VectorDB: `agent-service/runtime/provider/vector-db/`
+- SDK 封装: `sdk/src/llm/`
