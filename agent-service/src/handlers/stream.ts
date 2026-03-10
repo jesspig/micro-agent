@@ -10,7 +10,7 @@ import { handleToolCalls } from './tool-calls';
 import type { AgentServiceConfig, ServiceComponents, SessionData } from '../types';
 import type { InboundMessage } from '../../types/message';
 import type { ChannelType } from '../../types/interfaces';
-import type { StreamCallbacks } from '../../runtime/kernel/orchestrator';
+import type { StreamCallbacks } from '../../runtime/kernel';
 import { USER_KNOWLEDGE_DIR } from '../../runtime/infrastructure/config';
 
 const log = getLogger(['agent-service', 'handlers', 'stream']);
@@ -120,25 +120,22 @@ async function streamWithOrchestrator(
 
   const orchestratorConfig = {
     llmProvider: components.llmProvider,
+    toolRegistry: components.toolRegistry,
+    memoryManager: components.memoryManager ?? undefined,
+    knowledgeRetriever: components.knowledgeRetriever ?? undefined,
     defaultModel: components.defaultModel,
     maxIterations: config.maxIterations ?? 20,
+    maxConsecutiveErrors: 3,
+    tokenBudget: 128000,
     systemPrompt: updatedSystemPrompt,
     workspace: config.workspace ?? process.cwd(),
     knowledgeBase: knowledgeBasePath,
   };
 
-  const { AgentOrchestrator } = await import('../../runtime/kernel/orchestrator');
-  const updatedOrchestrator = new AgentOrchestrator(
-    orchestratorConfig,
-    components.toolRegistry,
-    components.memoryManager ?? undefined,
-    components.sessionStore ?? undefined,
-    components.knowledgeRetriever ?? undefined
-  );
+  const { LangGraphOrchestrator } = await import('../../runtime/kernel');
+  const updatedOrchestrator = new LangGraphOrchestrator(orchestratorConfig);
 
-  await updatedOrchestrator.processMessageStream(msg, callbacks, {
-    currentDir: config.workspace,
-  });
+  await updatedOrchestrator.processMessageStream(msg, callbacks);
 
   log.info('Orchestrator 流式处理完成', { sessionId });
 }

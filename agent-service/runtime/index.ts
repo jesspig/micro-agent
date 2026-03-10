@@ -227,18 +227,44 @@ export type {
 } from './capability/plugin-system';
 
 // ============ Kernel Layer ============
-// Orchestrator
-export { AgentOrchestrator } from './kernel/orchestrator';
-export type { OrchestratorConfig, StreamCallbacks } from './kernel/orchestrator';
+// LangGraph Orchestrator
+export {
+  LangGraphOrchestrator,
+  createAgentGraph,
+  ReActAgentState,
+  hasPendingToolCalls,
+  getRemainingTokens,
+  isOverBudget,
+} from './kernel';
+export type {
+  AgentState,
+  AgentStateUpdate,
+  RouteDecision,
+  ReActState,
+  ReasoningStep,
+  ActionRecord,
+  Observation,
+  ErrorRecord,
+  TokenUsage,
+  TokenBudget as TokenBudgetState,
+  ToolCall,
+  ToolResult,
+  LLMMessage,
+  StreamCallbacks,
+  StateChangeCallbacks,
+  LangGraphAgentConfig,
+  InboundMessage,
+  ToolContext,
+} from './kernel';
 
-// Planner
-export { AgentPlanner } from './kernel/planner';
-export type { PlannerConfig, PlanResult } from './kernel/planner';
-
-// Execution Engine
-export { ExecutionEngine } from './kernel/execution-engine';
-export type { ExecutionEngineConfig, ExecutionResult } from './kernel/execution-engine';
-
-// Context Manager
-export { ContextManager } from './kernel/context-manager';
-export type { ContextManagerConfig, ContextState } from './kernel/context-manager';
+// Context Manager (Token Management)
+export {
+  TokenBudget,
+  TokenEstimator,
+  getTokenEstimator,
+  configureTokenEstimator,
+} from './kernel/context-manager';
+export type {
+  TokenBudgetConfig,
+  TokenEstimatorConfig,
+} from './kernel/context-manager';

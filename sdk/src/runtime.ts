@@ -237,17 +237,46 @@ export type {
 } from '../../agent-service/runtime/capability/plugin-system';
 
 // ============ Kernel Layer ============
-export { AgentOrchestrator } from '../../agent-service/runtime/kernel/orchestrator';
-export type { OrchestratorConfig, StreamCallbacks } from '../../agent-service/runtime/kernel/orchestrator';
+export {
+  LangGraphOrchestrator,
+  createAgentGraph,
+  ReActAgentState,
+  hasPendingToolCalls,
+  getRemainingTokens,
+  isOverBudget,
+} from '../../agent-service/runtime/kernel';
+export type {
+  AgentState,
+  AgentStateUpdate,
+  RouteDecision,
+  ReActState,
+  ReasoningStep,
+  ActionRecord,
+  Observation,
+  ErrorRecord,
+  TokenUsage,
+  TokenBudget as TokenBudgetState,
+  ToolCall,
+  ToolResult,
+  LLMMessage,
+  StreamCallbacks,
+  StateChangeCallbacks,
+  LangGraphAgentConfig,
+  InboundMessage,
+  ToolContext,
+} from '../../agent-service/runtime/kernel';
 
-export { AgentPlanner } from '../../agent-service/runtime/kernel/planner';
-export type { PlannerConfig, PlanResult } from '../../agent-service/runtime/kernel/planner';
-
-export { ExecutionEngine } from '../../agent-service/runtime/kernel/execution-engine';
-export type { ExecutionEngineConfig, ExecutionResult } from '../../agent-service/runtime/kernel/execution-engine';
-
-export { ContextManager } from '../../agent-service/runtime/kernel/context-manager';
-export type { ContextManagerConfig, ContextState } from '../../agent-service/runtime/kernel/context-manager';
+// Context Manager (Token Management)
+export {
+  TokenBudget,
+  TokenEstimator,
+  getTokenEstimator,
+  configureTokenEstimator,
+} from '../../agent-service/runtime/kernel/context-manager';
+export type {
+  TokenBudgetConfig,
+  TokenEstimatorConfig,
+} from '../../agent-service/runtime/kernel/context-manager';
 
 // ============ Tool Helpers ============
 // 工具结果创建辅助函数（通过 export * 已导出类型，此处仅导出函数）
