@@ -1,8 +1,122 @@
 # 架构概述
 
+MicroAgent 采用三层架构设计，遵循单向依赖原则，实现清晰的关注点分离。
+
+## 三层架构
+
+MicroAgent 采用三层架构设计，遵循单向依赖原则。
+
+### 整体依赖关系
+
+```mermaid
+flowchart TB
+    APP["Applications Layer<br/>CLI / Web / Extensions"]
+    SDK["SDK Layer<br/>客户端 API / 高级封装"]
+    AS["Agent Service Layer<br/>Interface + Runtime"]
+    
+    APP -->|"单向依赖"| SDK
+    SDK -->|"单向依赖"| AS
+    
+    style APP fill:#e1f5fe
+    style SDK fill:#f3e5f5
+    style AS fill:#e8f5e9
+```
+
+### Applications Layer
+
+```mermaid
+flowchart LR
+    subgraph APP["Applications Layer"]
+        direction TB
+        CLI["CLI Application<br/>applications/cli/"]
+    end
+    
+    CLI --> MODULES["modules/<br/>agent-client<br/>message-router<br/>tools-init<br/>skills-init"]
+    CLI --> CMD["commands/"]
+    CLI --> BUILTIN["builtin/<br/>tool, skills, channel"]
+    CLI --> PLUGINS["plugins/"]
+```
+
+### SDK Layer
+
+```mermaid
+flowchart LR
+    subgraph SDK["SDK Layer"]
+        API["@micro-agent/sdk"]
+        RUNTIME["@micro-agent/sdk/runtime"]
+    end
+    
+    API --> CLIENT["api/client.ts<br/>MicroAgentClient"]
+    API --> SESSION["api/session.ts"]
+    API --> CHAT["api/chat.ts"]
+    API --> MEMORY["api/memory.ts"]
+    API --> TRANSPORT["transport/<br/>ipc, http, websocket"]
+    
+    RUNTIME --> RT_DESC["运行时内部访问<br/>直接 re-export agent-service"]
+```
+
+### Agent Service Layer
+
+```mermaid
+flowchart TB
+    subgraph IF["Interface Layer"]
+        IPC["ipc/<br/>unix-socket, named-pipe<br/>stdio, tcp-loopback"]
+        HTTP["http/server.ts"]
+        STREAM["streaming/"]
+    end
+    
+    subgraph RT["Runtime Layer"]
+        KERNEL["kernel/<br/>orchestrator, planner<br/>execution-engine, context-manager"]
+        CAP["capability/<br/>tool, skill, mcp<br/>memory, knowledge, plugin"]
+        PROV["provider/<br/>llm, embedding<br/>vector-db, storage"]
+        INFRA["infrastructure/<br/>container, event-bus<br/>database, config, logging"]
+    end
+    
+    TYPES["types/<br/>核心接口和类型"]
+    
+    IF --> RT
+    RT --> TYPES
+```
+
 ## 设计原则
 
-### 1. 代码即文档
+### 1. 单向依赖原则
+
+**规则**: Applications → SDK → Agent Service
+
+**绝对禁止反向依赖**，通过以下机制实现：
+
+#### 模块隔离
+
+```typescript
+// ✅ Applications 只从 SDK 导入
+import { createClient, registerBuiltinToolProvider } from '@micro-agent/sdk';
+
+// ❌ 禁止直接导入 Agent Service
+import { ... } from '../agent-service/...';
+```
+
+#### 依赖注入反转
+
+```typescript
+// Agent Service 定义接口（不依赖具体实现）
+interface BuiltinToolProvider {
+  getTool(name: string): Tool | undefined;
+  listTools(): ToolDefinition[];
+}
+
+// Applications 实现接口并注册
+const provider: BuiltinToolProvider = {
+  getTool: (name) => tools.get(name),
+  listTools: () => Array.from(tools.values()),
+};
+registerBuiltinToolProvider(provider);
+
+// Agent Service 运行时获取实现
+const provider = getBuiltinToolProvider();
+```
+
+### 2. 代码即文档
 
 类型系统自解释，命名语义化，避免隐式逻辑。
 
@@ -11,12 +125,12 @@
 interface Tool {
   readonly name: string;
   readonly description: string;
-  readonly inputSchema: ZodSchema;
-  execute(input: unknown, ctx: ToolContext): Promise<unknown>;
+  readonly inputSchema: JSONSchema;
+  execute(input: unknown, ctx: ToolContext): Promise<ToolResult>;
 }
 ```
 
-### 2. 组合优于继承
+### 3. 组合优于继承
 
 通过接口 + 事件总线解耦，避免继承链导致的循环依赖。
 
@@ -29,7 +143,7 @@ class FeishuChannel implements Channel {
 }
 ```
 
-### 3. 开放封闭原则
+### 4. 开放封闭原则
 
 对扩展开放，对修改封闭。使用注册表模式实现插件式扩展。
 
@@ -43,7 +157,7 @@ class ToolRegistry {
 }
 ```
 
-### 4. 轻量化设计
+### 5. 轻量化设计
 
 最小依赖，最小抽象，无过度工程。
 
@@ -54,151 +168,151 @@ class ToolRegistry {
 | 方法嵌套层级 | ≤ 3 层 |
 | 方法参数 | ≤ 4 个 |
 
-### 5. 本地优先
+## 核心依赖注入点
 
-默认本地存储和隐私保护，无云存储依赖。
+### 1. Container（通用依赖注入容器）
 
-| 数据 | 存储 |
-|------|------|
-| 会话 | JSONL |
+```typescript
+// agent-service/runtime/infrastructure/container.ts
+class ContainerImpl implements Container {
+  register<T>(token, factory)    // 注册瞬态工厂
+  singleton<T>(token, factory)   // 注册单例工厂
+  resolve<T>(token)              // 解析依赖
+  has(token)                     // 检查是否已注册
+}
+```
 
-## 模块架构
+### 2. BuiltinToolProvider（工具提供者注册）
 
-### Core 模块概览
+```typescript
+// 解决 Agent Service 不能直接依赖 Applications 中的工具实现
+registerBuiltinToolProvider(provider)  // 上层应用注册工具实现
+getBuiltinToolProvider()               // Agent Service 获取工具提供者
+```
+
+### 3. BuiltinSkillProvider（技能提供者注册）
+
+```typescript
+// 解决 Agent Service 不能直接依赖 Applications 中的技能实现
+registerBuiltinSkillProvider(provider)  // 上层应用注册技能实现
+getBuiltinSkillProvider()               // Agent Service 获取技能提供者
+```
+
+### 4. EventBus（事件总线 - 模块间解耦通信）
+
+```typescript
+// agent-service/runtime/infrastructure/event-bus.ts
+eventBus.on(event, handler)      // 订阅事件
+eventBus.off(event, handler)     // 取消订阅
+eventBus.emit(event, payload)    // 触发事件
+eventBus.once(event, handler)    // 一次性订阅
+```
+
+## 消息处理流程
 
 ```mermaid
-graph LR
-    Container[Container<br/>依赖注入]
-    EventBus[EventBus<br/>事件总线]
-    HookSystem[HookSystem<br/>钩子系统]
-    Pipeline[Pipeline<br/>中间件管道]
+flowchart TB
+    USER["用户输入"] --> ENTRY["IPC / HTTP<br/>入口层"]
+    ENTRY --> STREAM["handlers/stream<br/>流式处理入口"]
     
-    Container --> EventBus
-    Container --> HookSystem
-    Container --> Pipeline
+    STREAM --> REACT{"ReAct 循环"}
+    
+    subgraph REACT_LOOP["ReAct 循环"]
+        THINK["1. 思考<br/>获取历史 + 记忆 + 知识库上下文"]
+        CALL["2. 调用<br/>LLM Provider.chat()"]
+        CHECK{"3. 判断<br/>是否有工具调用?"}
+        EXEC["执行工具"]
+        OBSERVE["观察结果"]
+        OUTPUT["输出最终答案"]
+        
+        THINK --> CALL --> CHECK
+        CHECK -->|"是"| EXEC --> OBSERVE --> THINK
+        CHECK -->|"否"| OUTPUT
+    end
+    
+    STREAM --> THINK
+    
+    OUTPUT --> UPDATE["更新会话历史<br/>存储记忆<br/>流式输出回调"]
 ```
 
-### 核心模块关系
+## Provider 多模型适配
+
+### 架构
 
 ```mermaid
-graph TB
-    subgraph 核心层
-        Agent[Agent<br/>智能代理]
-        Providers[Providers<br/>模型管理]
-        Tools[Tool<br/>工具系统]
-        Channels[Channel<br/>消息通道]
-    end
+classDiagram
+    class LLMProvider {
+        <<interface>>
+        +chat()
+        +getDefaultModel()
+        +isAvailable()
+        +getModelCapabilities()
+        +listModels()
+    }
     
-    subgraph 支撑层
-        Storage[Storage<br/>存储层]
-        Skills[Skill<br/>技能系统]
-        Memory[Memory<br/>记忆系统]
-        Knowledge[Knowledge<br/>知识库]
-    end
+    class LLMProviderProxy {
+        +chat()
+        +getDefaultModel()
+    }
     
-    subgraph 协议层
-        MCP[MCP<br/>模型上下文协议]
-        ACP[ACP<br/>Agent客户端协议]
-    end
+    class BaseProvider {
+        <<abstract>>
+        #config: LLMConfig
+        +chat()
+        #buildMessages()
+        #parseResponse()
+    }
     
-    Agent --> Providers
-    Agent --> Tools
-    Agent --> Storage
-    Agent --> Skills
-    Agent --> Memory
-    Agent --> Knowledge
-    Channels --> Agent
-    MCP --> Agent
-    ACP --> Agent
-```
-
-### 运行时架构
-
-```
-App
-  └── ChannelGatewayImpl (消息处理枢纽)
-        ├── executor: AgentExecutor
-        └── getChannels: () => Channel[]
-```
-
-### 消息流向
-
-```mermaid
-sequenceDiagram
-    participant C as Channel
-    participant M as MessageBus
-    participant G as ChannelGateway
-    participant E as AgentExecutor
-    participant L as LLM
+    class OpenAIProvider
+    class DeepSeekProvider
+    class GLMProvider
+    class KimiProvider
+    class MiniMaxProvider
+    class OllamaProvider
+    class OpenAICompatibleProvider
     
-    C->>M: publishInbound()
-    M->>G: consumeInbound()
-    G->>E: processMessage()
-    E->>L: generate()
-    L-->>E: response
-    E-->>G: response
-    G->>C: broadcast() to all Channels
+    LLMProvider <|.. LLMProviderProxy
+    LLMProvider <|.. BaseProvider
+    BaseProvider <|-- OpenAIProvider
+    BaseProvider <|-- DeepSeekProvider
+    BaseProvider <|-- GLMProvider
+    BaseProvider <|-- KimiProvider
+    BaseProvider <|-- MiniMaxProvider
+    BaseProvider <|-- OllamaProvider
+    BaseProvider <|-- OpenAICompatibleProvider
 ```
 
-### 扩展机制
+### 厂商检测
 
-```mermaid
-graph LR
-    subgraph Extensions["extensions/"]
-        ToolExt[工具扩展]
-        SkillExt[技能扩展]
-        ChannelExt[通道扩展]
-    end
-    
-    subgraph Core["Core SDK"]
-        ToolReg[ToolRegistry]
-        SkillLoad[SkillsLoader]
-        ChannelMgr[ChannelManager]
-    end
-    
-    ToolExt -->|register| ToolReg
-    SkillExt -->|load| SkillLoad
-    ChannelExt -->|add| ChannelMgr
+```typescript
+// 根据 URL 域名和模型名称自动检测
+detectVendor(baseUrl, model) → 'openai' | 'deepseek' | 'glm' | 'kimi' | 'minimax' | 'ollama' | 'openai-compatible'
 ```
 
-### 目录结构
+### 思考模型支持
 
+| 厂商 | 思考模型 | 参数设置 |
+|------|----------|----------|
+| OpenAI | o1, o3 系列 | `reasoning_effort: 'high'` |
+| DeepSeek | deepseek-reasoner, deepseek-r1 | `thinking: { type: 'enabled' }` |
+| GLM | glm-4-plus, glm-5 | `enable_cot: true` |
+| Kimi | kimi-k2 | `reasoning: { effort: 'high' }` |
+| MiniMax | m2.x 系列 | `thinking: { type: 'enabled' }` |
+
+### 模型路由器
+
+```typescript
+// 根据任务类型选择模型
+router.selectByTaskType('vision')  // 视觉任务
+router.selectByTaskType('coder')   // 编程任务
+router.selectByTaskType('chat')    // 对话任务
 ```
-packages/
-├── types/              # L1: 核心类型定义（MCP 兼容）
-├── runtime/            # L2: 运行时引擎（Container、EventBus、HookSystem）
-├── config/             # L2: 三级配置系统
-├── storage/            # L2: 会话存储
-├── sdk/                # L3: 聚合 SDK，统一开发接口
-├── providers/          # L3: LLM Provider 抽象
-├── extension-system/   # L3: 扩展发现、加载、热重载
-└── server/             # L4: 服务层（Channel、Queue、Events）
-```
 
-### 核心模块说明
+## 性能目标
 
-| 模块 | 位置 | 职责 |
-|------|------|------|
-| ChannelGateway | `packages/runtime/src/gateway/` | 消息聚合处理、响应广播、自动重连 |
-| AgentExecutor | `packages/runtime/src/executor/` | Agent 执行引擎、工具调用编排 |
-| MessageBus | `packages/runtime/src/bus/` | 消息队列、入站/出站消息分发 |
-| MemoryStore | `packages/runtime/src/memory/` | 记忆存储、向量检索、自动摘要 |
-| KnowledgeBase | `packages/runtime/src/knowledge/` | 知识库管理、文档索引、语义检索 |
-| CitationGenerator | `packages/runtime/src/citation/` | 引用溯源、置信度计算 |
-| MCPServer | `packages/server/src/mcp/` | MCP 协议服务器，支持 IDE 集成 |
-| ACPServer | `packages/server/src/acp/` | ACP 协议服务器，Agent 能力暴露 |
-
-### 协议支持
-
-| 协议 | 版本 | 用途 | 传输方式 |
-|------|------|------|----------|
-| MCP | 2024-11-05 | 模型上下文协议，外部工具/资源接入 | stdio, WebSocket, SSE |
-| ACP | 1.0 | Agent 客户端协议，IDE 集成 | stdio |
-
-## 扩展机制
-
-| 机制 | 用途 | 示例 |
-|------|------|------|
-| 依赖注入 | 解耦组件 | `container.resolve<ToolRegistry>()` |
-| 事件系统 | 松耦合通信 | `eventBus.on('tool:beforeExecute')` |
-| 注册表模式 | 动态注册扩展 | `toolRegistry.register(new MyTool())` |
+| 指标 | 目标值 |
+|------|--------|
+| HTTP QPS | 1000+ |
+| 响应延迟 P95 | <500ms |
+| 流式首字节 TTFT | <1s |
+| 并发会话 | 100+ |

@@ -1,31 +1,76 @@
-# Provider - LLM 提供商
+# Provider
 
-## 概述
+MicroAgent 的 Provider 层提供统一的 LLM、嵌入模型和向量数据库访问接口。
 
-Provider 抽象了 LLM 调用接口，支持 OpenAI 兼容的各种后端。
+## 架构
 
-## 任务类型路由
+### 整体架构
 
-基于任务类型选择模型：
+```mermaid
+flowchart TB
+    ABSTRACT["Provider 抽象层<br/>types/provider.ts"]
+    
+    ABSTRACT --> EMB["Embedding Provider"]
+    ABSTRACT --> LLM["LLM Provider"]
+    ABSTRACT --> STORAGE["Storage/Vector Provider"]
+```
 
-| 类型 | 适用场景 | 模型配置 |
-|------|----------|----------|
-| vision | 图片识别、图像理解 | `agents.models.vision` |
-| coder | 代码编写、程序开发 | `agents.models.coder` |
-| chat | 常规对话、问答 | `agents.models.chat` |
+### Embedding Provider
 
-### 路由流程
+```mermaid
+flowchart LR
+    EMB["Embedding Provider"]
+    
+    EMB --> OPENAI_EMB["OpenAIEmbedding<br/>OpenAI Embedding API"]
+    EMB --> LOCAL_EMB["LocalEmbedding<br/>Ollama 本地嵌入"]
+```
 
-1. **图片检测**：检测消息中是否包含图片
-2. **意图识别**：通过 LLM 判断任务类型
-3. **模型选择**：根据任务类型选择对应模型
-4. **回退机制**：未配置专用模型时使用 chat 模型
+### LLM Provider
 
-## 接口定义
+```mermaid
+flowchart TB
+    LLM["LLM Provider"]
+    
+    LLM --> ROUTER["ModelRouter<br/>模型路由"]
+    LLM --> PROXY["LLMProviderProxy<br/>代理模式"]
+    LLM --> BASE["BaseProvider<br/>抽象基类"]
+```
+
+#### LLM Provider 实现
+
+```mermaid
+flowchart LR
+    BASE["BaseProvider"]
+    
+    BASE --> OPENAI["OpenAIProvider"]
+    BASE --> DEEP["DeepSeekProvider"]
+    BASE --> GLM["GLMProvider"]
+    BASE --> KIMI["KimiProvider"]
+    BASE --> MINI["MiniMaxProvider"]
+    BASE --> OLLAMA["OllamaProvider"]
+    BASE --> COMPAT["OpenAICompatible"]
+```
+
+### Storage/Vector Provider
+
+```mermaid
+flowchart TB
+    STORAGE["Storage/Vector Provider"]
+    
+    STORAGE --> STO_GRP["Storage"]
+    STORAGE --> VDB_GRP["VectorDB"]
+    
+    STO_GRP --> STO_IMPL["StorageProvider<br/>MemoryStorage"]
+    VDB_GRP --> VDB_IMPL["LanceDBProvider<br/>LocalVectorProvider"]
+```
+
+## LLM Provider
+
+### 接口定义
 
 ```typescript
 interface LLMProvider {
-  readonly name: string;
+  readonly type: 'llm';
   
   chat(
     messages: LLMMessage[],
@@ -34,143 +79,180 @@ interface LLMProvider {
     config?: GenerationConfig
   ): Promise<LLMResponse>;
   
-  getDefaultModel(): string;
+  getDefaultModel(): string | undefined;
   isAvailable(): Promise<boolean>;
-  getModelCapabilities(modelId: string): ModelConfig;
+  getModelCapabilities(modelId: string): ProviderCapabilities;
   listModels(): Promise<string[] | null>;
 }
 ```
 
-## 类型定义
-
-### LLMMessage
+### 能力定义
 
 ```typescript
-type MessageRole = 'system' | 'user' | 'assistant' | 'tool';
-
-interface LLMMessage {
-  role: MessageRole;
-  content: MessageContent;
-  toolCallId?: string;
-  toolCalls?: ToolCall[];
+interface ProviderCapabilities {
+  vision: boolean;   // 支持视觉能力（图片识别）
+  think: boolean;    // 支持思考能力（推理模型）
+  tool: boolean;     // 支持工具调用
 }
 ```
 
-### GenerationConfig
+## 支持的厂商
+
+| 厂商 | API 端点 | 思考模型 | 特殊处理 |
+|------|----------|----------|----------|
+| **OpenAI** | api.openai.com/v1 | o1, o3 系列 | o1 系列删除 temperature/top_p |
+| **DeepSeek** | api.deepseek.com/v1 | deepseek-reasoner, r1 | 需显式启用 thinking |
+| **GLM** | open.bigmodel.cn | glm-4-plus, glm-5 | 支持 CoT 思维链 |
+| **Kimi** | api.moonshot.cn/v1 | kimi-k2 | 思考内容为数组格式 |
+| **MiniMax** | api.minimax.chat/v1 | m2.x 系列 | 支持 group_id |
+| **Ollama** | localhost:11434/v1 | deepseek-r1, qwen3 | 从 `<think/>` 标签提取 |
+
+## 自动厂商检测
 
 ```typescript
-interface GenerationConfig {
-  maxTokens?: number;
-  temperature?: number;
-  topK?: number;
-  topP?: number;
-  frequencyPenalty?: number;
+// 根据 URL 和模型名称自动检测
+detectVendor(baseUrl, model) → ProviderVendor
+
+// 检测逻辑
+if (url.includes('openai.com')) return 'openai';
+if (url.includes('deepseek.com')) return 'deepseek';
+if (url.includes('bigmodel.cn')) return 'glm';
+if (url.includes('moonshot.cn')) return 'kimi';
+if (url.includes('minimax.chat')) return 'minimax';
+if (url.includes('localhost:11434')) return 'ollama';
+// 默认使用 OpenAI 兼容模式
+return 'openai-compatible';
+```
+
+## 思考模型支持
+
+### 参数设置
+
+| 厂商 | 参数 |
+|------|------|
+| OpenAI | `reasoning_effort: 'high'` |
+| DeepSeek | `thinking: { type: 'enabled' }` |
+| GLM | `enable_cot: true` |
+| Kimi | `reasoning: { effort: 'high' }` |
+| MiniMax | `thinking: { type: 'enabled' }` |
+
+### 响应解析
+
+```typescript
+// 不同厂商的思考内容字段
+if (message?.reasoning_content) {
+  // DeepSeek 格式
+  reasoning = message.reasoning_content;
+} else if (message?.reasoning_details) {
+  // Kimi 格式（数组）
+  reasoning = message.reasoning_details.map(d => d.text).join('');
+} else if (message?.reasoning) {
+  // GLM 格式
+  reasoning = message.reasoning;
 }
 ```
 
-### LLMResponse
+## 模型路由器
+
+### 配置
 
 ```typescript
-interface LLMResponse {
-  content: string;
-  toolCalls?: ToolCall[];
-  hasToolCalls: boolean;
-  reasoning?: string;      // 深度思考模型的推理过程
-  usage?: UsageStats;      // Token 使用统计
-  usedProvider?: string;
-  usedModel?: string;
+interface ModelRouterConfig {
+  chatModel: string;      // 对话模型
+  visionModel?: string;   // 视觉模型
+  coderModel?: string;    // 编程模型
+  intentModel?: string;   // 意图识别模型
+  models: Map<string, ModelConfig[]>;
 }
 ```
 
-## 内置 Provider
+### 路由策略
 
-### createLLMProvider
+| 任务类型 | 选择策略 | 失败降级 |
+|----------|----------|----------|
+| `vision` | visionModel | **抛出错误** |
+| `coder` | coderModel | 降级到 chatModel |
+| `chat` | chatModel | 无 |
+| `intent` | intentModel | 默认为 chatModel |
 
-统一的 Provider 创建函数，支持所有后端。
+### 使用示例
 
-### 配置示例
+```typescript
+import { createModelRouter } from '@micro-agent/sdk/runtime';
 
-#### Ollama（本地运行）
+const router = createModelRouter({
+  chatModel: 'openai/gpt-4o',
+  visionModel: 'openai/gpt-4o',
+  coderModel: 'deepseek/deepseek-coder',
+});
 
-```yaml
-providers:
-  ollama:
-    baseUrl: http://localhost:11434/v1
-    models:
-      - qwen3
-      - qwen3-vl
-
-agents:
-  models:
-    chat: ollama/qwen3
-    vision: ollama/qwen3-vl
+// 根据任务类型选择模型
+const result = router.selectByTaskType('coder');
+// { model: 'deepseek/deepseek-coder', config: {...}, reason: 'coder task' }
 ```
 
-#### DeepSeek（深度推理）
+## Embedding Provider
 
-```yaml
-providers:
-  deepseek:
-    baseUrl: https://api.deepseek.com/v1
-    apiKey: ${DEEPSEEK_API_KEY}
-    models:
-      - deepseek-chat
-      - deepseek-reasoner
+### 接口定义
 
-agents:
-  models:
-    chat: deepseek/deepseek-chat
-    coder: deepseek/deepseek-chat
+```typescript
+interface EmbeddingProvider {
+  readonly name: string;
+  embed(text: string): Promise<EmbeddingResult>;
+  embedBatch(texts: string[]): Promise<EmbeddingResult[]>;
+  getDimension(): number;
+  isAvailable(): Promise<boolean>;
+}
 ```
 
-#### GLM 智谱（国产大模型）
+### 支持的实现
 
-```yaml
-providers:
-  glm:
-    baseUrl: https://open.bigmodel.cn/api/paas/v4
-    apiKey: ${GLM_API_KEY}
-    models:
-      - glm-4-flash
-      - glm-4-plus
+| Provider | 默认模型 | 维度 |
+|----------|----------|------|
+| OpenAIEmbeddingProvider | text-embedding-3-small | 1536 |
+| LocalEmbeddingProvider (Ollama) | nomic-embed-text | 768 |
 
-agents:
-  models:
-    chat: glm/glm-4-flash
+### 使用示例
+
+```typescript
+import { OpenAIEmbeddingProvider } from '@micro-agent/sdk/runtime';
+
+const embedding = new OpenAIEmbeddingProvider({
+  apiKey: process.env.OPENAI_API_KEY,
+  model: 'text-embedding-3-small',
+});
+
+const result = await embedding.embed('Hello, world!');
+console.log(result.vector.length); // 1536
 ```
 
-#### MiniMax（海螺 AI）
+## Vector DB Provider
 
-```yaml
-providers:
-  minimax:
-    baseUrl: https://api.minimax.chat/v1
-    apiKey: ${MINIMAX_API_KEY}
-    models:
-      - abab6.5s-chat
+### 接口定义
 
-agents:
-  models:
-    chat: minimax/abab6.5s-chat
+```typescript
+interface VectorDBProvider {
+  readonly name: string;
+  initialize(): Promise<void>;
+  insert(record: VectorRecord): Promise<void>;
+  insertBatch(records: VectorRecord[]): Promise<void>;
+  search(vector: number[], limit?: number): Promise<SearchResult[]>;
+  get(id: string): Promise<VectorRecord | null>;
+  delete(id: string): Promise<void>;
+  clear(): Promise<void>;
+  count(): Promise<number>;
+  close(): Promise<void>;
+}
 ```
 
-#### Kimi（长上下文）
+### 支持的实现
 
-```yaml
-providers:
-  kimi:
-    baseUrl: https://api.moonshot.cn/v1
-    apiKey: ${MOONSHOT_API_KEY}
-    models:
-      - moonshot-v1-8k
-      - moonshot-v1-128k
+| Provider | 存储 | 适用场景 |
+|----------|------|----------|
+| LanceDBProvider | 持久化文件 | 生产环境 |
+| LocalVectorProvider | 内存 | 开发测试 |
 
-agents:
-  models:
-    chat: kimi/moonshot-v1-8k
-```
-
-#### OpenAI（GPT 系列）
+## 配置
 
 ```yaml
 providers:
@@ -180,146 +262,25 @@ providers:
     models:
       - gpt-4o
       - gpt-4o-mini
+  
+  deepseek:
+    baseUrl: https://api.deepseek.com/v1
+    apiKey: ${DEEPSEEK_API_KEY}
+    models:
+      - deepseek-chat
+      - deepseek-coder
+  
+  ollama:
+    baseUrl: http://localhost:11434/v1
+    models:
+      - llama3
+      - qwen2
 
 agents:
   models:
-    chat: openai/gpt-4o-mini
+    chat: openai/gpt-4o
+    tool: openai/gpt-4o
+    embed: openai/text-embedding-3-small
     vision: openai/gpt-4o
-    coder: openai/gpt-4o
+    coder: deepseek/deepseek-coder
 ```
-
-### Provider 对比
-
-| Provider | 特点 | 推荐场景 |
-|----------|------|----------|
-| **Ollama** | 本地运行，无 API Key，隐私安全 | 开发测试、离线环境 |
-| **DeepSeek** | 深度推理，性价比高 | 复杂推理、代码生成 |
-| **GLM** | 国产模型，中文优化 | 中文对话、国内部署 |
-| **MiniMax** | 海螺 AI，多模态 | 多模态应用 |
-| **Kimi** | 128K 长上下文 | 长文档处理 |
-| **OpenAI** | GPT 系列，功能全面 | 通用场景 |
-
-## 协议支持
-
-### MCP (Model Context Protocol)
-
-MCP 是 Anthropic 提出的模型上下文协议，用于外部工具和资源接入。
-
-**协议版本**: `2024-11-05`
-
-**传输方式**:
-- `stdio` - 标准输入输出（推荐用于 IDE 集成）
-- `websocket` - WebSocket 连接
-- `sse` - Server-Sent Events
-
-**功能**:
-- 工具发现与调用
-- 资源读取
-- 提示词获取
-
-```typescript
-import { createMCPClient } from '@micro-agent/sdk';
-
-const client = createMCPClient({
-  name: 'my-client',
-  version: '1.0.0',
-  transport: {
-    type: 'stdio',
-    command: 'node',
-    args: ['mcp-server.js'],
-  },
-});
-
-// 连接并初始化
-await client.connect();
-
-// 列出工具
-const tools = await client.listTools();
-
-// 调用工具
-const result = await client.callTool('my_tool', { param: 'value' });
-```
-
-### ACP (Agent Client Protocol)
-
-ACP 是用于 IDE 与 Agent 通信的协议，支持完整的 Agent 交互。
-
-**功能**:
-- 会话管理（创建、恢复、分支）
-- 多模态支持（文本、图片、资源）
-- 工具调用流式反馈
-
-```bash
-# 启动 ACP 服务器
-micro-agent acp
-```
-
-## 意图识别管道
-
-项目实现了分阶段意图识别管道（IntentPipeline），用于：
-
-1. **预处理阶段（Preflight）**：判断是否需要检索记忆
-2. **路由阶段（Routing）**：选择合适的任务类型和模型
-
-```typescript
-// 预处理结果
-interface PreflightResult {
-  needMemory: boolean;           // 是否需要记忆检索
-  memoryTypes: MemoryTypeString[];  // 记忆类型
-  reason: string;               // 判断理由
-}
-
-// 路由结果
-interface RoutingResult {
-  type: 'vision' | 'coder' | 'chat';  // 任务类型
-  reason: string;                       // 选择理由
-}
-```
-
-意图识别支持上下文重试机制，当识别结果置信度较低时会进行二次确认。
-
-## SDK 封装
-
-SDK 层对 Provider 进行了高级封装，提供更便捷的 API。
-
-### LLM 模块 (sdk/src/llm/)
-
-```typescript
-import { createLLMProvider, ModelRouter } from '@micro-agent/sdk';
-
-// 创建 LLM Provider
-const provider = createLLMProvider({
-  type: 'openai',
-  baseUrl: 'https://api.openai.com/v1',
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
-// 模型路由
-const router = new ModelRouter({
-  providers: {
-    chat: 'openai/gpt-4o-mini',
-    coder: 'openai/gpt-4o',
-    vision: 'openai/gpt-4o',
-  },
-  fallback: 'openai/gpt-4o-mini',
-});
-```
-
-### Embedding 模块
-
-```typescript
-import { createEmbeddingProvider } from '@micro-agent/sdk';
-
-// 创建嵌入服务
-const embedding = createEmbeddingProvider({
-  provider: 'openai',
-  model: 'text-embedding-3-small',
-});
-```
-
-## 源码位置
-
-- 接口定义: `agent-service/runtime/provider/llm/`
-- Embedding: `agent-service/runtime/provider/embedding/`
-- VectorDB: `agent-service/runtime/provider/vector-db/`
-- SDK 封装: `sdk/src/llm/`
