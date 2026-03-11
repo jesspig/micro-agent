@@ -1,0 +1,34 @@
+# 依赖
+node_modules/
+
+# 构建输出
+dist/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 日志
+*.log
+logs/
+
+# 环境变量
+.env
+.env.local
+.env.*.local
+
+# Bun
+bun.lockb
+
+# 测试覆盖率
+coverage/
+
+# 临时文件
+*.tmp
+*.temp
