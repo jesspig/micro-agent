@@ -8,7 +8,7 @@ import type { Config } from '../runtime/infrastructure/config';
 import type { LLMProvider } from '../runtime/provider/llm';
 import type { ToolRegistry } from '../runtime/capability/tool-system';
 import type { SkillRegistry } from '../runtime/capability/skill-system';
-import type { AgentOrchestrator } from '../runtime/kernel/orchestrator';
+import type { LangGraphOrchestrator } from '../runtime/kernel';
 import type { KnowledgeRetriever, KnowledgeBaseConfig, KnowledgeDocument } from '../runtime/capability/knowledge';
 import type { SessionStore } from '../runtime/infrastructure/database/session/store';
 import type { EmbeddingService, SimpleMemoryManager } from '../runtime/capability/memory';
@@ -109,7 +109,7 @@ export interface ServiceComponents {
   llmProvider: LLMProvider | null;
   toolRegistry: ToolRegistry | null;
   skillRegistry: SkillRegistry | null;
-  orchestrator: AgentOrchestrator | null;
+  orchestrator: LangGraphOrchestrator | null;
   memoryManager: SimpleMemoryManager | null;
   knowledgeBaseManager: SimpleKnowledgeBaseManager | null;
   knowledgeRetriever: KnowledgeRetriever | null;

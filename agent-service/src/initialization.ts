@@ -9,7 +9,7 @@ import { loadConfig, type Config } from '../runtime/infrastructure/config';
 import { createLLMProvider, type LLMProvider } from '../runtime/provider/llm/openai';
 import { ToolRegistry } from '../runtime/capability/tool-system/registry';
 import { SkillRegistry } from '../runtime/capability/skill-system/registry';
-import { AgentOrchestrator, type OrchestratorConfig } from '../runtime/kernel/orchestrator';
+import { LangGraphOrchestrator, type LangGraphAgentConfig } from '../runtime/kernel';
 import { getBuiltinToolProvider } from '../runtime/capability/tool-system/builtin-registry';
 import { getBuiltinSkillProvider } from '../runtime/capability/skill-system/builtin-registry';
 import { SessionStore } from '../runtime/infrastructure/database/session/store';
@@ -270,7 +270,7 @@ export function initializeSessionStore(_config: AgentServiceConfig): SessionStor
 export function initializeOrchestrator(
   _config: AgentServiceConfig,
   components: Partial<ServiceComponents>
-): AgentOrchestrator | null {
+): LangGraphOrchestrator | null {
   if (!components.llmProvider || !components.toolRegistry) {
     log.warn('无法初始化 Orchestrator: 缺少 LLM Provider 或 Tool Registry');
     return null;
@@ -280,24 +280,23 @@ export function initializeOrchestrator(
     ?? _config.knowledgeBase
     ?? USER_KNOWLEDGE_DIR;
 
-  const orchestratorConfig: OrchestratorConfig = {
+  const orchestratorConfig: LangGraphAgentConfig = {
     llmProvider: components.llmProvider,
+    toolRegistry: components.toolRegistry,
+    memoryManager: components.memoryManager ?? undefined,
+    knowledgeRetriever: components.knowledgeRetriever ?? undefined,
     defaultModel: components.defaultModel ?? 'gpt-4',
-    maxIterations: _config.maxIterations ?? 20,
     systemPrompt: components.systemPrompt ?? '',
+    maxIterations: _config.maxIterations ?? 20,
+    maxConsecutiveErrors: 3,
+    tokenBudget: 128000,
     workspace: _config.workspace ?? process.cwd(),
     knowledgeBase: knowledgeBasePath,
   };
 
-  const orchestrator = new AgentOrchestrator(
-    orchestratorConfig,
-    components.toolRegistry,
-    components.memoryManager ?? undefined,
-    components.sessionStore ?? undefined,
-    components.knowledgeRetriever ?? undefined
-  );
+  const orchestrator = new LangGraphOrchestrator(orchestratorConfig);
 
-  log.info('AgentOrchestrator 已初始化');
+  log.info('LangGraphOrchestrator 已初始化');
   return orchestrator;
 }
 
