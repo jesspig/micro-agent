@@ -1,0 +1,36 @@
+{
+  "name": "@microagent/runtime",
+  "version": "0.1.0",
+  "description": "MicroAgent 核心运行时 - 零外部依赖的 Agent 框架",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "bun build ./src/index.ts --outdir ./dist --target bun --minify",
+    "typecheck": "tsc --noEmit",
+    "dev": "bun --watch ./src/index.ts",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "agent",
+    "ai",
+    "llm",
+    "microagent",
+    "runtime"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.9.2",
+    "@types/bun": "latest"
+  }
+}
