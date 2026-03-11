@@ -1,0 +1,7 @@
+{
+  "extends": "../../microagent/runtime/tsconfig.json",
+  "compilerOptions": {
+    "types": ["bun-types"]
+  },
+  "include": ["./**/*.ts"]
+}
