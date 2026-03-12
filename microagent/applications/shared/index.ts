@@ -1,0 +1,94 @@
+/**
+ * 应用层共享模块
+ * 
+ * 导出日志工具和常量定义
+ */
+
+// ============================================================================
+// 日志工具
+// ============================================================================
+
+export {
+  Logger,
+  getLogger,
+  resetLogger,
+  type LogLevel,
+  type LoggerConfig,
+} from "./logger";
+
+// ============================================================================
+// 常量定义
+// ============================================================================
+
+// 路径常量
+export {
+  MICRO_AGENT_DIR,
+  WORKSPACE_DIR,
+  AGENT_DIR,
+  SESSIONS_DIR,
+  LOGS_DIR,
+  HISTORY_DIR,
+  SKILLS_DIR,
+} from "./constants";
+
+// 配置文件路径
+export {
+  SETTINGS_FILE,
+  MCP_CONFIG_FILE,
+  AGENTS_FILE,
+  SOUL_FILE,
+  USER_FILE,
+  TOOLS_FILE,
+  HEARTBEAT_FILE,
+  MEMORY_FILE,
+} from "./constants";
+
+// 默认配置
+export {
+  DEFAULT_LOG_LEVEL,
+  DEFAULT_MAX_ITERATIONS,
+  DEFAULT_TIMEOUT_MS,
+  DEFAULT_TEMPERATURE,
+  DEFAULT_MAX_TOKENS,
+  MAX_LOG_FILE_SIZE,
+  LOG_RETENTION_DAYS,
+} from "./constants";
+
+// Agent 执行参数
+export {
+  SUBAGENT_MAX_CONCURRENCY,
+  TOOL_EXECUTION_TIMEOUT,
+  MESSAGE_SEND_TIMEOUT,
+} from "./constants";
+
+// 文件扩展名
+export {
+  MD_EXTENSION,
+  YAML_EXTENSION,
+  JSON_EXTENSION,
+  JSONL_EXTENSION,
+} from "./constants";
+
+// 环境变量名称
+export {
+  ENV_OPENAI_API_KEY,
+  ENV_ANTHROPIC_API_KEY,
+  ENV_OPENROUTER_API_KEY,
+  ENV_DEFAULT_PROVIDER,
+  ENV_DEFAULT_MODEL,
+  ENV_LOG_LEVEL,
+} from "./constants";
+
+// 消息角色
+export {
+  ROLE_SYSTEM,
+  ROLE_USER,
+  ROLE_ASSISTANT,
+  ROLE_TOOL,
+} from "./constants";
+
+// 正则表达式
+export {
+  ENV_VAR_PATTERN,
+  DATE_PATTERN,
+} from "./constants";

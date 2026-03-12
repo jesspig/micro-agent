@@ -339,7 +339,7 @@ microagent/
     │   ├── TOOLS.md                  # 工具使用指南模板
     │   ├── HEARTBEAT.md              # 心跳任务模板
     │   ├── MEMORY.md                 # 长期记忆模板
-    │   ├── settings.yaml             # 用户配置文件
+    │   ├── settings.example.yaml             # 用户配置文件
     │   └── mcp.json                  # MCP 服务器配置模板
     │
     ├── builder/                      # Agent 构建器
@@ -391,7 +391,7 @@ microagent/
 │     templates/TOOLS.md     → workspace/.agent/TOOLS.md       │
 │     templates/HEARTBEAT.md → workspace/.agent/HEARTBEAT.md   │
 │     templates/MEMORY.md    → workspace/.agent/MEMORY.md      │
-│     templates/settings.yaml → workspace/.agent/settings.yaml │
+│     templates/settings.example.yaml → workspace/.agent/settings.yaml │
 │     templates/mcp.json     → workspace/.agent/mcp.json       │
 │                                                             │
 │  4. 创建运行时目录                                           │

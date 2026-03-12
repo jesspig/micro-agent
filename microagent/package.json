@@ -5,9 +5,15 @@
   "type": "module",
   "main": "./runtime/index.ts",
   "types": "./runtime/index.ts",
+  "bin": {
+    "micro-agent": "./applications/cli/index.ts"
+  },
   "scripts": {
     "dev": "bun --watch ./runtime/index.ts",
     "build": "bun build ./runtime/index.ts --outdir ./dist --target bun --minify",
+    "cli": "bun run ./applications/cli/index.ts",
+    "start": "bun run ./applications/cli/index.ts start",
+    "status": "bun run ./applications/cli/index.ts status",
     "typecheck": "tsc --noEmit",
     "test": "bun test",
     "clean": "rm -rf dist"
@@ -21,6 +27,10 @@
   ],
   "author": "",
   "license": "MIT",
+  "dependencies": {
+    "yaml": "^2.7.1",
+    "zod": "^3.24.2"
+  },
   "devDependencies": {
     "typescript": "^5.9.2",
     "@types/bun": "latest"

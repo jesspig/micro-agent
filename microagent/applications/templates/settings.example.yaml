@@ -1,0 +1,185 @@
+# MicroAgent 配置文件示例
+# 复制此文件为 settings.yaml 并根据需要修改
+
+# ==================== Agent 配置 ====================
+agents:
+  defaults:
+    # Agent 工作目录，所有文件操作都在此目录下进行
+    workspace: ~/.micro-agent/workspace
+    # 默认使用的模型，格式为 <provider>/<model>
+    # 示例: ollama/qwen3.5, openai/gpt-4, anthropic/claude-3-opus
+    model: ""
+    # 模型单次回复的最大 token 数
+    maxTokens: 8192
+    # 模型温度参数，控制输出随机性 (0-1)
+    # 较低值 (如 0.3) 输出更确定，较高值 (如 0.9) 输出更有创意
+    temperature: 0.7
+    # 工具调用最大迭代次数，防止无限循环
+    maxToolIterations: 40
+    # 心跳间隔时间（分钟），用于定时任务检查
+    heartbeatInterval: 30
+
+# ==================== 工具配置 ====================
+tools:
+  # 启用的工具列表（留空表示全部启用）
+  enabled: []
+  # 禁用的工具列表
+  disabled: []
+  # 工具特定配置
+  config:
+    shell:
+      # 允许执行的命令白名单（留空表示全部禁止）
+      # Agent 只能执行白名单中的命令
+      allowedCommands:
+        - npm
+        - bun
+        - git
+        - dir
+        - type
+      # 禁止执行的命令黑名单（优先级高于白名单）
+      blockedCommands:
+        - rm -rf /
+        - format
+        - del
+
+# ==================== 消息通道配置 ====================
+# 配置消息平台接入，实现多平台消息收发
+channels:
+  # 飞书机器人配置
+  feishu:
+    enabled: false
+    appId: ""
+    appSecret: ""
+  # 钉钉机器人配置
+  dingtalk:
+    enabled: false
+    clientId: ""
+    clientSecret: ""
+  # QQ 机器人配置
+  qq:
+    enabled: false
+    appId: ""
+    secret: ""
+  # 企业微信机器人配置
+  wechatWork:
+    enabled: false
+    botId: ""
+    secret: ""
+
+# ==================== 模型提供商配置 ====================
+# 配置 LLM API 提供商，支持多种 Provider 类型
+# Provider 类型: openai | openai-response | anthropic | ollama
+#
+# 类型说明:
+# - openai: OpenAI Chat Completions API 格式（兼容模式）
+# - openai-response: OpenAI Response API 格式（新版，支持更好的缓存和状态管理）
+# - anthropic: Anthropic Claude Messages API 格式
+# - ollama: Ollama API 格式（兼容 OpenAI）
+
+providers:
+  # Anthropic Claude API
+  anthropic:
+    type: anthropic
+    enabled: false
+    baseUrl: https://api.anthropic.com/v1
+    apiKey: ${ANTHROPIC_API_KEY}
+    models: []
+
+  # 智谱 AI GLM 系列（OpenAI 兼容）
+  bigmodel:
+    type: openai
+    enabled: false
+    baseUrl: https://open.bigmodel.cn/api/paas/v4
+    apiKey: ${GLM_API_KEY}
+    models: []
+
+  # 阿里云百炼 DashScope（OpenAI 兼容）
+  dashscope:
+    type: openai
+    enabled: false
+    baseUrl: https://dashscope.aliyuncs.com/compatible-mode/v1
+    apiKey: ${DASHSCOPE_API_KEY}
+    models: []
+
+  # DeepSeek 深度求索（OpenAI 兼容）
+  deepseek:
+    type: openai
+    enabled: false
+    baseUrl: https://api.deepseek.com/v1
+    apiKey: ${DEEPSEEK_API_KEY}
+    models: []
+
+  # iFlow AI 平台（OpenAI 兼容）
+  iflow:
+    type: openai
+    enabled: false
+    baseUrl: https://apis.iflow.cn/v1
+    apiKey: ${IFLOW_API_KEY}
+    models: []
+
+  # Kimi 月之暗面（OpenAI 兼容）
+  kimi:
+    type: openai
+    enabled: false
+    baseUrl: https://api.moonshot.cn/v1
+    apiKey: ${MOONSHOT_API_KEY}
+    models: []
+
+  # LM Studio 本地模型（OpenAI 兼容）
+  # 需要先启动 LM Studio 并开启本地服务器
+  lmstudio:
+    type: openai
+    enabled: false
+    baseUrl: http://localhost:1234/v1
+    apiKey: ""
+    models: []
+
+  # MiniMax 海螺 AI（OpenAI 兼容）
+  minimax:
+    type: openai
+    enabled: false
+    baseUrl: https://api.minimax.chat/v1
+    apiKey: ${MINIMAX_API_KEY}
+    models: []
+
+  # ModelScope 魔搭社区（OpenAI 兼容）
+  modelscope:
+    type: openai
+    enabled: false
+    baseUrl: https://api-inference.modelscope.cn/v1
+    apiKey: ${MODELSCOPE_API_KEY}
+    models: []
+
+  # Ollama 本地模型
+  # 需要先安装并启动 Ollama 服务
+  ollama:
+    type: ollama
+    enabled: false
+    baseUrl: http://localhost:11434/v1
+    apiKey: ""
+    models: []
+
+  # OpenAI GPT 系列（Chat Completions API）
+  openai:
+    type: openai
+    enabled: false
+    baseUrl: https://api.openai.com/v1
+    apiKey: ${OPENAI_API_KEY}
+    models: []
+
+  # OpenAI Response API（新版，推荐）
+  # 提供更好的缓存、状态管理和推理模型支持
+  openai-response:
+    type: openai-response
+    enabled: false
+    baseUrl: https://api.openai.com/v1
+    apiKey: ${OPENAI_API_KEY}
+    models: []
+
+  # OpenRouter 多模型聚合平台（OpenAI 兼容）
+  openrouter:
+    type: openai
+    enabled: false
+    baseUrl: https://openrouter.ai/api/v1
+    apiKey: ${OPENROUTER_API_KEY}
+    models: []
