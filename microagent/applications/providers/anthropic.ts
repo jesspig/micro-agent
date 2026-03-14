@@ -13,9 +13,14 @@ import type { ChatRequest, ChatResponse, Message, ToolCall } from "../../runtime
 // 类型定义
 // ============================================================================
 
+type AnthropicContentBlock =
+  | { type: "text"; text: string }
+  | { type: "tool_use"; id: string; name: string; input: unknown }
+  | { type: "tool_result"; tool_use_id: string; content: string };
+
 interface AnthropicMessage {
   role: "user" | "assistant";
-  content: Array<{ type: string; text?: string; tool_use_id?: string; name?: string; input?: unknown }>;
+  content: AnthropicContentBlock[];
 }
 
 interface AnthropicRequest {
@@ -113,8 +118,11 @@ export class AnthropicProvider extends BaseProvider implements IProviderExtended
   async chat(request: ChatRequest): Promise<ChatResponse> {
     const { model, messages, tools, temperature, maxTokens } = request;
 
+    // 解析模型名称：支持 "provider/model" 格式，提取 model 部分
+    const actualModel = this.parseModelName(model || this.defaultModel);
+
     const body: AnthropicRequest = {
-      model: model || this.defaultModel,
+      model: actualModel,
       messages: this.convertMessages(messages),
       max_tokens: maxTokens ?? 4096,
     };
@@ -133,6 +141,32 @@ export class AnthropicProvider extends BaseProvider implements IProviderExtended
     return this.parseResponse(response);
   }
 
+  /**
+   * 解析并验证模型名称
+   * 支持格式：
+   * - "model-name" -> 直接使用
+   * - "provider/model-name" -> 验证 provider 匹配后提取 model
+   *
+   * @throws 如果 provider 不匹配当前 Provider 实例
+   */
+  private parseModelName(model: string): string {
+    const slashIndex = model.indexOf("/");
+    if (slashIndex >= 0) {
+      const providerName = model.substring(0, slashIndex);
+      const modelName = model.substring(slashIndex + 1);
+
+      // 验证 provider 是否匹配当前实例
+      if (providerName !== this.name) {
+        throw new Error(
+          `模型 "${model}" 的 provider "${providerName}" 与当前 Provider "${this.name}" 不匹配`
+        );
+      }
+
+      return modelName;
+    }
+    return model;
+  }
+
   private convertMessages(messages: Message[]): AnthropicMessage[] {
     const result: AnthropicMessage[] = [];
 
@@ -145,7 +179,7 @@ export class AnthropicProvider extends BaseProvider implements IProviderExtended
           content: [{ type: "text", text: msg.content }],
         });
       } else if (msg.role === "assistant") {
-        const content: Array<{ type: string; text?: string; tool_use_id?: string; name?: string; input?: unknown }> = [];
+        const content: AnthropicContentBlock[] = [];
 
         if (msg.content) {
           content.push({ type: "text", text: msg.content });
@@ -171,7 +205,7 @@ export class AnthropicProvider extends BaseProvider implements IProviderExtended
             type: "tool_result",
             tool_use_id: msg.toolCallId!,
             content: msg.content,
-          });
+          } as AnthropicContentBlock);
         }
       }
     }
@@ -214,7 +248,7 @@ export class AnthropicProvider extends BaseProvider implements IProviderExtended
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
+        const errorData = await response.json().catch(() => ({})) as { error?: { message?: string } };
         const errorMessage = errorData.error?.message ?? response.statusText;
         throw new Error(`${this.config.name} API 错误: ${errorMessage}`);
       }

@@ -1,6 +1,6 @@
 /**
  * Channel 管理器
- * 
+ *
  * 负责多个 Channel 的注册、生命周期管理和消息分发
  */
 
@@ -13,13 +13,13 @@ import { RegistryError } from "../errors.js";
 
 /**
  * Channel 管理器
- * 
+ *
  * 管理多个 Channel 实例，提供统一的注册、启动、停止和消息处理接口。
  */
 export class ChannelManager {
   /** 已注册的 Channel 实例 */
   private channels = new Map<string, IChannelExtended>();
-  
+
   /** 全局消息处理器 */
   private globalHandlers = new Set<MessageHandler>();
 
@@ -84,7 +84,7 @@ export class ChannelManager {
 
     for (const result of results) {
       if (result.status === "rejected") {
-        console.error(`[ChannelManager] 启动渠道失败:`, result.reason);
+        console.error(`[ChannelManager] 启动消息通道失败:`, result.reason);
       }
     }
   }

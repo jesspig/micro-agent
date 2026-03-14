@@ -7,11 +7,11 @@
  * - 初始化 Provider
  * - 注册工具
  * - 加载技能
- * - 启动 Agent 循环（前台日志输出模式）
+ * - 初始化并启动 Channel
+ * - 将 Channel 消息转发给 AgentLoop
  */
 
 import { mkdirSync } from "node:fs";
-import * as readline from "node:readline";
 import {
   MICRO_AGENT_DIR,
   WORKSPACE_DIR,
@@ -39,9 +39,19 @@ import { getAllTools } from "../../tools/index.js";
 import { FilesystemSkillLoader } from "../../skills/index.js";
 import { ToolRegistry } from "../../../runtime/tool/registry.js";
 import { AgentLoop } from "../../../runtime/kernel/agent-loop.js";
+import { SessionManager } from "../../../runtime/session/manager.js";
+import { ChannelManager } from "../../../runtime/channel/manager.js";
+import {
+  createQQChannel,
+  createFeishuChannel,
+  createWechatWorkChannel,
+  createDingTalkChannel,
+} from "../../channels/index.js";
 import type { IProvider } from "../../../runtime/contracts.js";
 import type { AgentConfig } from "../../../runtime/kernel/types.js";
 import type { SingleProviderConfig } from "../../config/schema.js";
+import type { IChannelExtended } from "../../../runtime/channel/contract.js";
+import type { InboundMessage } from "../../../runtime/channel/types.js";
 
 // ============================================================================
 // 类型定义
@@ -59,8 +69,6 @@ export interface StartOptions {
   debug?: boolean;
   /** 日志级别 */
   logLevel?: LogLevel;
-  /** 初始消息 */
-  message?: string;
 }
 
 /**
@@ -122,7 +130,7 @@ async function initializeConfigFiles(): Promise<void> {
     }
   }
 
-  // settings.yaml 特殊处理：使用 settings.example.yaml 作为模板
+  // settings.yaml 特殊处理
   const settingsFile = Bun.file(SETTINGS_FILE);
   if (!(await settingsFile.exists())) {
     const exampleFile = Bun.file(`${templateDir}/settings.example.yaml`);
@@ -139,15 +147,10 @@ async function initializeConfigFiles(): Promise<void> {
 
 /**
  * 创建 Provider 实例
- *
- * @param settings - 配置对象
- * @returns Provider 实例，如果配置不完整返回 null
  */
 function createProvider(settings: Settings): IProvider | null {
   const logger = getLogger();
-  const model = settings.agents.defaults.model;
 
-  // 从配置中获取启用的 Provider
   const providers = settings.providers ?? {};
   const enabledProvider = Object.entries(providers).find(
     ([_, config]) => config?.enabled === true
@@ -164,7 +167,6 @@ function createProvider(settings: Settings): IProvider | null {
     return null;
   }
 
-  // 验证必需配置
   const validation = validateProviderConfig(providerName, providerConfig);
   if (!validation.valid) {
     logger.warn(`Provider "${providerName}" 配置不完整: ${validation.errors.join(", ")}`);
@@ -179,7 +181,6 @@ function createProvider(settings: Settings): IProvider | null {
           apiKey: providerConfig.apiKey!,
           baseUrl: providerConfig.baseUrl!,
           models: providerConfig.models!,
-          defaultModel: model,
         });
       }
 
@@ -187,8 +188,8 @@ function createProvider(settings: Settings): IProvider | null {
         return createAnthropicProvider({
           name: providerName,
           apiKey: providerConfig.apiKey!,
+          baseUrl: providerConfig.baseUrl!,
           models: providerConfig.models!,
-          defaultModel: model,
         });
       }
 
@@ -199,7 +200,6 @@ function createProvider(settings: Settings): IProvider | null {
           apiKey: providerConfig.apiKey!,
           baseUrl: providerConfig.baseUrl!,
           models: providerConfig.models!,
-          defaultModel: model,
         });
       }
     }
@@ -214,7 +214,7 @@ function createProvider(settings: Settings): IProvider | null {
  * 验证 Provider 配置完整性
  */
 function validateProviderConfig(
-  name: string,
+  _name: string,
   config: SingleProviderConfig
 ): { valid: boolean; errors: string[] } {
   const errors: string[] = [];
@@ -231,47 +231,244 @@ function validateProviderConfig(
 }
 
 // ============================================================================
+// Channel 创建
+// ============================================================================
+
+/**
+ * 创建 Channel 实例
+ */
+function createChannels(settings: Settings): IChannelExtended[] {
+  const logger = getLogger();
+  const channels: IChannelExtended[] = [];
+  const channelConfigs = settings.channels ?? {};
+
+  // QQ Channel
+  if (channelConfigs.qq?.enabled) {
+    const qqConfig = channelConfigs.qq;
+    if (qqConfig.appId && qqConfig.clientSecret) {
+      try {
+        const config = {
+          id: "qq",
+          type: "qq" as const,
+          enabled: true,
+          appId: qqConfig.appId,
+          clientSecret: qqConfig.clientSecret,
+          sandbox: qqConfig.sandbox ?? false,
+          allowFrom: qqConfig.allowFrom,
+          allowChannels: qqConfig.allowChannels,
+        };
+        const channel = createQQChannel(config as Parameters<typeof createQQChannel>[0]);
+        channels.push(channel);
+        logger.info(`创建 QQ Channel: ${qqConfig.appId} (sandbox: ${qqConfig.sandbox ?? false})`);
+      } catch (error) {
+        logger.error(`创建 QQ Channel 失败: ${error}`);
+      }
+    } else {
+      logger.warn("QQ Channel 已启用但配置不完整（需要 appId 和 clientSecret）");
+    }
+  }
+
+  // 飞书 Channel
+  if (channelConfigs.feishu?.enabled) {
+    const feishuConfig = channelConfigs.feishu;
+    if (feishuConfig.appId && feishuConfig.appSecret) {
+      try {
+        const config = {
+          id: "feishu",
+          type: "feishu" as const,
+          enabled: true,
+          appId: feishuConfig.appId,
+          appSecret: feishuConfig.appSecret,
+          allowFrom: feishuConfig.allowFrom,
+        };
+        const channel = createFeishuChannel(config as Parameters<typeof createFeishuChannel>[0]);
+        channels.push(channel);
+        logger.info(`创建飞书 Channel: ${feishuConfig.appId}`);
+      } catch (error) {
+        logger.error(`创建飞书 Channel 失败: ${error}`);
+      }
+    } else {
+      logger.warn("飞书 Channel 已启用但配置不完整");
+    }
+  }
+
+  // 企业微信 Channel
+  if (channelConfigs.wechatWork?.enabled) {
+    const wechatConfig = channelConfigs.wechatWork;
+    if (wechatConfig.botId || wechatConfig.webhookKey) {
+      try {
+        const config = {
+          id: "wechatWork",
+          type: "wechat-work" as const,
+          enabled: true,
+          botId: wechatConfig.botId,
+          secret: wechatConfig.secret,
+          webhookKey: wechatConfig.webhookKey,
+          corpId: wechatConfig.corpId,
+          agentId: wechatConfig.agentId,
+          allowFrom: wechatConfig.allowFrom,
+        };
+        const channel = createWechatWorkChannel(config as Parameters<typeof createWechatWorkChannel>[0]);
+        channels.push(channel);
+        logger.info(`创建企业微信 Channel`);
+      } catch (error) {
+        logger.error(`创建企业微信 Channel 失败: ${error}`);
+      }
+    } else {
+      logger.warn("企业微信 Channel 已启用但配置不完整");
+    }
+  }
+
+  // 钉钉 Channel
+  if (channelConfigs.dingtalk?.enabled) {
+    const dingtalkConfig = channelConfigs.dingtalk;
+    if (dingtalkConfig.clientId && dingtalkConfig.clientSecret) {
+      try {
+        const config = {
+          id: "dingtalk",
+          type: "dingtalk" as const,
+          enabled: true,
+          clientId: dingtalkConfig.clientId,
+          clientSecret: dingtalkConfig.clientSecret,
+          allowFrom: dingtalkConfig.allowFrom,
+        };
+        const channel = createDingTalkChannel(config as Parameters<typeof createDingTalkChannel>[0]);
+        channels.push(channel);
+        logger.info(`创建钉钉 Channel: ${dingtalkConfig.clientId}`);
+      } catch (error) {
+        logger.error(`创建钉钉 Channel 失败: ${error}`);
+      }
+    } else {
+      logger.warn("钉钉 Channel 已启用但配置不完整");
+    }
+  }
+
+  return channels;
+}
+
+// ============================================================================
+// Agent 消息处理
+// ============================================================================
+
+/**
+ * 创建消息处理器（将 Channel 消息转发给 AgentLoop）
+ */
+function createMessageHandler(
+  agent: AgentLoop,
+  sessionManager: SessionManager,
+  channels: IChannelExtended[]
+): (message: InboundMessage) => Promise<void> {
+  const logger = getLogger();
+
+  // 单用户模式：使用全局统一的 session key
+  const GLOBAL_SESSION_KEY = "global";
+
+  return async (message: InboundMessage) => {
+    try {
+      logger.info(`收到消息 [${message.channelId}] ${message.from}: ${message.text}`);
+
+      // 使用全局 session（跨平台共享上下文）
+      const session = sessionManager.getOrCreate(GLOBAL_SESSION_KEY);
+
+      // 添加用户消息
+      session.addMessage({
+        role: "user",
+        content: message.text,
+      });
+
+      // 运行 Agent
+      const result = await agent.run(session.getMessages());
+
+      // 日志输出
+      logger.debug(`Agent 结果: content=${result.content ? '有内容' : '无内容'}, error=${result.error || '无错误'}`);
+
+      // 更新 session
+      if (result.messages) {
+        session.clear();
+        for (const msg of result.messages) {
+          session.addMessage(msg);
+        }
+      }
+
+      // 发送回复
+      if (result.content) {
+        const channel = channels.find((c) => c.id === message.channelId);
+        if (channel) {
+          // 回复目标：群聊回复到群，私聊回复给发送者
+          const replyTo = message.to || message.from;
+          const sendResult = await channel.send({
+            to: replyTo,
+            text: result.content,
+            metadata: message.metadata, // 传递 Channel 特定元数据
+          });
+          if (sendResult.success) {
+            logger.info(`发送回复 [${message.channelId}] ${replyTo}: ${result.content.substring(0, 100)}...`);
+          } else {
+            logger.error(`发送回复失败 [${message.channelId}]: ${sendResult.error}`);
+          }
+        } else {
+          logger.error(`找不到 Channel: ${message.channelId}`);
+        }
+      } else if (result.error) {
+        logger.error(`Agent 执行错误: ${result.error}`);
+      } else {
+        logger.warn(`Agent 返回空内容`);
+      }
+    } catch (error) {
+      logger.error(`处理消息失败: ${error}`);
+    }
+  };
+}
+
+// ============================================================================
 // Agent 循环（前台日志输出模式）
 // ============================================================================
 
 /**
- * 运行 Agent 循环（前台日志输出模式）
+ * 运行 Agent 服务
  */
-async function runAgentLoop(
-  provider: IProvider | null,
+async function runAgentService(
+  provider: IProvider,
   toolRegistry: ToolRegistry,
+  sessionManager: SessionManager,
+  channelManager: ChannelManager,
+  channels: IChannelExtended[],
   settings: Settings,
   options: StartOptions
 ): Promise<void> {
   const logger = getLogger();
 
-  logger.info("Agent 服务已启动，等待消息...");
+  // 创建 AgentLoop
+  const agentConfig: AgentConfig = {
+    model: settings.agents.defaults.model ?? "default",
+    maxIterations: settings.agents.defaults.maxToolIterations ?? 50,
+    defaultTimeout: 60000,
+    enableLogging: options.debug ?? false,
+  };
+  const agent = new AgentLoop(provider, toolRegistry, agentConfig);
 
-  // 显示配置提示
-  if (!provider) {
-    logger.warn("未找到已启用的 Provider，请在 settings.yaml 中启用一个 Provider");
-    logger.info("修改配置后请重启服务");
+  // 创建消息处理器
+  const messageHandler = createMessageHandler(agent, sessionManager, channels);
+
+  // 注册消息处理器到所有 Channel
+  for (const channel of channels) {
+    channel.onMessage(messageHandler);
   }
 
-  // 使用 stdin 保持进程运行，按 Ctrl+C 或 Ctrl+D 退出
-  return new Promise((resolve) => {
-    const rl = readline.createInterface({
-      input: process.stdin,
-      output: process.stdout,
-    });
+  // 启动所有 Channel
+  logger.info("启动 Channel...");
+  await channelManager.startAll();
 
-    rl.on("close", () => {
+  logger.info("Agent 服务已启动，等待消息...");
+  logger.info(`已启用 ${channels.length} 个 Channel`);
+
+  // 保持运行
+  return new Promise((resolve) => {
+    const cleanup = async () => {
+      logger.info("正在停止服务...");
+      await channelManager.stopAll();
       logger.info("Agent 服务已停止");
       resolve();
-    });
-
-    // 保持进程运行的备用方案
-    const keepAlive = setInterval(() => {}, 24 * 60 * 60 * 1000);
-
-    // 清理函数
-    const cleanup = () => {
-      clearInterval(keepAlive);
-      rl.close();
     };
 
     process.on("SIGINT", cleanup);
@@ -319,7 +516,7 @@ export async function startCommand(
       return { success: false, error: message };
     }
 
-    // 4. 覆盖模型（如果指定）
+    // 4. 覆盖模型
     if (options.model) {
       settings.agents.defaults.model = options.model;
       logger.info(`覆盖模型: ${options.model}`);
@@ -338,41 +535,46 @@ export async function startCommand(
     logger.info("加载技能...");
     const skillLoader = new FilesystemSkillLoader();
     const skills = await skillLoader.listSkills();
-
     if (skills.length > 0) {
       for (const skill of skills) {
         logger.info(`加载技能: ${skill.meta.name}`);
       }
-    } else {
-      logger.info("暂无技能");
     }
 
-    // 7. 创建 Provider（可能为空）
-    const providers = settings.providers ?? {};
-    const enabledProviderName = Object.entries(providers).find(
-      ([_, config]) => config?.enabled === true
-    )?.[0] ?? "unknown";
-
-    logger.info(`初始化 Provider: ${enabledProviderName}`);
+    // 7. 创建 Provider
     const provider = createProvider(settings);
+    if (!provider) {
+      logger.error("未找到可用的 Provider，请检查 settings.yaml 配置");
+      return { success: false, error: "未找到可用的 Provider" };
+    }
+    logger.info(`Provider 已初始化`);
 
-    // 8. 创建 Agent（如果 Provider 可用）
-    if (provider) {
-      const agentConfig: AgentConfig = {
-        model: settings.agents.defaults.model ?? "default",
-        maxIterations: settings.agents.defaults.maxToolIterations ?? 50,
-        defaultTimeout: 60000,
-        enableLogging: options.debug ?? false,
-      };
-      const agent = new AgentLoop(provider, toolRegistry, agentConfig);
-      logger.info("初始化完成");
-    } else {
-      logger.warn("Provider 配置不完整，请修改 settings.yaml 后重启服务");
-      logger.info("初始化完成（等待有效配置）");
+    // 8. 创建 Channel
+    const channels = createChannels(settings);
+    if (channels.length === 0) {
+      logger.warn("未启用任何 Channel，Agent 将无法接收消息");
+      logger.info("请在 settings.yaml 中启用至少一个 Channel");
     }
 
-    // 9. 运行 Agent 循环
-    await runAgentLoop(provider, toolRegistry, settings, options);
+    // 9. 创建 Session 管理器
+    const sessionManager = new SessionManager();
+
+    // 10. 创建 Channel 管理器
+    const channelManager = new ChannelManager();
+    for (const channel of channels) {
+      channelManager.register(channel);
+    }
+
+    // 11. 启动 Agent 服务
+    await runAgentService(
+      provider,
+      toolRegistry,
+      sessionManager,
+      channelManager,
+      channels,
+      settings,
+      options
+    );
 
     return { success: true };
   } catch (error) {
@@ -404,5 +606,15 @@ micro-agent start - 启动 Agent 服务
   micro-agent start --debug            # 启用调试模式
   micro-agent start -m gpt-4o          # 使用指定模型
   micro-agent start -c ./my-config.yaml # 使用自定义配置
+
+Channel 配置:
+  在 settings.yaml 中启用 Channel 以接收消息:
+  
+  channels:
+    qq:
+      enabled: true
+      appId: "your_app_id"
+      secret: "your_secret"
+      allowFrom: ["*"]  # 允许所有用户
 `);
 }

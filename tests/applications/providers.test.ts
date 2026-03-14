@@ -313,17 +313,17 @@ describe("OllamaProvider", () => {
       });
 
       expect(provider.name).toBe("ollama");
-      expect(provider.config.baseUrl).toBe("http://localhost:11434/v1");
+      expect(provider.config.baseUrl).toBe("http://localhost:11434");
     });
 
     it("应该支持自定义配置", () => {
       const provider = new OllamaProvider({
-        baseUrl: "http://192.168.1.100:11434/v1",
+        baseUrl: "http://192.168.1.100:11434",
         models: ["llama3.2"],
         timeout: 120000,
       });
 
-      expect(provider.config.baseUrl).toBe("http://192.168.1.100:11434/v1");
+      expect(provider.config.baseUrl).toBe("http://192.168.1.100:11434");
     });
   });
 

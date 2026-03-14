@@ -2,13 +2,17 @@
  * Ollama Provider 实现
  *
  * 支持本地运行的开源大语言模型
- * 使用 Ollama 兼容的 API 格式（类似 OpenAI）
+ * 使用 Ollama 原生 API 格式（支持 thinking 模型）
  */
 
 import { BaseProvider } from "../../runtime/provider/base.js";
 import type { IProviderExtended } from "../../runtime/provider/contract.js";
 import type { ProviderCapabilities, ProviderConfig, ProviderStatus } from "../../runtime/provider/types.js";
 import type { ChatRequest, ChatResponse, Message, ToolCall } from "../../runtime/types.js";
+
+// ============================================================================
+// 类型定义
+// ============================================================================
 
 /**
  * Ollama 模型信息
@@ -27,34 +31,33 @@ interface OllamaModelsResponse {
 }
 
 /**
- * Ollama API 响应格式（与 OpenAI 兼容）
+ * Ollama 原生 API 响应格式
  */
-interface OllamaResponse {
-  id: string;
-  object: string;
-  created: number;
+interface OllamaNativeResponse {
   model: string;
-  choices: Array<{
-    index: number;
-    message: {
-      role: string;
-      content: string | null;
-      tool_calls?: Array<{
-        id: string;
-        type: "function";
-        function: {
-          name: string;
-          arguments: string;
-        };
-      }>;
-    };
-    finish_reason: string;
-  }>;
-  usage?: {
-    prompt_tokens: number;
-    completion_tokens: number;
-    total_tokens: number;
+  created_at: string;
+  message: {
+    role: string;
+    content: string;
+    /** 思考内容（thinking 模型） */
+    thinking?: string;
+    tool_calls?: Array<{
+      id?: string;
+      type?: "function";
+      function: {
+        name: string;
+        arguments: string;
+      };
+    }>;
   };
+  done_reason?: string;
+  done: boolean;
+  total_duration?: number;
+  load_duration?: number;
+  prompt_eval_count?: number;
+  prompt_eval_duration?: number;
+  eval_count?: number;
+  eval_duration?: number;
 }
 
 /**
@@ -68,123 +71,91 @@ interface OllamaError {
  * Ollama Provider 配置选项
  */
 export interface OllamaProviderOptions {
-  /** 基础 URL（可选，默认本地地址） */
+  /** Provider 名称 */
+  name?: string;
+  /** 基础 URL */
   baseUrl?: string;
+  /** 支持的模型列表 */
+  models?: string[];
   /** 默认模型 */
   defaultModel?: string;
-  /** 支持的模型列表（从配置文件读取，如未配置则运行时从 API 获取） */
-  models?: string[];
   /** 请求超时（毫秒） */
   timeout?: number;
   /** 最大重试次数 */
   maxRetries?: number;
+  /** 是否启用 thinking 模式 */
+  think?: boolean;
 }
 
-/**
- * Ollama Provider 实现
- *
- * 支持 Ollama 本地运行的各类开源模型
- * 使用 Bun 的 fetch API 进行 HTTP 请求
- */
+// ============================================================================
+// Provider 实现
+// ============================================================================
+
 export class OllamaProvider extends BaseProvider implements IProviderExtended {
-  readonly name = "ollama";
-
+  readonly name: string;
   readonly config: ProviderConfig;
+  readonly capabilities: ProviderCapabilities;
 
-  /** 默认模型 */
   private readonly defaultModel: string;
-
-  /** 请求超时（毫秒） */
   private readonly timeout: number;
-
-  /** 最大重试次数 */
   private readonly maxRetries: number;
-
-  /** 缓存的模型列表 */
+  private readonly think: boolean;
+  private readonly retryBaseDelay = 1000;
   private cachedModels: string[] | null = null;
 
-  /** 重试延迟基数（毫秒） */
-  private readonly retryBaseDelay = 1000;
-
-  /**
-   * 创建 Ollama Provider 实例
-   * @param options 配置选项
-   */
   constructor(options: OllamaProviderOptions = {}) {
     super();
 
-    const baseUrl = options.baseUrl ?? "http://localhost:11434/v1";
-
-    // 从配置读取模型列表，如果配置了则使用配置的列表，否则运行时从 API 获取
-    const models = options.models && options.models.length > 0
-      ? options.models
-      : []; // 空数组表示运行时从 API 获取
+    this.name = options.name ?? "ollama";
+    const baseUrl = options.baseUrl ?? "http://localhost:11434";
+    const models = options.models?.length ? options.models : [];
 
     this.config = {
-      id: "ollama",
+      id: this.name,
       name: "Ollama",
       baseUrl,
-      apiKey: "", // Ollama 不需要 API Key
+      apiKey: "",
       models,
     };
 
-    // 如果配置了模型列表，设置缓存
     if (models.length > 0) {
       this.cachedModels = [...models];
     }
 
     this.defaultModel = options.defaultModel ?? "llama3.2";
-    this.timeout = options.timeout ?? 120000; // 本地模型可能较慢，延长超时
+    this.timeout = options.timeout ?? 120000;
     this.maxRetries = options.maxRetries ?? 2;
+    this.think = options.think ?? true;
+
+    this.capabilities = {
+      supportsStreaming: true,
+      supportsVision: false,
+      supportsPromptCaching: false,
+      maxContextTokens: 128000,
+      toolSchemaMode: "native",
+    };
   }
 
-  /**
-   * Provider 能力描述
-   */
-  override readonly capabilities: ProviderCapabilities = {
-    supportsStreaming: true,
-    supportsVision: false,
-    supportsPromptCaching: false,
-    maxContextTokens: 128000, // 根据具体模型而定
-    toolSchemaMode: "native",
-  };
-
-  /**
-   * 获取支持的模型列表
-   * 如果配置了模型列表则返回配置的列表，否则首次调用时从 Ollama API 获取，后续使用缓存
-   */
   getSupportedModels(): string[] {
-    // 如果配置中有模型列表，直接返回
     if (this.config.models.length > 0) {
       return [...this.config.models];
     }
-
-    // 返回缓存的模型列表或默认模型
     if (this.cachedModels) {
       return [...this.cachedModels];
     }
-
-    // 返回默认模型列表（后台异步刷新）
     return [this.defaultModel];
   }
 
-  /**
-   * 刷新模型列表缓存
-   * 从 Ollama API 获取最新的可用模型
-   */
   async refreshModels(): Promise<string[]> {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), this.timeout);
 
       try {
-        const response = await fetch(
-          `${this.config.baseUrl.replace("/v1", "")}/api/tags`,
-          {
-            method: "GET",
-            signal: controller.signal,
-          }
-        );
+        const response = await fetch(`${this.config.baseUrl}/api/tags`, {
+          method: "GET",
+          signal: controller.signal,
+        });
 
         if (!response.ok) {
           throw new Error(`获取模型列表失败: ${response.statusText}`);
@@ -192,7 +163,7 @@ export class OllamaProvider extends BaseProvider implements IProviderExtended {
 
         const data = (await response.json()) as OllamaModelsResponse;
         this.cachedModels = data.models.map((m) => m.name);
-        return [...this.cachedModels];
+        return [...this.cachedModels!];
       } finally {
         clearTimeout(timeoutId);
       }
@@ -202,34 +173,33 @@ export class OllamaProvider extends BaseProvider implements IProviderExtended {
     }
   }
 
-  /**
-   * 执行聊天请求
-   * @param request 聊天请求
-   * @returns 聊天响应
-   */
   async chat(request: ChatRequest): Promise<ChatResponse> {
     const { model, messages, tools, temperature, maxTokens } = request;
 
-    // 刷新模型列表（如果是首次调用）
     if (!this.cachedModels) {
       await this.refreshModels();
     }
 
-    // 构建 Ollama API 请求体（兼容 OpenAI 格式）
+    // 解析模型名称：支持 "provider/model" 格式，提取 model 部分
+    const actualModel = this.parseModelName(model || this.defaultModel);
+
+    // 构建原生 Ollama API 请求体
     const body: Record<string, unknown> = {
-      model: model || this.defaultModel,
+      model: actualModel,
       messages: this.convertMessages(messages),
-      temperature: temperature ?? 0.7,
-      stream: false, // 当前仅支持非流式响应
+      stream: false,
+      think: this.think,
     };
 
-    // 添加可选参数
-    if (maxTokens !== undefined) {
-      body.max_tokens = maxTokens;
+    if (temperature !== undefined) {
+      body.options = { temperature };
     }
 
-    // 添加工具定义（Ollama 部分模型支持工具调用）
-    if (tools && tools.length > 0) {
+    if (maxTokens !== undefined) {
+      body.options = { ...(body.options as Record<string, unknown>), num_predict: maxTokens };
+    }
+
+    if (tools?.length) {
       body.tools = tools.map((tool) => ({
         type: "function",
         function: {
@@ -240,19 +210,37 @@ export class OllamaProvider extends BaseProvider implements IProviderExtended {
       }));
     }
 
-    // 发送请求（带重试）
-    const response = await this.requestWithRetry(
-      `${this.config.baseUrl}/chat/completions`,
-      body
-    );
-
+    const response = await this.requestWithRetry(`${this.config.baseUrl}/api/chat`, body);
     this.recordUsage();
     return this.parseResponse(response);
   }
 
   /**
-   * 转换消息格式为 Ollama 格式（与 OpenAI 兼容）
+   * 解析并验证模型名称
+   * 支持格式：
+   * - "model-name" -> 直接使用
+   * - "provider/model-name" -> 验证 provider 匹配后提取 model
+   *
+   * @throws 如果 provider 不匹配当前 Provider 实例
    */
+  private parseModelName(model: string): string {
+    const slashIndex = model.indexOf("/");
+    if (slashIndex >= 0) {
+      const providerName = model.substring(0, slashIndex);
+      const modelName = model.substring(slashIndex + 1);
+
+      // 验证 provider 是否匹配当前实例
+      if (providerName !== this.name) {
+        throw new Error(
+          `模型 "${model}" 的 provider "${providerName}" 与当前 Provider "${this.name}" 不匹配`
+        );
+      }
+
+      return modelName;
+    }
+    return model;
+  }
+
   private convertMessages(messages: Message[]): unknown[] {
     return messages.map((msg) => {
       const result: Record<string, unknown> = {
@@ -260,21 +248,17 @@ export class OllamaProvider extends BaseProvider implements IProviderExtended {
         content: msg.content,
       };
 
-      // 处理工具调用（assistant 消息）
       if (msg.role === "assistant" && msg.toolCalls) {
         result.tool_calls = msg.toolCalls.map((tc) => ({
           id: tc.id,
           type: "function",
           function: {
             name: tc.name,
-            arguments: typeof tc.arguments === "string"
-              ? tc.arguments
-              : JSON.stringify(tc.arguments),
+            arguments: typeof tc.arguments === "string" ? tc.arguments : JSON.stringify(tc.arguments),
           },
         }));
       }
 
-      // 处理工具响应（tool 消息）
       if (msg.role === "tool") {
         result.tool_call_id = msg.toolCallId;
       }
@@ -283,10 +267,7 @@ export class OllamaProvider extends BaseProvider implements IProviderExtended {
     });
   }
 
-  /**
-   * 带重试的请求发送
-   */
-  private async requestWithRetry(url: string, body: unknown): Promise<OllamaResponse> {
+  private async requestWithRetry(url: string, body: unknown): Promise<OllamaNativeResponse> {
     let lastError: Error | null = null;
 
     for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
@@ -294,16 +275,9 @@ export class OllamaProvider extends BaseProvider implements IProviderExtended {
         return await this.sendRequest(url, body);
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
-
-        // 检查是否可重试
-        if (!this.isRetryableError(error)) {
-          throw error;
-        }
-
-        // 延迟后重试
+        if (!this.isRetryableError(error)) throw error;
         if (attempt < this.maxRetries) {
-          const delay = this.retryBaseDelay * Math.pow(2, attempt);
-          await this.sleep(delay);
+          await this.sleep(this.retryBaseDelay * Math.pow(2, attempt));
         }
       }
     }
@@ -312,43 +286,32 @@ export class OllamaProvider extends BaseProvider implements IProviderExtended {
     throw lastError ?? new Error("请求失败");
   }
 
-  /**
-   * 发送单个请求
-   */
-  private async sendRequest(url: string, body: unknown): Promise<OllamaResponse> {
+  private async sendRequest(url: string, body: unknown): Promise<OllamaNativeResponse> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this.timeout);
 
     try {
       const response = await fetch(url, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
         signal: controller.signal,
       });
 
       if (!response.ok) {
         const errorData = (await response.json()) as OllamaError;
-        throw new Error(
-          `Ollama API 错误: ${errorData.error ?? response.statusText}`
-        );
+        throw new Error(`Ollama API 错误: ${errorData.error ?? response.statusText}`);
       }
 
-      return (await response.json()) as OllamaResponse;
+      return (await response.json()) as OllamaNativeResponse;
     } finally {
       clearTimeout(timeoutId);
     }
   }
 
-  /**
-   * 判断错误是否可重试
-   */
   private isRetryableError(error: unknown): boolean {
     if (error instanceof Error) {
       const message = error.message.toLowerCase();
-      // 网络错误、超时可重试
       return (
         message.includes("timeout") ||
         message.includes("network") ||
@@ -360,36 +323,31 @@ export class OllamaProvider extends BaseProvider implements IProviderExtended {
     return false;
   }
 
-  /**
-   * 解析 API 响应
-   */
-  private parseResponse(response: OllamaResponse): ChatResponse {
-    const choice = response.choices[0];
-    if (!choice) {
-      throw new Error("Ollama API 返回空响应");
-    }
-
-    const message = choice.message;
+  private parseResponse(response: OllamaNativeResponse): ChatResponse {
+    const message = response.message;
     const toolCalls: ToolCall[] | undefined = message.tool_calls?.map((tc) => ({
-      id: tc.id,
+      id: tc.id ?? `tc_${Date.now()}`,
       name: tc.function.name,
       arguments: this.parseToolArguments(tc.function.arguments),
     }));
 
     const result: ChatResponse = {
       text: message.content ?? "",
-      hasToolCall: !!toolCalls && toolCalls.length > 0,
+      hasToolCall: !!toolCalls?.length,
     };
 
-    // 仅在有值时添加可选属性
-    if (toolCalls && toolCalls.length > 0) {
-      result.toolCalls = toolCalls;
+    // 提取思考内容（thinking 模型：DeepSeek-R1、Qwen3 等）
+    if (message.thinking) {
+      result.reasoning = message.thinking;
     }
 
-    if (response.usage) {
+    if (toolCalls?.length) result.toolCalls = toolCalls;
+
+    // 转换 usage 统计
+    if (response.prompt_eval_count !== undefined || response.eval_count !== undefined) {
       result.usage = {
-        inputTokens: response.usage.prompt_tokens,
-        outputTokens: response.usage.completion_tokens,
+        inputTokens: response.prompt_eval_count ?? 0,
+        outputTokens: response.eval_count ?? 0,
       };
     }
 
@@ -397,9 +355,6 @@ export class OllamaProvider extends BaseProvider implements IProviderExtended {
     return result;
   }
 
-  /**
-   * 解析工具调用参数
-   */
   private parseToolArguments(args: string): Record<string, unknown> {
     try {
       return JSON.parse(args);
@@ -408,16 +363,10 @@ export class OllamaProvider extends BaseProvider implements IProviderExtended {
     }
   }
 
-  /**
-   * 延迟函数
-   */
   private sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
-  /**
-   * 获取 Provider 状态
-   */
   override getStatus(): ProviderStatus {
     const status: ProviderStatus = {
       name: this.name,
@@ -425,18 +374,10 @@ export class OllamaProvider extends BaseProvider implements IProviderExtended {
       models: this.getSupportedModels(),
       errorCount: this.errorCount,
     };
-
-    // 仅在有值时添加可选属性
-    if (this.lastUsed !== undefined) {
-      status.lastUsed = this.lastUsed;
-    }
-
+    if (this.lastUsed !== undefined) status.lastUsed = this.lastUsed;
     return status;
   }
 
-/**
-   * 测试连接
-   */
   override async testConnection(): Promise<boolean> {
     try {
       await this.refreshModels();
@@ -447,9 +388,6 @@ export class OllamaProvider extends BaseProvider implements IProviderExtended {
   }
 }
 
-/**
- * 创建 Ollama Provider 实例
- */
 export function createOllamaProvider(options: OllamaProviderOptions): OllamaProvider {
   return new OllamaProvider(options);
 }

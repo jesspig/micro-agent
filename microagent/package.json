@@ -28,6 +28,10 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@larksuiteoapi/node-sdk": "^1.59.0",
+    "@wecom/aibot-node-sdk": "^1.0.1",
+    "dingtalk-stream-sdk-nodejs": "^2.0.4",
+    "qq-guild-bot": "^2.9.5",
     "yaml": "^2.7.1",
     "zod": "^3.24.2"
   },

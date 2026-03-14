@@ -21,11 +21,11 @@ import {
   type AgentConfig,
   type AgentEventHandler,
 } from "../../runtime/index.js";
-import { loadSettings, type Settings, ProviderType } from "../config/index.js";
-import { createOpenAIProvider, type OpenAIProviderOptions } from "../providers/openai.js";
-import { createOpenAIResponseProvider, type OpenAIResponseProviderOptions } from "../providers/openai-response.js";
-import { createAnthropicProvider, type AnthropicProviderOptions } from "../providers/anthropic.js";
-import { createOllamaProvider, type OllamaProviderOptions } from "../providers/ollama.js";
+import { loadSettings, type Settings } from "../config/index.js";
+import { createOpenAIProvider } from "../providers/openai.js";
+import { createOpenAIResponseProvider } from "../providers/openai-response.js";
+import { createAnthropicProvider } from "../providers/anthropic.js";
+import { createOllamaProvider } from "../providers/ollama.js";
 import { toolFactories } from "../tools/index.js";
 import { FilesystemSkillLoader } from "../skills/index.js";
 import {
@@ -407,6 +407,14 @@ export class AgentBuilder {
 
     this.logger.debug(`创建 Provider: ${providerName} (type: ${providerConfig.type})`);
 
+    // 验证必填字段
+    if (!providerConfig.baseUrl) {
+      throw new Error(`Provider "${providerName}" 缺少 baseUrl 配置`);
+    }
+    if (!providerConfig.models || providerConfig.models.length === 0) {
+      throw new Error(`Provider "${providerName}" 缺少 models 配置`);
+    }
+
     // 根据 type 字段创建对应的 Provider
     switch (providerConfig.type) {
       case "openai":
@@ -414,7 +422,7 @@ export class AgentBuilder {
           name: providerName,
           displayName: providerName,
           baseUrl: providerConfig.baseUrl,
-          apiKey: providerConfig.apiKey || undefined,
+          ...(providerConfig.apiKey ? { apiKey: providerConfig.apiKey } : {}),
           models: providerConfig.models,
         });
 
@@ -423,7 +431,7 @@ export class AgentBuilder {
           name: providerName,
           displayName: providerName,
           baseUrl: providerConfig.baseUrl,
-          apiKey: providerConfig.apiKey || undefined,
+          ...(providerConfig.apiKey ? { apiKey: providerConfig.apiKey } : {}),
           models: providerConfig.models,
         });
 
@@ -432,14 +440,12 @@ export class AgentBuilder {
           name: providerName,
           displayName: providerName,
           baseUrl: providerConfig.baseUrl,
-          apiKey: providerConfig.apiKey || undefined,
+          ...(providerConfig.apiKey ? { apiKey: providerConfig.apiKey } : {}),
           models: providerConfig.models,
         });
 
       case "ollama":
         return createOllamaProvider({
-          name: providerName,
-          displayName: providerName,
           baseUrl: providerConfig.baseUrl,
           models: providerConfig.models,
         });
@@ -447,34 +453,6 @@ export class AgentBuilder {
       default:
         throw new Error(`未知的 Provider 类型: ${providerConfig.type}`);
     }
-  }
-
-  /**
-   * 构建 Provider 选项
-   * @param providerConfig - Provider 配置
-   * @returns Provider 选项对象
-   */
-  private buildProviderOptions(
-    providerConfig: { enabled: boolean; baseUrl: string; apiKey: string; models: string[] }
-  ): { apiKey: string; baseUrl?: string; defaultModel?: string; models?: string[] } {
-    const options: { apiKey: string; baseUrl?: string; defaultModel?: string; models?: string[] } = {
-      apiKey: providerConfig.apiKey,
-    };
-
-    if (providerConfig.baseUrl) {
-      options.baseUrl = providerConfig.baseUrl;
-    }
-
-    // 传递模型列表给 Provider
-    if (providerConfig.models && providerConfig.models.length > 0) {
-      options.models = providerConfig.models;
-      const firstModel = providerConfig.models[0];
-      if (firstModel) {
-        options.defaultModel = firstModel;
-      }
-    }
-
-    return options;
   }
 
   // ============================================================================

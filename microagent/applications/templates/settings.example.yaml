@@ -1,185 +1,301 @@
-# MicroAgent 配置文件示例
-# 复制此文件为 settings.yaml 并根据需要修改
+# MicroAgent 配置文件
+# 配置说明：https://github.com/jesspig/micro-agent/docs
 
-# ==================== Agent 配置 ====================
+# ============================================================================
+# Agent 配置
+# ============================================================================
 agents:
   defaults:
-    # Agent 工作目录，所有文件操作都在此目录下进行
-    workspace: ~/.micro-agent/workspace
+    # Agent 工作目录（所有文件操作都在此目录下进行）
+    workspace: "~/.micro-agent/workspace"
+
     # 默认使用的模型，格式为 <provider>/<model>
-    # 示例: ollama/qwen3.5, openai/gpt-4, anthropic/claude-3-opus
+    # 例如：openai/gpt-4o、anthropic/claude-3-5-sonnet、ollama/qwen2.5
     model: ""
+
     # 模型单次回复的最大 token 数
     maxTokens: 8192
+
     # 模型温度参数，控制输出随机性 (0-1)
-    # 较低值 (如 0.3) 输出更确定，较高值 (如 0.9) 输出更有创意
     temperature: 0.7
+
     # 工具调用最大迭代次数，防止无限循环
     maxToolIterations: 40
+
     # 心跳间隔时间（分钟），用于定时任务检查
     heartbeatInterval: 30
 
-# ==================== 工具配置 ====================
+# ============================================================================
+# 模型提供商配置
+# ============================================================================
+#
+# 配置说明：
+# - enabled: 是否启用此 Provider（必须且仅能启用一个）
+# - type: Provider 类型（openai | anthropic | ollama）
+# - displayName: 显示名称（可选）
+# - baseUrl: API 基础 URL
+# - apiKey: API 密钥，支持环境变量引用，如 ${OPENAI_API_KEY}
+# - models: 支持的模型列表（启用时必须填写）
+#
+# ----------------------------------------------------------------------------
+
+providers:
+  # --------------------------------------------------------------------------
+  # OpenAI
+  # --------------------------------------------------------------------------
+  # 官网：https://platform.openai.com/
+  # 获取 API Key：https://platform.openai.com/api-keys
+  # 可用模型：gpt-4o、gpt-4o-mini、gpt-4-turbo、o1、o1-mini 等
+  # --------------------------------------------------------------------------
+  openai:
+    type: openai
+    enabled: false
+    displayName: ""
+    baseUrl: "https://api.openai.com/v1"
+    apiKey: "${OPENAI_API_KEY}"
+    models: []
+
+  # --------------------------------------------------------------------------
+  # Anthropic Claude
+  # --------------------------------------------------------------------------
+  # 官网：https://www.anthropic.com/
+  # 获取 API Key：https://console.anthropic.com/
+  # 可用模型：claude-3-5-sonnet-latest、claude-3-5-haiku-latest 等
+  # --------------------------------------------------------------------------
+  anthropic:
+    type: anthropic
+    enabled: false
+    displayName: ""
+    baseUrl: "https://api.anthropic.com/v1"
+    apiKey: "${ANTHROPIC_API_KEY}"
+    models: []
+
+  # --------------------------------------------------------------------------
+  # Ollama 本地模型
+  # --------------------------------------------------------------------------
+  # 官网：https://ollama.com/
+  # 安装后运行：ollama serve
+  # 拉取模型：ollama pull qwen2.5
+  # 查看模型：ollama list
+  # --------------------------------------------------------------------------
+  ollama:
+    type: ollama
+    enabled: false
+    displayName: ""
+    baseUrl: "http://localhost:11434"
+    apiKey: ""
+    models: []
+
+  # --------------------------------------------------------------------------
+  # DeepSeek（使用 OpenAI 兼容模式）
+  # --------------------------------------------------------------------------
+  # 官网：https://www.deepseek.com/
+  # 获取 API Key：https://platform.deepseek.com/
+  # 可用模型：deepseek-chat、deepseek-reasoner 等
+  # --------------------------------------------------------------------------
+  deepseek:
+    type: openai
+    enabled: false
+    displayName: ""
+    baseUrl: "https://api.deepseek.com/v1"
+    apiKey: "${DEEPSEEK_API_KEY}"
+    models: []
+
+  # --------------------------------------------------------------------------
+  # 智谱 AI GLM（使用 OpenAI 兼容模式）
+  # --------------------------------------------------------------------------
+  # 官网：https://www.bigmodel.cn/
+  # 获取 API Key：https://open.bigmodel.cn/
+  # 可用模型：glm-4-plus、glm-4-flash 等
+  # --------------------------------------------------------------------------
+  zhipu:
+    type: openai
+    enabled: false
+    displayName: ""
+    baseUrl: "https://open.bigmodel.cn/api/paas/v4"
+    apiKey: "${ZHIPU_API_KEY}"
+    models: []
+
+  # --------------------------------------------------------------------------
+  # 阿里云百炼 DashScope（使用 OpenAI 兼容模式）
+  # --------------------------------------------------------------------------
+  # 官网：https://dashscope.aliyun.com/
+  # 获取 API Key：https://dashscope.console.aliyun.com/
+  # 可用模型：qwen-max、qwen-plus、qwen-turbo 等
+  # --------------------------------------------------------------------------
+  dashscope:
+    type: openai
+    enabled: false
+    displayName: ""
+    baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    apiKey: "${DASHSCOPE_API_KEY}"
+    models: []
+
+  # --------------------------------------------------------------------------
+  # 月之暗面 Kimi（使用 OpenAI 兼容模式）
+  # --------------------------------------------------------------------------
+  # 官网：https://www.moonshot.cn/
+  # 获取 API Key：https://platform.moonshot.cn/
+  # 可用模型：moonshot-v1-8k、moonshot-v1-32k、moonshot-v1-128k
+  # --------------------------------------------------------------------------
+  moonshot:
+    type: openai
+    enabled: false
+    displayName: ""
+    baseUrl: "https://api.moonshot.cn/v1"
+    apiKey: "${MOONSHOT_API_KEY}"
+    models: []
+
+  # --------------------------------------------------------------------------
+  # MiniMax 海螺 AI（使用 OpenAI 兼容模式）
+  # --------------------------------------------------------------------------
+  # 官网：https://www.minimaxi.com/
+  # 获取 API Key：https://platform.minimaxi.com/
+  # 可用模型：abab6.5s-chat、abab6.5g-chat 等
+  # --------------------------------------------------------------------------
+  minimax:
+    type: openai
+    enabled: false
+    displayName: ""
+    baseUrl: "https://api.minimax.chat/v1"
+    apiKey: "${MINIMAX_API_KEY}"
+    models: []
+
+  # --------------------------------------------------------------------------
+  # OpenRouter 多模型聚合（使用 OpenAI 兼容模式）
+  # --------------------------------------------------------------------------
+  # 官网：https://openrouter.ai/
+  # 获取 API Key：https://openrouter.ai/keys
+  # 可用模型：查看 https://openrouter.ai/models
+  # --------------------------------------------------------------------------
+  openrouter:
+    type: openai
+    enabled: false
+    displayName: ""
+    baseUrl: "https://openrouter.ai/api/v1"
+    apiKey: "${OPENROUTER_API_KEY}"
+    models: []
+
+  # --------------------------------------------------------------------------
+  # LM Studio 本地模型（使用 OpenAI 兼容模式）
+  # --------------------------------------------------------------------------
+  # 官网：https://lmstudio.ai/
+  # 使用：启动 LM Studio 并开启本地服务器（默认端口 1234）
+  # --------------------------------------------------------------------------
+  lmstudio:
+    type: openai
+    enabled: false
+    displayName: ""
+    baseUrl: "http://localhost:1234/v1"
+    apiKey: ""
+    models: []
+
+# ============================================================================
+# 工具配置
+# ============================================================================
 tools:
   # 启用的工具列表（留空表示全部启用）
   enabled: []
+
   # 禁用的工具列表
   disabled: []
+
   # 工具特定配置
   config:
     shell:
       # 允许执行的命令白名单（留空表示全部禁止）
-      # Agent 只能执行白名单中的命令
-      allowedCommands:
-        - npm
-        - bun
-        - git
-        - dir
-        - type
-      # 禁止执行的命令黑名单（优先级高于白名单）
-      blockedCommands:
-        - rm -rf /
-        - format
-        - del
+      allowedCommands: []
+      # 禁止执行的命令黑名单
+      blockedCommands: []
 
-# ==================== 消息通道配置 ====================
-# 配置消息平台接入，实现多平台消息收发
+# ============================================================================
+# 消息通道配置
+# ============================================================================
+#
+# 所有 Channel 都使用官方 SDK 的 WebSocket/Stream 模式
+# 无需公网服务器，无需配置回调地址
+#
+# 权限控制：
+#   allowFrom: ["*"]        # 允许所有用户
+#   allowFrom: ["user1"]    # 仅允许 user1
+#   allowFrom: []           # 禁止所有用户（未配置时默认允许所有）
+#
+# ----------------------------------------------------------------------------
+
 channels:
-  # 飞书机器人配置
+  # --------------------------------------------------------------------------
+  # QQ 频道机器人
+  # --------------------------------------------------------------------------
+  # 使用 qq-guild-bot SDK
+  #
+  # 开通步骤：
+  # 1. 访问 https://bot.q.qq.com/ 创建机器人应用
+  # 2. 在「开发设置」获取 AppID 和 ClientSecret（注意：Token 已弃用）
+  # 3. 在「沙箱配置」添加测试频道/群/用户
+  # 4. 沙箱模式测试无需上架，正式使用需提交审核
+  # --------------------------------------------------------------------------
+  qq:
+    enabled: false
+    appId: ""
+    clientSecret: ""  # 从 QQ 开放平台「开发设置」获取
+    sandbox: true     # 沙箱模式（测试环境）
+    allowChannels: [] # 允许的频道列表，["*"] 表示全部
+    allowFrom: []     # 允许的用户列表，["*"] 表示全部
+
+  # --------------------------------------------------------------------------
+  # 飞书机器人
+  # --------------------------------------------------------------------------
+  # 开通步骤：
+  # 1. 访问 https://open.feishu.cn/app 创建企业自建应用
+  # 2. 在「凭证与基础信息」获取 App ID 和 App Secret
+  # 3. 在「事件订阅」开启以下事件：
+  #    - 接收消息 (im.message.receive_v1)
+  # 4. 在「权限管理」开通以下权限：
+  #    - 获取与发送单聊、群组消息
+  #    - 获取用户基本信息
+  # 5. 发布应用并添加到群聊
+  #
+  # 安装依赖：bun add @larksuiteoapi/node-sdk
+  # --------------------------------------------------------------------------
   feishu:
     enabled: false
     appId: ""
     appSecret: ""
-  # 钉钉机器人配置
-  dingtalk:
-    enabled: false
-    clientId: ""
-    clientSecret: ""
-  # QQ 机器人配置
-  qq:
-    enabled: false
-    appId: ""
-    secret: ""
-  # 企业微信机器人配置
+    allowFrom: []
+
+  # --------------------------------------------------------------------------
+  # 企业微信机器人
+  # --------------------------------------------------------------------------
+  # 智能机器人模式（推荐，支持收发消息）
+  # 开通步骤：
+  # 1. 访问 https://developer.work.weixin.qq.com/ 创建智能机器人应用
+  # 2. 在应用详情获取 Bot ID 和 Secret
+  # 3. 发布机器人并添加到群聊
+  #
+  # 安装依赖：bun add @wecom/aibot-node-sdk
+  # --------------------------------------------------------------------------
   wechatWork:
     enabled: false
     botId: ""
     secret: ""
+    allowFrom: []
 
-# ==================== 模型提供商配置 ====================
-# 配置 LLM API 提供商，支持多种 Provider 类型
-# Provider 类型: openai | openai-response | anthropic | ollama
-#
-# 类型说明:
-# - openai: OpenAI Chat Completions API 格式（兼容模式）
-# - openai-response: OpenAI Response API 格式（新版，支持更好的缓存和状态管理）
-# - anthropic: Anthropic Claude Messages API 格式
-# - ollama: Ollama API 格式（兼容 OpenAI）
-
-providers:
-  # Anthropic Claude API
-  anthropic:
-    type: anthropic
+  # --------------------------------------------------------------------------
+  # 钉钉机器人
+  # --------------------------------------------------------------------------
+  # 开通步骤：
+  # 1. 访问 https://open-dev.dingtalk.com/ 创建企业内部应用
+  # 2. 在「应用信息」获取 AppKey（clientId）和 AppSecret（clientSecret）
+  # 3. 在「权限管理」开通以下权限：
+  #    - 企业内机器人接收消息
+  #    - 机器人消息发送
+  # 4. 在「机器人配置」开启消息接收模式为 Stream 模式
+  # 5. 发布应用并添加到群聊
+  #
+  # 安装依赖：bun add dingtalk-stream-sdk-nodejs
+  # --------------------------------------------------------------------------
+  dingtalk:
     enabled: false
-    baseUrl: https://api.anthropic.com/v1
-    apiKey: ${ANTHROPIC_API_KEY}
-    models: []
-
-  # 智谱 AI GLM 系列（OpenAI 兼容）
-  bigmodel:
-    type: openai
-    enabled: false
-    baseUrl: https://open.bigmodel.cn/api/paas/v4
-    apiKey: ${GLM_API_KEY}
-    models: []
-
-  # 阿里云百炼 DashScope（OpenAI 兼容）
-  dashscope:
-    type: openai
-    enabled: false
-    baseUrl: https://dashscope.aliyuncs.com/compatible-mode/v1
-    apiKey: ${DASHSCOPE_API_KEY}
-    models: []
-
-  # DeepSeek 深度求索（OpenAI 兼容）
-  deepseek:
-    type: openai
-    enabled: false
-    baseUrl: https://api.deepseek.com/v1
-    apiKey: ${DEEPSEEK_API_KEY}
-    models: []
-
-  # iFlow AI 平台（OpenAI 兼容）
-  iflow:
-    type: openai
-    enabled: false
-    baseUrl: https://apis.iflow.cn/v1
-    apiKey: ${IFLOW_API_KEY}
-    models: []
-
-  # Kimi 月之暗面（OpenAI 兼容）
-  kimi:
-    type: openai
-    enabled: false
-    baseUrl: https://api.moonshot.cn/v1
-    apiKey: ${MOONSHOT_API_KEY}
-    models: []
-
-  # LM Studio 本地模型（OpenAI 兼容）
-  # 需要先启动 LM Studio 并开启本地服务器
-  lmstudio:
-    type: openai
-    enabled: false
-    baseUrl: http://localhost:1234/v1
-    apiKey: ""
-    models: []
-
-  # MiniMax 海螺 AI（OpenAI 兼容）
-  minimax:
-    type: openai
-    enabled: false
-    baseUrl: https://api.minimax.chat/v1
-    apiKey: ${MINIMAX_API_KEY}
-    models: []
-
-  # ModelScope 魔搭社区（OpenAI 兼容）
-  modelscope:
-    type: openai
-    enabled: false
-    baseUrl: https://api-inference.modelscope.cn/v1
-    apiKey: ${MODELSCOPE_API_KEY}
-    models: []
-
-  # Ollama 本地模型
-  # 需要先安装并启动 Ollama 服务
-  ollama:
-    type: ollama
-    enabled: false
-    baseUrl: http://localhost:11434/v1
-    apiKey: ""
-    models: []
-
-  # OpenAI GPT 系列（Chat Completions API）
-  openai:
-    type: openai
-    enabled: false
-    baseUrl: https://api.openai.com/v1
-    apiKey: ${OPENAI_API_KEY}
-    models: []
-
-  # OpenAI Response API（新版，推荐）
-  # 提供更好的缓存、状态管理和推理模型支持
-  openai-response:
-    type: openai-response
-    enabled: false
-    baseUrl: https://api.openai.com/v1
-    apiKey: ${OPENAI_API_KEY}
-    models: []
-
-  # OpenRouter 多模型聚合平台（OpenAI 兼容）
-  openrouter:
-    type: openai
-    enabled: false
-    baseUrl: https://openrouter.ai/api/v1
-    apiKey: ${OPENROUTER_API_KEY}
-    models: []
+    clientId: ""
+    clientSecret: ""
+    allowFrom: []

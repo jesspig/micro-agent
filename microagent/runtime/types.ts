@@ -62,6 +62,8 @@ export interface ChatRequest {
 export interface ChatResponse {
   /** 响应文本 */
   text: string;
+  /** 思考/推理过程（用于 thinking 模型如 DeepSeek-R1、Qwen3） */
+  reasoning?: string;
   /** 是否有工具调用 */
   hasToolCall: boolean;
   /** 工具调用列表 */
@@ -200,6 +202,8 @@ export interface OutboundMessage {
   mediaUrl?: string;
   /** 回复的消息 ID */
   replyTo?: string;
+  /** Channel 特定元数据 */
+  metadata?: Record<string, unknown> | undefined;
 }
 
 /**
@@ -228,6 +232,8 @@ export interface InboundMessage {
   timestamp: number;
   /** 回复的消息 ID */
   replyTo?: string;
+  /** Channel 特定元数据 */
+  metadata?: Record<string, unknown> | undefined;
 }
 
 /**

@@ -203,6 +203,8 @@ export const FeishuChannelConfigSchema = z.strictObject({
   enabled: z.boolean().default(false),
   appId: z.string().default(""),
   appSecret: z.string().default(""),
+  /** 允许发送消息的用户列表（["*"] 表示全部允许） */
+  allowFrom: z.array(z.string()).optional(),
 });
 
 /**
@@ -212,15 +214,28 @@ export const DingtalkChannelConfigSchema = z.strictObject({
   enabled: z.boolean().default(false),
   clientId: z.string().default(""),
   clientSecret: z.string().default(""),
+  /** 允许发送消息的用户列表（["*"] 表示全部允许） */
+  allowFrom: z.array(z.string()).optional(),
 });
 
 /**
- * QQ 机器人配置 Schema
+ * QQ 频道机器人配置 Schema
+ * 使用 QQ 开放平台 API v2，AccessToken 鉴权
  */
 export const QQChannelConfigSchema = z.strictObject({
   enabled: z.boolean().default(false),
+  /** 机器人 AppID */
   appId: z.string().default(""),
-  secret: z.string().default(""),
+  /** 机器人 ClientSecret（用于获取 AccessToken） */
+  clientSecret: z.string().default(""),
+  /** @deprecated 已弃用，请使用 clientSecret */
+  token: z.string().optional(),
+  /** 沙箱模式 */
+  sandbox: z.boolean().default(false),
+  /** 允许发送消息的频道列表（["*"] 表示全部允许） */
+  allowChannels: z.array(z.string()).optional(),
+  /** 允许发送消息的用户列表（["*"] 表示全部允许） */
+  allowFrom: z.array(z.string()).optional(),
 });
 
 /**
@@ -228,8 +243,18 @@ export const QQChannelConfigSchema = z.strictObject({
  */
 export const WechatWorkChannelConfigSchema = z.strictObject({
   enabled: z.boolean().default(false),
+  /** 智能机器人 ID */
   botId: z.string().default(""),
+  /** 机器人密钥 */
   secret: z.string().default(""),
+  /** 群机器人 Webhook Key */
+  webhookKey: z.string().default(""),
+  /** 企业 ID */
+  corpId: z.string().default(""),
+  /** 应用 ID */
+  agentId: z.string().default(""),
+  /** 允许发送消息的用户列表（["*"] 表示全部允许） */
+  allowFrom: z.array(z.string()).optional(),
 });
 
 /**

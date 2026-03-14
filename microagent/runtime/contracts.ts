@@ -1,6 +1,6 @@
 /**
  * 接口契约定义
- * 
+ *
  * 定义 MicroAgent 运行时的核心接口，遵循依赖倒置原则。
  * 所有接口均为纯抽象，不包含实现细节。
  */
@@ -25,7 +25,7 @@ import type {
 
 /**
  * Provider 接口
- * 
+ *
  * 定义 LLM 提供者的基础契约，负责与 AI 模型通信。
  */
 export interface IProvider {
@@ -52,7 +52,7 @@ export interface IProvider {
 
 /**
  * Tool 接口
- * 
+ *
  * 定义工具的基础契约，提供可被 AI 调用的能力。
  */
 export interface ITool {
@@ -81,7 +81,7 @@ export interface ITool {
 
 /**
  * Skill 接口
- * 
+ *
  * 定义技能的基础契约，提供可被 AI 引用的知识和能力。
  */
 export interface ISkill {
@@ -97,7 +97,7 @@ export interface ISkill {
 
 /**
  * Skill 加载器接口
- * 
+ *
  * 定义 Skill 加载器的基础契约，负责发现和加载技能。
  */
 export interface ISkillLoader {
@@ -121,8 +121,8 @@ export interface ISkillLoader {
 
 /**
  * Channel 接口
- * 
- * 定义通信渠道的基础契约，负责消息的收发。
+ *
+ * 定义通信消息通道的基础契约，负责消息的收发。
  */
 export interface IChannel {
   /** Channel 唯一标识 */
@@ -161,7 +161,7 @@ export interface IChannel {
 
 /**
  * Memory 接口
- * 
+ *
  * 定义记忆管理的基础契约，负责对话历史和长期记忆的存储。
  */
 export interface IMemory {
@@ -197,7 +197,7 @@ export interface IMemory {
 
 /**
  * Session 接口
- * 
+ *
  * 定义会话的基础契约，负责管理对话状态。
  */
 export interface ISession {
@@ -235,7 +235,7 @@ export interface ISession {
 
 /**
  * Registry 接口
- * 
+ *
  * 通用注册表契约，提供组件的注册和查找能力。
  */
 export interface IRegistry<T> {
@@ -277,7 +277,7 @@ export type EventHandler<T = unknown> = (event: T) => void | Promise<void>;
 
 /**
  * 事件发射器接口
- * 
+ *
  * 提供类型安全的事件订阅和发射能力。
  */
 export interface IEventEmitter<EventMap extends Record<string, unknown>> {

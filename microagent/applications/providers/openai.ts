@@ -23,6 +23,8 @@ interface OpenAIResponse {
     message: {
       role: string;
       content: string | null;
+      /** 思考内容（OpenAI o1 等推理模型） */
+      reasoning_content?: string;
       tool_calls?: Array<{
         id: string;
         type: "function";
@@ -114,8 +116,11 @@ export class OpenAIProvider extends BaseProvider implements IProviderExtended {
   async chat(request: ChatRequest): Promise<ChatResponse> {
     const { model, messages, tools, temperature, maxTokens } = request;
 
+    // 解析模型名称：支持 "provider/model" 格式，提取 model 部分
+    const actualModel = this.parseModelName(model || this.defaultModel);
+
     const body: Record<string, unknown> = {
-      model: model || this.defaultModel,
+      model: actualModel,
       messages: this.convertMessages(messages),
       temperature: temperature ?? 0.7,
     };
@@ -135,6 +140,32 @@ export class OpenAIProvider extends BaseProvider implements IProviderExtended {
     const response = await this.requestWithRetry(`${this.config.baseUrl}/chat/completions`, body);
     this.recordUsage();
     return this.parseResponse(response);
+  }
+
+  /**
+   * 解析并验证模型名称
+   * 支持格式：
+   * - "model-name" -> 直接使用
+   * - "provider/model-name" -> 验证 provider 匹配后提取 model
+   *
+   * @throws 如果 provider 不匹配当前 Provider 实例
+   */
+  private parseModelName(model: string): string {
+    const slashIndex = model.indexOf("/");
+    if (slashIndex >= 0) {
+      const providerName = model.substring(0, slashIndex);
+      const modelName = model.substring(slashIndex + 1);
+
+      // 验证 provider 是否匹配当前实例
+      if (providerName !== this.name) {
+        throw new Error(
+          `模型 "${model}" 的 provider "${providerName}" 与当前 Provider "${this.name}" 不匹配`
+        );
+      }
+
+      return modelName;
+    }
+    return model;
   }
 
   private convertMessages(messages: Message[]): unknown[] {
@@ -186,13 +217,22 @@ export class OpenAIProvider extends BaseProvider implements IProviderExtended {
         signal: controller.signal,
       });
 
+      const json = await response.json() as Record<string, unknown>;
+      console.log(`[${this.name}] API 响应:`, JSON.stringify(json).substring(0, 500));
+
+      // 处理 HTTP 错误
       if (!response.ok) {
-        const errorData = (await response.json()) as OpenAIError;
+        const errorData = json as OpenAIError;
         const errorMessage = errorData.error?.message ?? errorData.message ?? response.statusText;
         throw new Error(`${this.config.name} API 错误: ${errorMessage}`);
       }
 
-      return (await response.json()) as OpenAIResponse;
+      // 处理非标准错误格式（如 {"status":"435","msg":"Model not support"}）
+      if (json.status && json.msg && !json.choices) {
+        throw new Error(`${this.config.name} API 错误: ${json.msg as string} (status: ${json.status as string})`);
+      }
+
+      return json as unknown as OpenAIResponse;
     } finally {
       clearTimeout(timeoutId);
     }
@@ -218,6 +258,12 @@ export class OpenAIProvider extends BaseProvider implements IProviderExtended {
   }
 
   private parseResponse(response: OpenAIResponse): ChatResponse {
+    // 检查响应格式
+    if (!response.choices || !Array.isArray(response.choices)) {
+      console.error(`[${this.name}] 响应格式错误:`, JSON.stringify(response).substring(0, 500));
+      throw new Error(`${this.config.name} API 返回非标准格式响应，请检查 baseUrl 是否正确`);
+    }
+
     const choice = response.choices[0];
     if (!choice) throw new Error(`${this.config.name} API 返回空响应`);
 
@@ -232,6 +278,11 @@ export class OpenAIProvider extends BaseProvider implements IProviderExtended {
       text: message.content ?? "",
       hasToolCall: !!toolCalls?.length,
     };
+
+    // 提取思考内容（OpenAI o1、DeepSeek 等推理模型）
+    if (message.reasoning_content) {
+      result.reasoning = message.reasoning_content;
+    }
 
     if (toolCalls?.length) result.toolCalls = toolCalls;
     if (response.usage) {

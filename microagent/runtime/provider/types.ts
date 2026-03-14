@@ -13,7 +13,7 @@ export interface ProviderCapabilities {
   /** 最大上下文 token 数 */
   maxContextTokens: number;
   /** 工具 Schema 模式 */
-  toolSchemaMode: "native" | "openai-functions";
+  toolSchemaMode: "native" | "openai-functions" | "anthropic";
 }
 
 /**

@@ -291,18 +291,18 @@ export class ShellTool extends BaseTool<Record<string, unknown>> {
           timeout: options.timeout,
           maxBuffer: 10 * 1024 * 1024, // 10MB
           windowsHide: true,
-          shell: true,
         },
-        (error, stdout, stderr) => {
+        (error: Error | null, stdout: string, stderr: string) => {
           result.stdout = stdout;
           result.stderr = stderr;
 
           if (error) {
             // 检查是否是超时
-            if ((error as NodeJS.ErrnoException).killed) {
+            if ((error as Error & { killed?: boolean }).killed) {
               result.timedOut = true;
             }
-            result.exitCode = typeof error.code === 'number' ? error.code : 1;
+            const errorCode = (error as NodeJS.ErrnoException).code;
+            result.exitCode = typeof errorCode === 'number' ? errorCode : 1;
           } else {
             result.exitCode = 0;
           }
