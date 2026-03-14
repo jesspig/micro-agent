@@ -47,7 +47,7 @@ import {
   createWechatWorkChannel,
   createDingTalkChannel,
 } from "../../channels/index.js";
-import type { IProvider } from "../../../runtime/contracts.js";
+import type { IProviderExtended } from "../../../runtime/provider/contract.js";
 import type { AgentConfig } from "../../../runtime/kernel/types.js";
 import type { SingleProviderConfig } from "../../config/schema.js";
 import type { IChannelExtended } from "../../../runtime/channel/contract.js";
@@ -148,7 +148,7 @@ async function initializeConfigFiles(): Promise<void> {
 /**
  * 创建 Provider 实例
  */
-function createProvider(settings: Settings): IProvider | null {
+function createProvider(settings: Settings): IProviderExtended | null {
   const logger = getLogger();
 
   const providers = settings.providers ?? {};
@@ -253,13 +253,12 @@ function createChannels(settings: Settings): IChannelExtended[] {
           enabled: true,
           appId: qqConfig.appId,
           clientSecret: qqConfig.clientSecret,
-          sandbox: qqConfig.sandbox ?? false,
           allowFrom: qqConfig.allowFrom,
           allowChannels: qqConfig.allowChannels,
         };
         const channel = createQQChannel(config as Parameters<typeof createQQChannel>[0]);
         channels.push(channel);
-        logger.info(`创建 QQ Channel: ${qqConfig.appId} (sandbox: ${qqConfig.sandbox ?? false})`);
+        logger.info(`创建 QQ Channel: ${qqConfig.appId} (沙箱模式)`);
       } catch (error) {
         logger.error(`创建 QQ Channel 失败: ${error}`);
       }
@@ -370,8 +369,8 @@ function createMessageHandler(
       // 使用全局 session（跨平台共享上下文）
       const session = sessionManager.getOrCreate(GLOBAL_SESSION_KEY);
 
-      // 添加用户消息
-      session.addMessage({
+      // 添加用户消息并持久化
+      await session.addMessageAndPersist({
         role: "user",
         content: message.text,
       });
@@ -382,11 +381,20 @@ function createMessageHandler(
       // 日志输出
       logger.debug(`Agent 结果: content=${result.content ? '有内容' : '无内容'}, error=${result.error || '无错误'}`);
 
-      // 更新 session
+      // 更新 session 并持久化新消息
       if (result.messages) {
+        const previousCount = session.getState().messageCount;
         session.clear();
+        
+        let index = 0;
         for (const msg of result.messages) {
-          session.addMessage(msg);
+          // 只持久化新增的消息（索引 >= previousCount 的消息）
+          if (index >= previousCount) {
+            await session.addMessageAndPersist(msg);
+          } else {
+            session.addMessage(msg);
+          }
+          index++;
         }
       }
 
@@ -399,6 +407,7 @@ function createMessageHandler(
           const sendResult = await channel.send({
             to: replyTo,
             text: result.content,
+            format: "markdown", // 使用 Markdown 格式
             metadata: message.metadata, // 传递 Channel 特定元数据
           });
           if (sendResult.success) {
@@ -428,7 +437,7 @@ function createMessageHandler(
  * 运行 Agent 服务
  */
 async function runAgentService(
-  provider: IProvider,
+  provider: IProviderExtended,
   toolRegistry: ToolRegistry,
   sessionManager: SessionManager,
   channelManager: ChannelManager,
@@ -487,6 +496,22 @@ export async function startCommand(
   options: StartOptions = {}
 ): Promise<StartResult> {
   const logger = getLogger();
+
+  // 全局错误处理：捕获 Channel SDK 的异步错误
+  const handleUncaughtError = (error: Error & { code?: string }) => {
+    // 网络连接错误（SDK 内部错误）
+    if (error.code === "ECONNREFUSED" || error.code === "ENOTFOUND") {
+      logger.error(`网络连接错误: ${error.message}`);
+      // 不退出进程，只记录错误
+      return;
+    }
+
+    // 其他未捕获的错误
+    logger.error(`未捕获的错误: ${error.message}`);
+    console.error(error);
+  };
+
+  process.on("uncaughtException", handleUncaughtError);
 
   try {
     // 1. 设置日志级别
@@ -556,8 +581,23 @@ export async function startCommand(
       logger.info("请在 settings.yaml 中启用至少一个 Channel");
     }
 
-    // 9. 创建 Session 管理器
+    // 9. 创建 Session 管理器并加载历史会话
     const sessionManager = new SessionManager();
+    const GLOBAL_SESSION_KEY = "global";
+
+    // 读取会话配置
+    const contextWindow = settings.sessions?.contextWindow ?? 20;
+    const persistEnabled = settings.sessions?.persist ?? true;
+
+    // 仅在持久化启用时加载历史
+    if (persistEnabled) {
+      try {
+        await sessionManager.loadHistory(GLOBAL_SESSION_KEY, contextWindow);
+        logger.info(`已加载历史会话（最近 ${contextWindow} 条）`);
+      } catch (error) {
+        logger.warn(`加载历史会话失败: ${error}`);
+      }
+    }
 
     // 10. 创建 Channel 管理器
     const channelManager = new ChannelManager();

@@ -7,9 +7,11 @@
  * 安装依赖: bun add @wecom/aibot-node-sdk
  */
 
-import type { ChannelConfig, InboundMessage, OutboundMessage, SendResult } from "../../runtime/channel/types.js";
-import { BaseChannel } from "../../runtime/channel/base.js";
-import type { ChannelCapabilities } from "../../runtime/types.js";
+import type { ChannelConfig, InboundMessage, OutboundMessage, SendResult } from "../../../runtime/channel/types.js";
+import { BaseChannel } from "../../../runtime/channel/base.js";
+import type { ChannelCapabilities } from "../../../runtime/types.js";
+import { convertMarkdown } from "./markdown.js";
+import { truncateMessage, getMessageLimit, sanitizeMarkdown } from "../../shared/security.js";
 
 // ============================================================================
 // 类型定义
@@ -33,6 +35,40 @@ export interface WechatWorkBotConfig extends ChannelConfig {
   allowFrom?: string[] | undefined;
 }
 
+/**
+ * 企业微信 SDK 消息帧类型
+ */
+interface WecomMessageFrame {
+  body: {
+    msgid: string;
+    msgtype: string;
+    from: { userid: string };
+    response_url?: string;
+    chatid?: string;
+    text?: { content?: string };
+    [key: string]: unknown;
+  };
+}
+
+/**
+ * 企业微信 API 响应类型
+ */
+interface WecomApiResponse {
+  errcode?: number;
+  errmsg?: string;
+}
+
+/**
+ * 企业微信 SDK 客户端接口
+ * 使用 unknown 避免与 SDK 内部类型冲突
+ */
+interface WecomWSClient {
+  on(event: string, handler: (data: unknown) => void): void;
+  connect(): void;
+  disconnect(): void;
+  sendMessage(to: string, payload: unknown): Promise<unknown>;
+}
+
 // ============================================================================
 // 企业微信 Channel 实现
 // ============================================================================
@@ -50,18 +86,19 @@ export class WechatWorkChannel extends BaseChannel {
   readonly type = "wechat-work" as const;
   readonly capabilities: ChannelCapabilities = {
     text: true,
+    markdown: true,
     media: false,
     reply: true,
     edit: false,
     delete: false,
+    streaming: true, // 支持流式输出
   };
 
   /** 企业微信特定配置 */
   declare config: WechatWorkBotConfig;
 
   /** 智能机器人 SDK 实例 */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private wsClient: any = null;
+  private wsClient: WecomWSClient | null = null;
 
   /** 运行标志 */
   private running = false;
@@ -97,8 +134,7 @@ export class WechatWorkChannel extends BaseChannel {
   private async startSmartBot(botId: string, secret: string): Promise<void> {
     try {
       // 动态导入 @wecom/aibot-node-sdk
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const sdk: any = await import("@wecom/aibot-node-sdk").catch(() => null);
+      const sdk = await import("@wecom/aibot-node-sdk").catch(() => null);
 
       if (!sdk) {
         throw new Error("@wecom/aibot-node-sdk 未安装，请运行: bun add @wecom/aibot-node-sdk");
@@ -111,18 +147,18 @@ export class WechatWorkChannel extends BaseChannel {
       this.wsClient = new sdk.WSClient({
         botId,
         secret,
-      });
+      }) as WecomWSClient;
 
       const self = this;
 
       // 注册消息处理器
       // SDK API: wsClient.on('message', handler) 或 wsClient.on('message.text', handler)
-      this.wsClient.on("message", (frame: { body: { msgid: string; msgtype: string; from: { userid: string }; [key: string]: unknown } }) => {
-        self.handleMessage(frame);
+      this.wsClient.on("message", (frame: unknown) => {
+        self.handleMessage(frame as WecomMessageFrame);
       });
 
-      this.wsClient.on("error", (error: Error) => {
-        console.error("[企业微信] SDK 错误:", error);
+      this.wsClient.on("error", (error: unknown) => {
+        console.error("[企业微信] SDK 错误:", error instanceof Error ? error.message : "未知错误");
       });
 
       console.log("[企业微信] 正在连接智能机器人...");
@@ -138,7 +174,7 @@ export class WechatWorkChannel extends BaseChannel {
         await new Promise((resolve) => setTimeout(resolve, 1000));
       }
     } catch (error) {
-      this.setConnected(false, String(error));
+      this.setConnected(false, error instanceof Error ? error.message : String(error));
       throw error;
     }
   }
@@ -156,6 +192,63 @@ export class WechatWorkChannel extends BaseChannel {
       this.wsClient = null;
     }
     console.log("[企业微信] Bot 已停止");
+  }
+
+  /**
+   * 更新已有消息（用于流式输出）
+   * 企业微信通过 response_url 实现消息覆盖
+   * @param messageId - 消息 ID（userId 或直接的 responseUrl）
+   * @param text - 新消息内容
+   * @param format - 消息格式
+   * @returns 发送结果
+   */
+  async updateMessage(messageId: string, text: string, format?: "text" | "markdown"): Promise<SendResult> {
+    // messageId 可能是 responseUrl 或 userId
+    let responseUrl: string;
+
+    // 检查 messageId 是否直接是 URL
+    if (messageId.startsWith("http")) {
+      responseUrl = messageId;
+    } else {
+      // 从缓存中获取 responseUrl
+      const cachedUrl = this.responseUrls.get(messageId);
+      if (!cachedUrl) {
+        return { success: false, error: "未找到消息的 response_url" };
+      }
+      responseUrl = cachedUrl;
+    }
+
+    try {
+      const useMarkdown = format !== "text";
+
+      // 应用消息长度限制
+      const maxLength = getMessageLimit("wechatWork", useMarkdown);
+      const truncatedText = truncateMessage(text, maxLength);
+
+      // 清理 Markdown 内容
+      const safeText = useMarkdown ? sanitizeMarkdown(truncatedText) : truncatedText;
+
+      const payload = useMarkdown
+        ? { msgtype: "markdown", markdown: { content: safeText } }
+        : { msgtype: "text", text: { content: safeText } };
+
+      const response = await fetch(responseUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const result = (await response.json()) as WecomApiResponse;
+
+      if (result.errcode && result.errcode !== 0) {
+        return { success: false, error: result.errmsg || "更新失败" };
+      }
+
+      return { success: true, messageId };
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      return { success: false, error: errMsg };
+    }
   }
 
   async send(message: OutboundMessage): Promise<SendResult> {
@@ -181,19 +274,29 @@ export class WechatWorkChannel extends BaseChannel {
     try {
       const url = `https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=${webhookKey}`;
       
+      // 根据 message.format 决定消息格式
+      const useMarkdown = message.format !== "text";
+
+      // 应用消息长度限制
+      const maxLength = getMessageLimit("wechatWork", useMarkdown);
+      const truncatedText = truncateMessage(message.text, maxLength);
+      
+      // 应用 markdown 转换和清理
+      const text = useMarkdown ? sanitizeMarkdown(convertMarkdown(truncatedText)) : truncatedText;
+      
+      const payload = useMarkdown
+        ? { msgtype: "markdown", markdown: { content: text } }
+        : { msgtype: "text", text: { content: text } };
+      
       const response = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          msgtype: "text",
-          text: { content: message.text },
-        }),
+        body: JSON.stringify(payload),
       });
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const result = await response.json() as any;
+      const result = (await response.json()) as WecomApiResponse;
       
-      if (result.errcode !== 0) {
+      if (result.errcode && result.errcode !== 0) {
         return { success: false, error: result.errmsg || "发送失败" };
       }
 
@@ -215,45 +318,38 @@ export class WechatWorkChannel extends BaseChannel {
       // 优先使用 metadata 中的 responseUrl
       const responseUrl = message.metadata?.responseUrl || this.responseUrls.get(message.to);
 
+      // 根据 message.format 决定消息格式
+      const useMarkdown = message.format !== "text";
+
+      // 应用消息长度限制
+      const maxLength = getMessageLimit("wechatWork", useMarkdown);
+      const truncatedText = truncateMessage(message.text, maxLength);
+
+      // 应用 markdown 转换和清理
+      const text = useMarkdown ? sanitizeMarkdown(convertMarkdown(truncatedText)) : truncatedText;
+
       if (responseUrl && typeof responseUrl === "string") {
         // 使用 response_url 回复（推荐方式）
         // 企业微信智能机器人 response_url API
+        const payload = useMarkdown
+          ? { msgtype: "markdown", markdown: { content: text } }
+          : { msgtype: "text", text: { content: text } };
+
         const response = await fetch(responseUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            msgtype: "text",
-            text: { content: message.text },
-          }),
+          body: JSON.stringify(payload),
         });
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const result = await response.json() as any;
+        const result = (await response.json()) as WecomApiResponse;
 
         if (result.errcode && result.errcode !== 0) {
           console.error(`[企业微信] response_url 回复失败 (${result.errcode}): ${result.errmsg}`);
-          // 尝试使用 markdown 格式
-          const retryResponse = await fetch(responseUrl, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              msgtype: "markdown",
-              markdown: { content: message.text },
-            }),
-          });
-
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const retryResult = await retryResponse.json() as any;
-
-          if (retryResult.errcode && retryResult.errcode !== 0) {
-            console.error(`[企业微信] markdown 格式也失败: ${retryResult.errmsg}`);
-            return { success: false, error: retryResult.errmsg || "发送失败" };
-          }
-
-          return { success: true };
+          return { success: false, error: result.errmsg || "发送失败" };
         }
 
-        return { success: true };
+        // 返回 responseUrl 作为 messageId，用于后续更新消息
+        return { success: true, messageId: responseUrl };
       }
 
       // 无 response_url，使用 SDK 发送
@@ -273,10 +369,21 @@ export class WechatWorkChannel extends BaseChannel {
         return { success: false, error: "企业微信客户端未初始化" };
       }
 
-      await this.wsClient.sendMessage(message.to, {
-        msgtype: "markdown",
-        markdown: { content: message.text },
-      });
+      // 根据 message.format 决定消息格式
+      const useMarkdown = message.format !== "text";
+
+      // 应用消息长度限制
+      const maxLength = getMessageLimit("wechatWork", useMarkdown);
+      const truncatedText = truncateMessage(message.text, maxLength);
+
+      // 应用 markdown 转换和清理
+      const text = useMarkdown ? sanitizeMarkdown(convertMarkdown(truncatedText)) : truncatedText;
+
+      const payload = useMarkdown
+        ? { msgtype: "markdown", markdown: { content: text } }
+        : { msgtype: "text", text: { content: text } };
+
+      await this.wsClient.sendMessage(message.to, payload);
 
       return { success: true };
     } catch (error) {
@@ -288,17 +395,16 @@ export class WechatWorkChannel extends BaseChannel {
   /**
    * 处理收到的消息
    */
-  private handleMessage(frame: { body: { msgid: string; msgtype: string; from: { userid: string }; response_url?: string; [key: string]: unknown } }): void {
+  private handleMessage(frame: WecomMessageFrame): void {
     try {
       const body = frame.body;
       let content = "";
 
       // 提取文本内容
-      const bodyWithText = body as unknown as { text?: { content?: string } };
-      if (body.msgtype === "text" && bodyWithText.text) {
-        content = (bodyWithText.text.content || "").trim();
-      } else if (bodyWithText.text) {
-        content = (bodyWithText.text.content || "").trim();
+      if (body.msgtype === "text" && body.text) {
+        content = (body.text.content || "").trim();
+      } else if (body.text) {
+        content = (body.text.content || "").trim();
       }
 
       if (!content) {
@@ -306,7 +412,7 @@ export class WechatWorkChannel extends BaseChannel {
       }
 
       const senderId = body.from?.userid || "unknown";
-      const chatId = ((body as { chatid?: string }).chatid) || senderId;
+      const chatId = body.chatid || senderId;
       const responseUrl = body.response_url;
 
       // 缓存 response_url 用于回复
@@ -322,7 +428,7 @@ export class WechatWorkChannel extends BaseChannel {
       // 权限检查
       const allowList = this.config.allowFrom || [];
       if (allowList.length > 0 && !allowList.includes("*") && !allowList.includes(senderId)) {
-        console.log(`[企业微信] 拒绝来自 ${senderId} 的消息（未在 allowFrom 列表中）`);
+        console.log(`[企业微信] 拒绝来自未授权用户的消息`);
         return;
       }
 
@@ -338,7 +444,7 @@ export class WechatWorkChannel extends BaseChannel {
       this.emitMessage(inboundMsg);
       console.log(`[企业微信] 收到消息: ${senderId}: ${content}`);
     } catch (error) {
-      console.error("[企业微信] 处理消息错误:", error);
+      console.error("[企业微信] 处理消息错误:", error instanceof Error ? error.message : "未知错误");
     }
   }
 }

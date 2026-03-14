@@ -96,6 +96,31 @@ export interface UsageStats {
   outputTokens: number;
 }
 
+/**
+ * 流式输出块
+ */
+export interface StreamChunk {
+  /** 增量文本内容 */
+  delta: string;
+  /** 累计文本内容 */
+  text: string;
+  /** 是否结束 */
+  done: boolean;
+  /** 思考/推理过程增量 */
+  reasoningDelta?: string;
+  /** 累计思考内容 */
+  reasoning?: string;
+  /** 工具调用（仅在 done 时可能有） */
+  toolCalls?: ToolCall[];
+  /** 使用统计（仅在 done 时有） */
+  usage?: UsageStats;
+}
+
+/**
+ * 流式输出回调
+ */
+export type StreamCallback = (chunk: StreamChunk) => void | Promise<void>;
+
 // ============================================================================
 // Tool 相关类型
 // ============================================================================
@@ -176,6 +201,10 @@ export interface ChannelCapabilities {
   edit: boolean;
   /** 支持消息删除 */
   delete: boolean;
+  /** 支持 Markdown 渲染 */
+  markdown?: boolean;
+  /** 支持流式输出（通过消息更新实现） */
+  streaming?: boolean;
 }
 
 /**
@@ -204,6 +233,10 @@ export interface OutboundMessage {
   replyTo?: string;
   /** Channel 特定元数据 */
   metadata?: Record<string, unknown> | undefined;
+  /** 消息格式：text 或 markdown */
+  format?: "text" | "markdown";
+  /** 消息 ID（用于更新已有消息） */
+  messageId?: string;
 }
 
 /**
@@ -216,6 +249,8 @@ export interface SendResult {
   messageId?: string;
   /** 错误信息 */
   error?: string;
+  /** Channel 特定元数据（如原始消息 ID、频道 ID 等） */
+  metadata?: Record<string, unknown>;
 }
 
 /**

@@ -8,6 +8,12 @@ import type { Message, SessionMetadata } from "../types.js";
 import type { ISession } from "../contracts.js";
 import type { SessionConfig, SessionState, SessionSnapshot } from "./types.js";
 import { SessionError } from "../errors.js";
+import {
+  appendSessionEntry,
+  loadRecentSessions,
+  messageToEntry,
+  entryToMessage,
+} from "./persistence.js";
 
 /**
  * Session 实现
@@ -55,6 +61,25 @@ export class Session implements ISession {
 
     this.state.messageCount++;
     this.state.lastActivity = Date.now();
+  }
+
+  /**
+   * 添加消息并持久化
+   * @param message - 消息对象
+   */
+  async addMessageAndPersist(message: Message): Promise<void> {
+    const timestamp = message.timestamp ?? Date.now();
+
+    this.messages.push({
+      ...message,
+      timestamp,
+    });
+
+    this.state.messageCount++;
+    this.state.lastActivity = Date.now();
+
+    // 持久化到文件
+    await appendSessionEntry(messageToEntry(message));
   }
 
   /**
@@ -181,5 +206,27 @@ export class SessionManager {
    */
   async saveAll(): Promise<void> {
     await Promise.all(Array.from(this.sessions.values()).map((s) => s.save()));
+  }
+
+  /**
+   * 加载历史会话到指定 Session
+   * @param sessionKey - Session 标识
+   * @param contextWindow - 上下文窗口大小（消息条数），默认 20
+   */
+  async loadHistory(sessionKey: string, contextWindow: number = 20): Promise<void> {
+    const session = this.getOrCreate(sessionKey);
+    const entries = await loadRecentSessions(contextWindow);
+
+    for (const entry of entries) {
+      session.addMessage(entryToMessage(entry));
+    }
+
+    // 更新消息计数
+    const state = session.getState();
+    if (state.messageCount === 0) {
+      // 如果 session 之前没有消息，则使用加载的消息数量
+      const sessionInternal = session as unknown as { state: SessionState };
+      sessionInternal.state.messageCount = entries.length;
+    }
   }
 }

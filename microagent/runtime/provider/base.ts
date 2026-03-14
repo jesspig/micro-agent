@@ -1,4 +1,4 @@
-import type { ChatRequest, ChatResponse } from "../types.js";
+import type { ChatRequest, ChatResponse, StreamCallback, StreamChunk } from "../types.js";
 import type { IProviderExtended } from "./contract.js";
 import type { ProviderCapabilities, ProviderConfig, ProviderStatus } from "./types.js";
 
@@ -34,6 +34,38 @@ export abstract class BaseProvider implements IProviderExtended {
    * @returns 聊天响应
    */
   abstract chat(request: ChatRequest): Promise<ChatResponse>;
+
+  /**
+   * 执行流式聊天请求
+   * 默认实现：调用 chat 后一次性返回（用于不支持流式的 Provider）
+   * @param request 聊天请求
+   * @param callback 流式回调
+   * @returns 最终响应
+   */
+  async streamChat(request: ChatRequest, callback: StreamCallback): Promise<ChatResponse> {
+    const response = await this.chat(request);
+    
+    // 一次性返回完整响应
+    const chunk: StreamChunk = {
+      delta: response.text,
+      text: response.text,
+      done: true,
+    };
+    
+    // 仅在有值时添加可选属性
+    if (response.reasoning !== undefined) {
+      chunk.reasoning = response.reasoning;
+    }
+    if (response.toolCalls !== undefined) {
+      chunk.toolCalls = response.toolCalls;
+    }
+    if (response.usage !== undefined) {
+      chunk.usage = response.usage;
+    }
+    
+    await callback(chunk);
+    return response;
+  }
 
   /**
    * 获取支持的模型列表

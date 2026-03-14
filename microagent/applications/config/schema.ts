@@ -230,12 +230,11 @@ export const QQChannelConfigSchema = z.strictObject({
   clientSecret: z.string().default(""),
   /** @deprecated 已弃用，请使用 clientSecret */
   token: z.string().optional(),
-  /** 沙箱模式 */
-  sandbox: z.boolean().default(false),
   /** 允许发送消息的频道列表（["*"] 表示全部允许） */
   allowChannels: z.array(z.string()).optional(),
   /** 允许发送消息的用户列表（["*"] 表示全部允许） */
   allowFrom: z.array(z.string()).optional(),
+  // 注意：个人助理场景强制使用沙箱环境，不暴露在公共域
 });
 
 /**
@@ -304,6 +303,28 @@ export type WechatWorkChannelConfig = z.infer<
 >;
 
 // ============================================================================
+// Sessions Schema
+// ============================================================================
+
+/**
+ * Sessions 配置 Schema
+ *
+ * 定义会话持久化和上下文管理参数
+ */
+export const SessionsConfigSchema = z.strictObject({
+  /** 上下文窗口大小（消息条数），默认 20 条 */
+  contextWindow: z.number().int().positive().default(20),
+
+  /** 是否启用持久化，默认 true */
+  persist: z.boolean().default(true),
+});
+
+/**
+ * Sessions 配置类型
+ */
+export type SessionsConfig = z.infer<typeof SessionsConfigSchema>;
+
+// ============================================================================
 // Settings Schema
 // ============================================================================
 
@@ -324,6 +345,9 @@ export const SettingsSchema = z.strictObject({
 
   /** 模型提供商配置 */
   providers: ProvidersConfigSchema.optional(),
+
+  /** 会话配置 */
+  sessions: SessionsConfigSchema.optional(),
 });
 
 /**
