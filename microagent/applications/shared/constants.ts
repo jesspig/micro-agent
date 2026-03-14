@@ -36,8 +36,8 @@ export const SKILLS_DIR = join(AGENT_DIR, "skills");
 // 配置文件路径
 // ============================================================================
 
-/** 用户配置文件 */
-export const SETTINGS_FILE = join(AGENT_DIR, "settings.yaml");
+/** 用户配置文件（放在根目录） */
+export const SETTINGS_FILE = join(MICRO_AGENT_DIR, "settings.yaml");
 
 /** MCP 配置文件 */
 export const MCP_CONFIG_FILE = join(AGENT_DIR, "mcp.json");

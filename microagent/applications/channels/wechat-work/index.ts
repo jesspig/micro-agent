@@ -7,9 +7,10 @@
  * 安装依赖: bun add @wecom/aibot-node-sdk
  */
 
-import type { ChannelConfig, InboundMessage, OutboundMessage, SendResult } from "../../runtime/channel/types.js";
-import { BaseChannel } from "../../runtime/channel/base.js";
-import type { ChannelCapabilities } from "../../runtime/types.js";
+import type { ChannelConfig, InboundMessage, OutboundMessage, SendResult } from "../../../runtime/channel/types.js";
+import { BaseChannel } from "../../../runtime/channel/base.js";
+import type { ChannelCapabilities } from "../../../runtime/types.js";
+import { convertMarkdown } from "./markdown.js";
 
 // ============================================================================
 // 类型定义
@@ -50,10 +51,12 @@ export class WechatWorkChannel extends BaseChannel {
   readonly type = "wechat-work" as const;
   readonly capabilities: ChannelCapabilities = {
     text: true,
+    markdown: true,
     media: false,
     reply: true,
     edit: false,
     delete: false,
+    streaming: true, // 支持流式输出
   };
 
   /** 企业微信特定配置 */
@@ -158,6 +161,56 @@ export class WechatWorkChannel extends BaseChannel {
     console.log("[企业微信] Bot 已停止");
   }
 
+  /**
+   * 更新已有消息（用于流式输出）
+   * 企业微信通过 response_url 实现消息覆盖
+   * @param messageId - 消息 ID（userId 或直接的 responseUrl）
+   * @param text - 新消息内容
+   * @param format - 消息格式
+   * @returns 发送结果
+   */
+  async updateMessage(messageId: string, text: string, format?: "text" | "markdown"): Promise<SendResult> {
+    // messageId 可能是 responseUrl 或 userId
+    let responseUrl: string;
+
+    // 检查 messageId 是否直接是 URL
+    if (messageId.startsWith("http")) {
+      responseUrl = messageId;
+    } else {
+      // 从缓存中获取 responseUrl
+      const cachedUrl = this.responseUrls.get(messageId);
+      if (!cachedUrl) {
+        return { success: false, error: "未找到消息的 response_url" };
+      }
+      responseUrl = cachedUrl;
+    }
+
+    try {
+      const useMarkdown = format !== "text";
+
+      const payload = useMarkdown
+        ? { msgtype: "markdown", markdown: { content: text } }
+        : { msgtype: "text", text: { content: text } };
+
+      const response = await fetch(responseUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const result = await response.json() as { errcode?: number; errmsg?: string };
+
+      if (result.errcode && result.errcode !== 0) {
+        return { success: false, error: result.errmsg || "更新失败" };
+      }
+
+      return { success: true, messageId };
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      return { success: false, error: errMsg };
+    }
+  }
+
   async send(message: OutboundMessage): Promise<SendResult> {
     const { webhookKey } = this.config;
 
@@ -181,13 +234,20 @@ export class WechatWorkChannel extends BaseChannel {
     try {
       const url = `https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=${webhookKey}`;
       
+      // 根据 message.format 决定消息格式
+      const useMarkdown = message.format !== "text";
+      
+      // 应用 markdown 转换
+      const text = useMarkdown ? convertMarkdown(message.text) : message.text;
+      
+      const payload = useMarkdown
+        ? { msgtype: "markdown", markdown: { content: text } }
+        : { msgtype: "text", text: { content: text } };
+      
       const response = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          msgtype: "text",
-          text: { content: message.text },
-        }),
+        body: JSON.stringify(payload),
       });
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -215,16 +275,23 @@ export class WechatWorkChannel extends BaseChannel {
       // 优先使用 metadata 中的 responseUrl
       const responseUrl = message.metadata?.responseUrl || this.responseUrls.get(message.to);
 
+      // 根据 message.format 决定消息格式
+      const useMarkdown = message.format !== "text";
+
+      // 应用 markdown 转换
+      const text = useMarkdown ? convertMarkdown(message.text) : message.text;
+
       if (responseUrl && typeof responseUrl === "string") {
         // 使用 response_url 回复（推荐方式）
         // 企业微信智能机器人 response_url API
+        const payload = useMarkdown
+          ? { msgtype: "markdown", markdown: { content: text } }
+          : { msgtype: "text", text: { content: text } };
+
         const response = await fetch(responseUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            msgtype: "text",
-            text: { content: message.text },
-          }),
+          body: JSON.stringify(payload),
         });
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -232,28 +299,11 @@ export class WechatWorkChannel extends BaseChannel {
 
         if (result.errcode && result.errcode !== 0) {
           console.error(`[企业微信] response_url 回复失败 (${result.errcode}): ${result.errmsg}`);
-          // 尝试使用 markdown 格式
-          const retryResponse = await fetch(responseUrl, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              msgtype: "markdown",
-              markdown: { content: message.text },
-            }),
-          });
-
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const retryResult = await retryResponse.json() as any;
-
-          if (retryResult.errcode && retryResult.errcode !== 0) {
-            console.error(`[企业微信] markdown 格式也失败: ${retryResult.errmsg}`);
-            return { success: false, error: retryResult.errmsg || "发送失败" };
-          }
-
-          return { success: true };
+          return { success: false, error: result.errmsg || "发送失败" };
         }
 
-        return { success: true };
+        // 返回 responseUrl 作为 messageId，用于后续更新消息
+        return { success: true, messageId: responseUrl };
       }
 
       // 无 response_url，使用 SDK 发送
@@ -273,10 +323,17 @@ export class WechatWorkChannel extends BaseChannel {
         return { success: false, error: "企业微信客户端未初始化" };
       }
 
-      await this.wsClient.sendMessage(message.to, {
-        msgtype: "markdown",
-        markdown: { content: message.text },
-      });
+      // 根据 message.format 决定消息格式
+      const useMarkdown = message.format !== "text";
+
+      // 应用 markdown 转换
+      const text = useMarkdown ? convertMarkdown(message.text) : message.text;
+
+      const payload = useMarkdown
+        ? { msgtype: "markdown", markdown: { content: text } }
+        : { msgtype: "text", text: { content: text } };
+
+      await this.wsClient.sendMessage(message.to, payload);
 
       return { success: true };
     } catch (error) {

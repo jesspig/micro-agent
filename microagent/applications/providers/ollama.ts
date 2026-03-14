@@ -8,7 +8,7 @@
 import { BaseProvider } from "../../runtime/provider/base.js";
 import type { IProviderExtended } from "../../runtime/provider/contract.js";
 import type { ProviderCapabilities, ProviderConfig, ProviderStatus } from "../../runtime/provider/types.js";
-import type { ChatRequest, ChatResponse, Message, ToolCall } from "../../runtime/types.js";
+import type { ChatRequest, ChatResponse, Message, StreamCallback, StreamChunk, ToolCall } from "../../runtime/types.js";
 
 // ============================================================================
 // 类型定义
@@ -213,6 +213,168 @@ export class OllamaProvider extends BaseProvider implements IProviderExtended {
     const response = await this.requestWithRetry(`${this.config.baseUrl}/api/chat`, body);
     this.recordUsage();
     return this.parseResponse(response);
+  }
+
+  async streamChat(request: ChatRequest, callback: StreamCallback): Promise<ChatResponse> {
+    const { model, messages, tools, temperature, maxTokens } = request;
+
+    if (!this.cachedModels) {
+      await this.refreshModels();
+    }
+
+    const actualModel = this.parseModelName(model || this.defaultModel);
+
+    // 构建流式请求体
+    const body: Record<string, unknown> = {
+      model: actualModel,
+      messages: this.convertMessages(messages),
+      stream: true,
+      think: this.think,
+    };
+
+    if (temperature !== undefined) {
+      body.options = { temperature };
+    }
+
+    if (maxTokens !== undefined) {
+      body.options = { ...(body.options as Record<string, unknown>), num_predict: maxTokens };
+    }
+
+    if (tools?.length) {
+      body.tools = tools.map((tool) => ({
+        type: "function",
+        function: {
+          name: tool.name,
+          description: tool.description,
+          parameters: tool.parameters,
+        },
+      }));
+    }
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+
+    try {
+      const response = await fetch(`${this.config.baseUrl}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        const errorData = (await response.json()) as OllamaError;
+        throw new Error(`Ollama API 错误: ${errorData.error ?? response.statusText}`);
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("无法获取响应流");
+
+      const decoder = new TextDecoder();
+      let fullText = "";
+      let fullReasoning = "";
+      const toolCalls: ToolCall[] = [];
+      let usage: { inputTokens: number; outputTokens: number } | undefined;
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          const chunk = decoder.decode(value, { stream: true });
+          // Ollama 每行一个 JSON 对象
+          const lines = chunk.split("\n").filter((line) => line.trim());
+
+          for (const line of lines) {
+            try {
+              const json = JSON.parse(line) as OllamaNativeResponse;
+
+              // 累积内容
+              if (json.message?.content) {
+                fullText += json.message.content;
+              }
+              if (json.message?.thinking) {
+                fullReasoning += json.message.thinking;
+              }
+
+              // 处理工具调用
+              if (json.message?.tool_calls) {
+                for (const tc of json.message.tool_calls) {
+                  toolCalls.push({
+                    id: tc.id ?? `tc_${Date.now()}_${toolCalls.length}`,
+                    name: tc.function.name,
+                    arguments: this.parseToolArguments(tc.function.arguments),
+                  });
+                }
+              }
+
+              // 触发回调
+              const streamChunk: StreamChunk = {
+                delta: json.message?.content ?? "",
+                text: fullText,
+                done: false,
+              };
+              if (fullReasoning) {
+                const thinkingContent = json.message?.thinking;
+                if (thinkingContent !== undefined) {
+                  streamChunk.reasoningDelta = thinkingContent;
+                }
+                streamChunk.reasoning = fullReasoning;
+              }
+              await callback(streamChunk);
+
+              // Ollama 在最后发送 done: true
+              if (json.done) {
+                usage = {
+                  inputTokens: json.prompt_eval_count ?? 0,
+                  outputTokens: json.eval_count ?? 0,
+                };
+              }
+            } catch {
+              // 忽略解析错误
+            }
+          }
+        }
+      } finally {
+        reader.releaseLock();
+      }
+
+      // 最终回调
+      const finalChunk: StreamChunk = {
+        delta: "",
+        text: fullText,
+        done: true,
+      };
+      if (usage !== undefined) {
+        finalChunk.usage = usage;
+      }
+      if (toolCalls.length > 0) {
+        finalChunk.toolCalls = toolCalls;
+      }
+      if (fullReasoning) {
+        finalChunk.reasoning = fullReasoning;
+      }
+      await callback(finalChunk);
+
+      this.recordUsage();
+
+      const chatResponse: ChatResponse = {
+        text: fullText,
+        hasToolCall: toolCalls.length > 0,
+      };
+      if (fullReasoning) {
+        chatResponse.reasoning = fullReasoning;
+      }
+      if (toolCalls.length > 0) {
+        chatResponse.toolCalls = toolCalls;
+      }
+      if (usage !== undefined) {
+        chatResponse.usage = usage;
+      }
+      return chatResponse;
+    } finally {
+      clearTimeout(timeoutId);
+    }
   }
 
   /**

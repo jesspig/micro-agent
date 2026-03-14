@@ -82,6 +82,18 @@ export abstract class BaseChannel implements IChannelExtended {
    */
   abstract send(message: OutboundMessage): Promise<SendResult>;
 
+  /**
+   * 更新已有消息（用于流式输出）
+   * 默认实现：返回不支持更新的错误，子类可重写
+   * @param _messageId - 消息 ID
+   * @param _text - 新消息内容
+   * @param _format - 消息格式
+   * @returns 发送结果
+   */
+  async updateMessage(_messageId: string, _text: string, _format?: "text" | "markdown"): Promise<SendResult> {
+    return { success: false, error: "当前 Channel 不支持消息更新" };
+  }
+
   // ============================================================================
   // 消息处理
   // ============================================================================

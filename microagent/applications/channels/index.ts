@@ -8,16 +8,16 @@
  */
 
 // QQ 机器人 (使用 qq-botpy SDK)
-export { QQChannel, createQQChannel, type QQBotConfig } from "./qq.js";
+export { QQChannel, createQQChannel, type QQBotConfig } from "./qq/index.js";
 
 // 飞书机器人 (使用 @larksuiteoapi/node-sdk)
-export { FeishuChannel, createFeishuChannel, type FeishuBotConfig } from "./feishu.js";
+export { FeishuChannel, createFeishuChannel, type FeishuBotConfig } from "./feishu/index.js";
 
 // 企业微信机器人 (使用 @wecom/aibot-node-sdk)
-export { WechatWorkChannel, createWechatWorkChannel, type WechatWorkBotConfig } from "./wechat-work.js";
+export { WechatWorkChannel, createWechatWorkChannel, type WechatWorkBotConfig } from "./wechat-work/index.js";
 
 // 钉钉机器人 (使用 dingtalk-stream-sdk-nodejs)
-export { DingTalkChannel, createDingTalkChannel, type DingTalkBotConfig } from "./dingtalk.js";
+export { DingTalkChannel, createDingTalkChannel, type DingTalkBotConfig } from "./dingtalk/index.js";
 
 // 类型重导出
 export type { ChannelConfig, ChannelStatus, InboundMessage, OutboundMessage, SendResult } from "../../runtime/channel/types.js";

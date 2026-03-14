@@ -23,7 +23,7 @@ export type AgentState = "idle" | "thinking" | "tool_call" | "responding" | "err
  */
 export interface AgentEvent {
   /** 事件类型 */
-  type: "state_change" | "tool_start" | "tool_end" | "message" | "error";
+  type: "state_change" | "tool_start" | "tool_end" | "message" | "error" | "streaming";
   /** 状态变化后的新状态 */
   state?: AgentState;
   /** 工具名称（工具相关事件） */
@@ -34,6 +34,12 @@ export interface AgentEvent {
   error?: Error;
   /** 事件时间戳 */
   timestamp: number;
+  /** 流式输出增量文本 */
+  delta?: string;
+  /** 流式输出累计文本 */
+  text?: string;
+  /** 流式输出是否结束 */
+  done?: boolean;
 }
 
 // ============================================================================
@@ -52,6 +58,10 @@ export interface AgentConfig {
   defaultTimeout: number;
   /** 是否启用日志 */
   enableLogging: boolean;
+  /** 是否启用流式输出 */
+  enableStreaming?: boolean;
+  /** 流式输出回调（用于 Channel 消息更新） */
+  onStreamChunk?: (chunk: { delta: string; text: string; done: boolean }) => void | Promise<void>;
 }
 
 // ============================================================================

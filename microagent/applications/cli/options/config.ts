@@ -31,16 +31,20 @@ const TEMPLATES_DIR = join(
   "templates"
 );
 
-/** 需要复制的模板文件（源文件 -> 目标文件） */
-const TEMPLATE_FILES: Array<{ src: string; dest: string }> = [
+/** 需要复制到 Agent 目录的模板文件 */
+const AGENT_TEMPLATE_FILES: Array<{ src: string; dest: string }> = [
   { src: "AGENTS.md", dest: "AGENTS.md" },
   { src: "SOUL.md", dest: "SOUL.md" },
   { src: "USER.md", dest: "USER.md" },
   { src: "TOOLS.md", dest: "TOOLS.md" },
   { src: "HEARTBEAT.md", dest: "HEARTBEAT.md" },
   { src: "MEMORY.md", dest: "MEMORY.md" },
-  { src: "settings.example.yaml", dest: "settings.yaml" },
   { src: "mcp.json", dest: "mcp.json" },
+];
+
+/** 需要复制到根目录的配置文件 */
+const ROOT_TEMPLATE_FILES: Array<{ src: string; dest: string }> = [
+  { src: "settings.example.yaml", dest: "settings.yaml" },
 ];
 
 // ============================================================================
@@ -166,9 +170,9 @@ export async function configCommand(
     }
   }
 
-  // 2. 复制模板文件
+  // 2. 复制 Agent 目录模板文件
   console.log("\n📄 复制模板文件...");
-  for (const { src: srcFile, dest: destFile } of TEMPLATE_FILES) {
+  for (const { src: srcFile, dest: destFile } of AGENT_TEMPLATE_FILES) {
     const src = join(TEMPLATES_DIR, srcFile);
     const dest = join(AGENT_DIR, destFile);
 
@@ -201,7 +205,41 @@ export async function configCommand(
     }
   }
 
-  // 3. 输出摘要
+  // 3. 复制根目录配置文件（settings.yaml）
+  for (const { src: srcFile, dest: destFile } of ROOT_TEMPLATE_FILES) {
+    const src = join(TEMPLATES_DIR, srcFile);
+    const dest = join(MICRO_AGENT_DIR, destFile);
+
+    if (options.dryRun) {
+      const destExists = await Bun.file(dest).exists();
+      if (destExists && !options.force) {
+        console.log(`   [预览] 将跳过已存在: ${destFile}`);
+        result.skipped.push(destFile);
+      } else {
+        console.log(`   [预览] 将复制: ${srcFile} -> ${destFile}`);
+        result.files.push(destFile);
+      }
+      continue;
+    }
+
+    const destExists = await Bun.file(dest).exists();
+
+    if (destExists && !options.force) {
+      console.log(`   - 文件已存在，跳过: ${destFile}`);
+      result.skipped.push(destFile);
+      continue;
+    }
+
+    const copied = await copyFile(src, dest);
+    if (copied) {
+      console.log(`   ✓ 已复制: ${srcFile} -> ${destFile}`);
+      result.files.push(destFile);
+    } else {
+      result.skipped.push(destFile);
+    }
+  }
+
+  // 4. 输出摘要
   console.log("\n" + "=".repeat(50));
   console.log("📊 初始化摘要");
   console.log("=".repeat(50));
@@ -212,7 +250,8 @@ export async function configCommand(
 
   if (result.files.length > 0) {
     console.log("\n✅ 配置初始化完成！");
-    console.log(`\n配置目录: ${AGENT_DIR}`);
+    console.log(`\n配置文件: ${join(MICRO_AGENT_DIR, "settings.yaml")}`);
+    console.log(`Agent 目录: ${AGENT_DIR}`);
     console.log(`工作目录: ${WORKSPACE_DIR}`);
     console.log("\n下一步:");
     console.log("   1. 编辑 settings.yaml 配置 API Key");

@@ -7,7 +7,7 @@
 import { BaseProvider } from "../../runtime/provider/base.js";
 import type { IProviderExtended } from "../../runtime/provider/contract.js";
 import type { ProviderCapabilities, ProviderConfig, ProviderStatus } from "../../runtime/provider/types.js";
-import type { ChatRequest, ChatResponse, Message, ToolCall } from "../../runtime/types.js";
+import type { ChatRequest, ChatResponse, Message, StreamCallback, StreamChunk, ToolCall } from "../../runtime/types.js";
 
 // ============================================================================
 // 类型定义
@@ -139,6 +139,140 @@ export class AnthropicProvider extends BaseProvider implements IProviderExtended
     const response = await this.requestWithRetry(`${this.config.baseUrl}/messages`, body);
     this.recordUsage();
     return this.parseResponse(response);
+  }
+
+  async streamChat(request: ChatRequest, callback: StreamCallback): Promise<ChatResponse> {
+    const { model, messages, tools, temperature, maxTokens } = request;
+    const actualModel = this.parseModelName(model || this.defaultModel);
+
+    const body: Record<string, unknown> = {
+      model: actualModel,
+      messages: this.convertMessages(messages),
+      max_tokens: maxTokens ?? 4096,
+      stream: true,
+    };
+
+    if (temperature !== undefined) body.temperature = temperature;
+    if (tools?.length) {
+      body.tools = tools.map((tool) => ({
+        name: tool.name,
+        description: tool.description,
+        input_schema: tool.parameters,
+      }));
+    }
+
+    const httpResponse = await fetch(`${this.config.baseUrl}/messages`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": this.config.apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!httpResponse.ok) {
+      const errorData = await httpResponse.json().catch(() => ({})) as { error?: { message?: string } };
+      throw new Error(`${this.config.name} API 错误: ${errorData.error?.message ?? httpResponse.statusText}`);
+    }
+
+    const reader = httpResponse.body?.getReader();
+    if (!reader) throw new Error("无法获取响应流");
+
+    const decoder = new TextDecoder();
+    let fullText = "";
+    const toolCalls: ToolCall[] = [];
+    let usage: { inputTokens: number; outputTokens: number } | undefined;
+    let currentToolCall: { id: string; name: string; input: string } | null = null;
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split("\n").filter((line) => line.startsWith("data: "));
+
+        for (const line of lines) {
+          const data = line.slice(6);
+
+          try {
+            const event = JSON.parse(data);
+
+            if (event.type === "content_block_delta") {
+              const delta = event.delta;
+              if (delta?.type === "text_delta" && delta.text) {
+                fullText += delta.text;
+                await callback({
+                  delta: delta.text,
+                  text: fullText,
+                  done: false,
+                });
+              } else if (delta?.type === "input_json_delta" && currentToolCall) {
+                currentToolCall.input += delta.partial_json ?? "";
+              }
+            } else if (event.type === "content_block_start") {
+              const block = event.content_block;
+              if (block?.type === "tool_use") {
+                currentToolCall = {
+                  id: block.id,
+                  name: block.name,
+                  input: "",
+                };
+              }
+            } else if (event.type === "content_block_stop" && currentToolCall) {
+              try {
+                toolCalls.push({
+                  id: currentToolCall.id,
+                  name: currentToolCall.name,
+                  arguments: JSON.parse(currentToolCall.input),
+                });
+              } catch {
+                toolCalls.push({
+                  id: currentToolCall.id,
+                  name: currentToolCall.name,
+                  arguments: { raw: currentToolCall.input },
+                });
+              }
+              currentToolCall = null;
+            } else if (event.type === "message_delta" && event.usage) {
+              usage = {
+                inputTokens: usage?.inputTokens ?? 0,
+                outputTokens: event.usage.output_tokens ?? 0,
+              };
+            } else if (event.type === "message_start" && event.message?.usage) {
+              usage = {
+                inputTokens: event.message.usage.input_tokens,
+                outputTokens: 0,
+              };
+            }
+          } catch {
+            // 忽略解析错误
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+
+    // 最终回调
+    const finalChunk: StreamChunk = {
+      delta: "",
+      text: fullText,
+      done: true,
+    };
+    if (toolCalls.length > 0) finalChunk.toolCalls = toolCalls;
+    if (usage) finalChunk.usage = usage;
+    await callback(finalChunk);
+
+    this.recordUsage();
+    const chatResponse: ChatResponse = {
+      text: fullText,
+      hasToolCall: toolCalls.length > 0,
+    };
+    if (toolCalls.length > 0) chatResponse.toolCalls = toolCalls;
+    if (usage) chatResponse.usage = usage;
+    return chatResponse;
   }
 
   /**

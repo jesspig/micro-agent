@@ -14,6 +14,10 @@ export interface ProviderCapabilities {
   maxContextTokens: number;
   /** 工具 Schema 模式 */
   toolSchemaMode: "native" | "openai-functions" | "anthropic";
+  /** 流式输出时是否支持工具调用 */
+  supportsStreamingToolCalls?: boolean;
+  /** 流式输出时是否支持思考过程 */
+  supportsStreamingReasoning?: boolean;
 }
 
 /**

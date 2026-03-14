@@ -17,7 +17,7 @@ import {
   SessionManager,
   ToolRegistry,
   SkillRegistry,
-  type IProvider,
+  type IProviderExtended,
   type AgentConfig,
   type AgentEventHandler,
 } from "../../runtime/index.js";
@@ -54,16 +54,20 @@ const TEMPLATES_DIR = join(
   "templates"
 );
 
-/** 需要复制的模板文件列表 */
-const TEMPLATE_FILES = [
+/** Agent 目录模板文件列表 */
+const AGENT_TEMPLATE_FILES = [
   "AGENTS.md",
   "SOUL.md",
   "USER.md",
   "TOOLS.md",
   "HEARTBEAT.md",
   "MEMORY.md",
-  "settings.yaml",
   "mcp.json",
+];
+
+/** 根目录模板文件列表 */
+const ROOT_TEMPLATE_FILES = [
+  { src: "settings.example.yaml", dest: "settings.yaml" },
 ];
 
 // ============================================================================
@@ -116,7 +120,7 @@ export class AgentBuilder {
   private configPath: string | null = null;
 
   /** 自定义 Provider */
-  private customProvider: IProvider | null = null;
+  private customProvider: IProviderExtended | null = null;
 
   /** 工具注册表 */
   private tools = new ToolRegistry();
@@ -165,7 +169,7 @@ export class AgentBuilder {
    * @param provider - Provider 实例
    * @returns 构建器实例
    */
-  withProvider(provider: IProvider): this {
+  withProvider(provider: IProviderExtended): this {
     this.customProvider = provider;
     return this;
   }
@@ -324,7 +328,8 @@ export class AgentBuilder {
    * 仅在目标文件不存在时复制
    */
   private async copyTemplates(): Promise<void> {
-    for (const file of TEMPLATE_FILES) {
+    // 复制 Agent 目录模板文件
+    for (const file of AGENT_TEMPLATE_FILES) {
       const srcPath = join(TEMPLATES_DIR, file);
       const destPath = join(AGENT_DIR, file);
 
@@ -349,6 +354,31 @@ export class AgentBuilder {
       } catch (error) {
         // 复制失败不影响启动
         this.logger.error(`复制模板文件失败: ${file}`, error);
+      }
+    }
+
+    // 复制根目录模板文件（settings.yaml）
+    for (const { src, dest } of ROOT_TEMPLATE_FILES) {
+      const srcPath = join(TEMPLATES_DIR, src);
+      const destPath = join(MICRO_AGENT_DIR, dest);
+
+      try {
+        const destExists = await this.pathExists(destPath);
+        if (destExists) {
+          this.logger.debug(`模板文件已存在，跳过: ${dest}`);
+          continue;
+        }
+
+        const srcExists = await this.pathExists(srcPath);
+        if (!srcExists) {
+          this.logger.debug(`模板源文件不存在，跳过: ${src}`);
+          continue;
+        }
+
+        await copyFile(srcPath, destPath);
+        this.logger.debug(`复制模板文件: ${src} -> ${dest}`);
+      } catch (error) {
+        this.logger.error(`复制模板文件失败: ${dest}`, error);
       }
     }
   }
@@ -382,7 +412,7 @@ export class AgentBuilder {
    * @param settings - 配置对象
    * @returns Provider 实例
    */
-  private async createProvider(settings: Settings): Promise<IProvider> {
+  private async createProvider(settings: Settings): Promise<IProviderExtended> {
     // 使用自定义 Provider
     if (this.customProvider) {
       this.logger.debug(`使用自定义 Provider: ${this.customProvider.name}`);

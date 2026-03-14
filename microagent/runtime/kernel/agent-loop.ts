@@ -4,8 +4,8 @@
  * 实现 Agent 的 ReAct（推理-行动）循环，负责协调 LLM 调用和工具执行
  */
 
-import type { Message, ChatRequest, ToolCall } from "../types.js";
-import type { IProvider } from "../contracts.js";
+import type { Message, ChatRequest, ToolCall, StreamChunk } from "../types.js";
+import type { IProviderExtended } from "../provider/contract.js";
 import type { ToolRegistry } from "../tool/registry.js";
 import type { AgentConfig, AgentState, AgentEvent, AgentResult, ToolCallRecord } from "./types.js";
 
@@ -52,7 +52,7 @@ export class AgentLoop {
    * @param config - Agent 配置
    */
   constructor(
-    private provider: IProvider,
+    private provider: IProviderExtended,
     private tools: ToolRegistry,
     private config: AgentConfig = DEFAULT_CONFIG
   ) {}
@@ -70,7 +70,7 @@ export class AgentLoop {
 
     for (let i = 0; i < this.config.maxIterations; i++) {
       try {
-        // 1. 调用 LLM
+        // 1. 调用 LLM（支持流式输出）
         const response = await this.callLLM(messages);
 
         // 2. 无工具调用 → 返回结果
@@ -84,6 +84,85 @@ export class AgentLoop {
 
         // 3. 处理工具调用
         this.setState("tool_call");
+
+        // 先将 assistant 消息（包含 tool_calls）添加到消息历史
+        messages.push({
+          role: "assistant",
+          content: response.text || "",
+          toolCalls: response.toolCalls,
+        });
+
+        for (const call of response.toolCalls) {
+          const record = await this.executeToolCall(call);
+          allToolCalls.push(record);
+
+          // 将工具结果添加到消息历史
+          messages.push({
+            role: "tool",
+            toolCallId: call.id,
+            name: call.name,
+            content: record.result ?? "",
+          });
+        }
+
+        // 4. 继续循环
+        this.setState("thinking");
+      } catch (error) {
+        this.setState("error");
+        const err = error instanceof Error ? error : new Error(String(error));
+        this.emit({ type: "error", error: err, timestamp: Date.now() });
+        return {
+          content: null,
+          messages,
+          error: err.message,
+        };
+      }
+    }
+
+    // 达到最大迭代次数
+    this.setState("error");
+    return {
+      content: null,
+      messages,
+      error: `达到最大迭代次数: ${this.config.maxIterations}`,
+    };
+  }
+
+  /**
+   * 运行 Agent（流式输出版本）
+   * @param initialMessages - 初始消息列表
+   * @returns Agent 执行结果
+   */
+  async runStreaming(initialMessages: Message[]): Promise<AgentResult> {
+    const messages = [...initialMessages];
+    const allToolCalls: ToolCallRecord[] = [];
+
+    this.setState("thinking");
+
+    for (let i = 0; i < this.config.maxIterations; i++) {
+      try {
+        // 1. 调用 LLM（流式输出）
+        const response = await this.callLLMStreaming(messages);
+
+        // 2. 无工具调用 → 返回结果
+        if (!response.hasToolCall || !response.toolCalls?.length) {
+          this.setState("responding");
+          return {
+            content: response.text,
+            messages,
+          };
+        }
+
+        // 3. 处理工具调用
+        this.setState("tool_call");
+
+        // 先将 assistant 消息（包含 tool_calls）添加到消息历史
+        messages.push({
+          role: "assistant",
+          content: response.text || "",
+          toolCalls: response.toolCalls,
+        });
+
         for (const call of response.toolCalls) {
           const record = await this.executeToolCall(call);
           allToolCalls.push(record);
@@ -137,6 +216,42 @@ export class AgentLoop {
     };
 
     return await this.provider.chat(request);
+  }
+
+  /**
+   * 调用 LLM（流式输出）
+   * @param messages - 消息列表
+   * @returns 聊天响应
+   */
+  private async callLLMStreaming(messages: Message[]) {
+    const request: ChatRequest = {
+      model: this.config.model,
+      messages,
+      tools: this.tools.getDefinitions(),
+    };
+
+    // 流式回调：发射 streaming 事件
+    const streamCallback = async (chunk: StreamChunk) => {
+      // 发射 streaming 事件
+      this.emit({
+        type: "streaming",
+        delta: chunk.delta,
+        text: chunk.text,
+        done: chunk.done,
+        timestamp: Date.now(),
+      });
+
+      // 调用用户配置的流式回调（用于 Channel 消息更新）
+      if (this.config.onStreamChunk) {
+        await this.config.onStreamChunk({
+          delta: chunk.delta,
+          text: chunk.text,
+          done: chunk.done,
+        });
+      }
+    };
+
+    return await this.provider.streamChat(request, streamCallback);
   }
 
   /**

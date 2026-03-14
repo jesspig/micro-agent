@@ -6,9 +6,10 @@
  */
 
 import { DWClient, type DWClientDownStream } from "dingtalk-stream-sdk-nodejs";
-import type { ChannelConfig, InboundMessage, OutboundMessage, SendResult } from "../../runtime/channel/types.js";
-import { BaseChannel } from "../../runtime/channel/base.js";
-import type { ChannelCapabilities } from "../../runtime/types.js";
+import type { ChannelConfig, InboundMessage, OutboundMessage, SendResult } from "../../../runtime/channel/types.js";
+import { BaseChannel } from "../../../runtime/channel/base.js";
+import type { ChannelCapabilities } from "../../../runtime/types.js";
+import { convertMarkdown } from "./markdown.js";
 
 // ============================================================================
 // 类型定义
@@ -64,10 +65,12 @@ export class DingTalkChannel extends BaseChannel {
   readonly type = "dingtalk" as const;
   readonly capabilities: ChannelCapabilities = {
     text: true,
+    markdown: true,
     media: false,
     reply: true,
-    edit: false,
+    edit: true,
     delete: false,
+    streaming: true,
   };
 
   /** 钉钉特定配置 */
@@ -95,22 +98,25 @@ export class DingTalkChannel extends BaseChannel {
 
     console.log("[钉钉] 正在初始化 Stream SDK...");
 
-    // 创建钉钉 Stream 客户端
+    const self = this;
+
+    // 创建钉钉 Stream 客户端并链式调用
+    // 注意：connect() 不返回 Promise，需要通过事件监听确认连接成功
     this.client = new DWClient({
       clientId,
       clientSecret,
     });
 
-    // 注册机器人消息回调
-    this.client.registerCallbackListener(
-      "/v1.0/im/bot/messages/get",
-      async (res: DWClientDownStream) => {
-        await this.handleBotMessage(res);
-      }
-    );
-
-    // 建立 Stream 连接
-    await this.client.connect();
+    // 注册机器人消息回调（链式调用）
+    this.client
+      .registerCallbackListener(
+        "/v1.0/im/bot/messages/get",
+        async (res: DWClientDownStream) => {
+          console.log("[钉钉] 收到回调消息");
+          await self.handleBotMessage(res);
+        }
+      )
+      .connect();
 
     console.log("[钉钉] Stream SDK 已启动");
     this.setConnected(true);
@@ -127,10 +133,16 @@ export class DingTalkChannel extends BaseChannel {
   }
 
   async send(message: OutboundMessage): Promise<SendResult> {
+    const format = message.format || "text";
+    const isMarkdown = format === "markdown";
+
+    // 应用 markdown 转换
+    const text = isMarkdown ? convertMarkdown(message.text) : message.text;
+
     // 优先使用 sessionWebhook 回复（群聊会 @ 发送者）
     const sessionWebhook = message.metadata?.sessionWebhook as string | undefined;
     if (sessionWebhook) {
-      return this.sendViaSessionWebhook(sessionWebhook, message.text);
+      return this.sendViaSessionWebhook(sessionWebhook, text, isMarkdown);
     }
 
     // 回退到 API 方式
@@ -147,18 +159,23 @@ export class DingTalkChannel extends BaseChannel {
         ? "https://api.dingtalk.com/v1.0/robot/groupMessages/send"
         : "https://api.dingtalk.com/v1.0/robot/oToMessages/batchSend";
 
+      const msgKey = isMarkdown ? "sampleMarkdown" : "sampleText";
+      const msgParam = isMarkdown
+        ? JSON.stringify({ title: "AI 响应", content: text })
+        : JSON.stringify({ content: text });
+
       const payload = isGroup
         ? {
             robotCode: this.config.clientId,
             openConversationId: chatId,
-            msgKey: "sampleText",
-            msgParam: JSON.stringify({ content: message.text }),
+            msgKey,
+            msgParam,
           }
         : {
             robotCode: this.config.clientId,
             userIds: [chatId],
-            msgKey: "sampleText",
-            msgParam: JSON.stringify({ content: message.text }),
+            msgKey,
+            msgParam,
           };
 
       const response = await fetch(url, {
@@ -185,17 +202,73 @@ export class DingTalkChannel extends BaseChannel {
   }
 
   /**
+   * 更新已有消息（用于流式输出）
+   * 钉钉 API: PUT /v1.0/robot/oToMessages/{messageId}
+   */
+  async updateMessage(messageId: string, text: string, format?: "text" | "markdown"): Promise<SendResult> {
+    const token = await this.getAccessToken();
+    if (!token) {
+      return { success: false, error: "无法获取 Access Token" };
+    }
+
+    try {
+      const url = `https://api.dingtalk.com/v1.0/robot/oToMessages/${messageId}`;
+      const isMarkdown = format === "markdown";
+
+      const response = await fetch(url, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "x-acs-dingtalk-access-token": token,
+        },
+        body: JSON.stringify({
+          robotCode: this.config.clientId,
+          msgKey: isMarkdown ? "sampleMarkdown" : "sampleText",
+          msgParam: JSON.stringify(
+            isMarkdown
+              ? { title: "AI 响应", content: text }
+              : { content: text }
+          ),
+        }),
+      });
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const result = (await response.json()) as any;
+
+      if (result.errcode && result.errcode !== 0) {
+        return { success: false, error: result.errmsg || "更新失败" };
+      }
+
+      return { success: true, messageId };
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      return { success: false, error: errMsg };
+    }
+  }
+
+  /**
    * 通过 sessionWebhook 发送消息
    */
-  private async sendViaSessionWebhook(webhookUrl: string, text: string): Promise<SendResult> {
+  private async sendViaSessionWebhook(
+    webhookUrl: string,
+    text: string,
+    isMarkdown: boolean
+  ): Promise<SendResult> {
     try {
+      const body = isMarkdown
+        ? {
+            msgtype: "markdown",
+            markdown: { title: "AI 响应", text },
+          }
+        : {
+            msgtype: "text",
+            text: { content: text },
+          };
+
       const response = await fetch(webhookUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          msgtype: "text",
-          text: { content: text },
-        }),
+        body: JSON.stringify(body),
       });
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -252,7 +325,10 @@ export class DingTalkChannel extends BaseChannel {
    */
   private async handleBotMessage(res: DWClientDownStream): Promise<void> {
     try {
+      console.log("[钉钉] 原始响应:", JSON.stringify(res).substring(0, 500));
+
       const data: DingTalkMessageData = JSON.parse(res.data);
+      console.log("[钉钉] 解析后数据:", JSON.stringify(data).substring(0, 300));
 
       // 解析消息内容
       let content = "";

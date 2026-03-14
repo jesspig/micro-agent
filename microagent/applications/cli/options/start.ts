@@ -47,7 +47,7 @@ import {
   createWechatWorkChannel,
   createDingTalkChannel,
 } from "../../channels/index.js";
-import type { IProvider } from "../../../runtime/contracts.js";
+import type { IProviderExtended } from "../../../runtime/provider/contract.js";
 import type { AgentConfig } from "../../../runtime/kernel/types.js";
 import type { SingleProviderConfig } from "../../config/schema.js";
 import type { IChannelExtended } from "../../../runtime/channel/contract.js";
@@ -148,7 +148,7 @@ async function initializeConfigFiles(): Promise<void> {
 /**
  * 创建 Provider 实例
  */
-function createProvider(settings: Settings): IProvider | null {
+function createProvider(settings: Settings): IProviderExtended | null {
   const logger = getLogger();
 
   const providers = settings.providers ?? {};
@@ -399,6 +399,7 @@ function createMessageHandler(
           const sendResult = await channel.send({
             to: replyTo,
             text: result.content,
+            format: "markdown", // 使用 Markdown 格式
             metadata: message.metadata, // 传递 Channel 特定元数据
           });
           if (sendResult.success) {
@@ -428,7 +429,7 @@ function createMessageHandler(
  * 运行 Agent 服务
  */
 async function runAgentService(
-  provider: IProvider,
+  provider: IProviderExtended,
   toolRegistry: ToolRegistry,
   sessionManager: SessionManager,
   channelManager: ChannelManager,

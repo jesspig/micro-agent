@@ -7,9 +7,10 @@
  * 不再依赖 qq-guild-bot SDK，直接使用 HTTP API + WebSocket
  */
 
-import type { ChannelConfig, InboundMessage, OutboundMessage, SendResult } from "../../runtime/channel/types.js";
-import { BaseChannel } from "../../runtime/channel/base.js";
-import type { ChannelCapabilities } from "../../runtime/types.js";
+import type { ChannelConfig, InboundMessage, OutboundMessage, SendResult } from "../../../runtime/channel/types.js";
+import { BaseChannel } from "../../../runtime/channel/base.js";
+import type { ChannelCapabilities } from "../../../runtime/types.js";
+import { convertMarkdown } from "./markdown.js";
 
 // ============================================================================
 // 类型定义
@@ -146,10 +147,12 @@ export class QQChannel extends BaseChannel {
   readonly type = "qq" as const;
   readonly capabilities: ChannelCapabilities = {
     text: true,
+    markdown: true, // QQ 频道支持有限的 Markdown 渲染（加粗、斜体、链接）
     media: true,
     reply: true,
     edit: false,
     delete: false,
+    streaming: true, // 支持流式输出
   };
 
   /** QQ 特定配置 */
@@ -170,8 +173,6 @@ export class QQChannel extends BaseChannel {
 
   /** 序列号 */
   private sequence: number | null = null;
-
-
 
   /** 已处理消息 ID 集合（防重） */
   private processedIds = new Set<string>();
@@ -727,49 +728,63 @@ export class QQChannel extends BaseChannel {
 
   /**
    * 发送消息
+   *
+   * QQ 频道支持 Markdown 消息类型，需要使用 markdown 字段
+   * 参考: https://bot.q.qq.com/wiki/develop/api-v2/server-inter/message/type/markdown.html
+   *
+   * 注意：Markdown 消息需要内邀开通权限（沙箱环境可调试）
+   * 支持的格式：标题、加粗、斜体、链接、列表、代码块等
    */
   async send(message: OutboundMessage): Promise<SendResult> {
     try {
       const token = await this.getAccessToken();
+      const isMarkdown = message.format === "markdown";
 
-      console.log(`[QQ] 发送消息到 ${message.to}: ${message.text.substring(0, 50)}...`);
+      // 应用 markdown 转换
+      const text = isMarkdown ? convertMarkdown(message.text) : message.text;
+
+      console.log(`[QQ] 发送消息到 ${message.to}: ${text.substring(0, 50)}...`);
 
       // 检查是否是群聊消息（通过 metadata 判断）
       const groupId = (message.metadata?.groupId || message.metadata?.groupOpenid) as string | undefined;
       if (groupId) {
-        return this.sendGroupMessage(message, token, groupId);
+        return this.sendGroupMessage(text, token, groupId, isMarkdown);
       }
 
       // 检查是否是单聊消息（通过 metadata 判断）
       const userOpenid = message.metadata?.userOpenid as string | undefined;
       if (userOpenid) {
-        return this.sendC2CMessage(message, token, userOpenid);
+        return this.sendC2CMessage(text, token, userOpenid, isMarkdown);
       }
 
       // 默认尝试作为频道消息发送
+      const body = isMarkdown
+        ? { markdown: { content: text } }
+        : { content: text };
+
       const response = await fetch(`${this.apiBase}/channels/${message.to}/messages`, {
         method: "POST",
         headers: {
           Authorization: `QQBot ${token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ content: message.text }),
+        body: JSON.stringify(body),
       });
 
       if (!response.ok) {
         const text = await response.text();
         console.error(`[QQ] 频道发送失败: ${response.status} ${text}`);
-        
+
         // 如果频道发送失败，尝试作为私聊发送
         if (response.status === 404 || response.status === 403) {
-          return this.sendDirectMessage(message, token);
+          return this.sendDirectMessage(message.text, token, message.to, isMarkdown);
         }
-        
+
         return { success: false, error: `发送失败: ${response.status} ${text}` };
       }
 
       const data = (await response.json()) as { id?: string; code?: number; message?: string };
-      
+
       // 检查业务错误
       if (data.code) {
         console.error(`[QQ] 发送业务错误: ${data.code} ${data.message}`);
@@ -778,7 +793,9 @@ export class QQChannel extends BaseChannel {
 
       const result: SendResult = { success: true };
       if (data.id) {
-        result.messageId = data.id;
+        // 返回格式化的 messageId: {channel_id}:{message_id}
+        result.messageId = `${message.to}:${data.id}`;
+        result.metadata = { rawMessageId: data.id, channelId: message.to };
       }
       console.log(`[QQ] 消息发送成功: ${data.id || 'unknown'}`);
       return result;
@@ -791,21 +808,24 @@ export class QQChannel extends BaseChannel {
 
   /**
    * 发送群聊消息
+   *
+   * QQ 群聊支持 Markdown 消息类型
    */
-  private async sendGroupMessage(message: OutboundMessage, token: string, groupId: string): Promise<SendResult> {
+  private async sendGroupMessage(content: string, token: string, groupId: string, isMarkdown?: boolean): Promise<SendResult> {
     try {
       console.log(`[QQ] 发送群聊消息到 ${groupId}...`);
-      
+
+      const body = isMarkdown
+        ? { markdown: { content }, msg_type: 2 } // msg_type: 2 表示 Markdown 消息
+        : { content, msg_type: 0 }; // msg_type: 0 表示文本消息
+
       const response = await fetch(`${this.apiBase}/v2/groups/${groupId}/messages`, {
         method: "POST",
         headers: {
           Authorization: `QQBot ${token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ 
-          content: message.text,
-          msg_type: 0, // 文本消息
-        }),
+        body: JSON.stringify(body),
       });
 
       if (!response.ok) {
@@ -817,7 +837,9 @@ export class QQChannel extends BaseChannel {
       const data = (await response.json()) as { id?: string };
       const result: SendResult = { success: true };
       if (data.id) {
-        result.messageId = data.id;
+        // 返回格式化的 messageId: group:{group_id}:{message_id}
+        result.messageId = `group:${groupId}:${data.id}`;
+        result.metadata = { rawMessageId: data.id, groupId };
       }
       console.log(`[QQ] 群聊消息发送成功: ${data.id || 'unknown'}`);
       return result;
@@ -829,21 +851,24 @@ export class QQChannel extends BaseChannel {
 
   /**
    * 发送单聊消息
+   *
+   * QQ 单聊支持 Markdown 消息类型
    */
-  private async sendC2CMessage(message: OutboundMessage, token: string, userOpenid: string): Promise<SendResult> {
+  private async sendC2CMessage(content: string, token: string, userOpenid: string, isMarkdown?: boolean): Promise<SendResult> {
     try {
       console.log(`[QQ] 发送单聊消息到 ${userOpenid}...`);
-      
+
+      const body = isMarkdown
+        ? { markdown: { content }, msg_type: 2 } // msg_type: 2 表示 Markdown 消息
+        : { content, msg_type: 0 }; // msg_type: 0 表示文本消息
+
       const response = await fetch(`${this.apiBase}/v2/users/${userOpenid}/messages`, {
         method: "POST",
         headers: {
           Authorization: `QQBot ${token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ 
-          content: message.text,
-          msg_type: 0, // 文本消息
-        }),
+        body: JSON.stringify(body),
       });
 
       if (!response.ok) {
@@ -855,7 +880,9 @@ export class QQChannel extends BaseChannel {
       const data = (await response.json()) as { id?: string };
       const result: SendResult = { success: true };
       if (data.id) {
-        result.messageId = data.id;
+        // 返回格式化的 messageId: c2c:{user_openid}:{message_id}
+        result.messageId = `c2c:${userOpenid}:${data.id}`;
+        result.metadata = { rawMessageId: data.id, userOpenid };
       }
       console.log(`[QQ] 单聊消息发送成功: ${data.id || 'unknown'}`);
       return result;
@@ -867,18 +894,24 @@ export class QQChannel extends BaseChannel {
 
   /**
    * 发送私聊消息
+   *
+   * QQ 私聊支持 Markdown 消息类型
    */
-  private async sendDirectMessage(message: OutboundMessage, token: string): Promise<SendResult> {
+  private async sendDirectMessage(content: string, token: string, to: string, isMarkdown?: boolean): Promise<SendResult> {
     try {
       console.log(`[QQ] 尝试私聊发送...`);
-      
-      const response = await fetch(`${this.apiBase}/dms/${message.to}/messages`, {
+
+      const body = isMarkdown
+        ? { markdown: { content } }
+        : { content };
+
+      const response = await fetch(`${this.apiBase}/dms/${to}/messages`, {
         method: "POST",
         headers: {
           Authorization: `QQBot ${token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ content: message.text }),
+        body: JSON.stringify(body),
       });
 
       if (!response.ok) {
@@ -890,10 +923,250 @@ export class QQChannel extends BaseChannel {
       const data = (await response.json()) as { id?: string };
       const result: SendResult = { success: true };
       if (data.id) {
-        result.messageId = data.id;
+        // 私聊消息格式: dms:{user_id}:{message_id}
+        result.messageId = `dms:${to}:${data.id}`;
+        result.metadata = { rawMessageId: data.id, dmsId: to };
       }
       console.log(`[QQ] 私聊消息发送成功: ${data.id || 'unknown'}`);
       return result;
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      return { success: false, error: errMsg };
+    }
+  }
+
+  /**
+   * 更新消息
+   * 
+   * QQ 频道消息更新 API: PATCH /channels/{channel_id}/messages/{message_id}
+   * 
+   * messageId 格式要求：
+   * - 频道消息: `{channel_id}:{message_id}`
+   * - 群聊消息: `group:{group_id}:{message_id}`
+   * - 单聊消息: `c2c:{user_openid}:{message_id}`
+   * 
+   * 注意：QQ 对 Markdown 渲染支持有限，仅支持加粗、斜体、链接
+   */
+  async updateMessage(
+    messageId: string,
+    text: string,
+    _format?: "text" | "markdown"
+  ): Promise<SendResult> {
+    try {
+      const token = await this.getAccessToken();
+
+      // 解析 messageId 格式
+      const parts = messageId.split(":");
+
+      // 频道消息: {channel_id}:{message_id}
+      if (parts.length === 2) {
+        return this.updateChannelMessage(parts[1]!, text, token, parts[0]!);
+      }
+
+      // 群聊消息: group:{group_id}:{message_id}
+      if (parts.length === 3 && parts[0] === "group") {
+        return this.updateGroupMessage(parts[2]!, text, token, parts[1]!);
+      }
+
+      // 单聊消息: c2c:{user_openid}:{message_id}
+      if (parts.length === 3 && parts[0] === "c2c") {
+        return this.updateC2CMessage(parts[2]!, text, token, parts[1]!);
+      }
+
+      // 私聊消息: dms:{user_id}:{message_id}
+      if (parts.length === 3 && parts[0] === "dms") {
+        return this.updateDirectMessage(parts[2]!, text, token, parts[1]!);
+      }
+
+      return { success: false, error: `无效的 messageId 格式: ${messageId}` };
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      console.error(`[QQ] 更新消息异常: ${errMsg}`);
+      return { success: false, error: errMsg };
+    }
+  }
+
+  /**
+   * 更新频道消息
+   */
+  private async updateChannelMessage(
+    messageId: string,
+    content: string,
+    token: string,
+    channelId: string
+  ): Promise<SendResult> {
+    try {
+      console.log(`[QQ] 更新频道消息: ${channelId}/${messageId}`);
+
+      const response = await fetch(
+        `${this.apiBase}/channels/${channelId}/messages/${messageId}`,
+        {
+          method: "PATCH",
+          headers: {
+            Authorization: `QQBot ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            content,
+            msg_type: 0,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[QQ] 频道消息更新失败: ${response.status} ${errorText}`);
+        return { success: false, error: `更新失败: ${response.status} ${errorText}` };
+      }
+
+      const data = (await response.json()) as { id?: string; code?: number; message?: string };
+
+      if (data.code) {
+        return { success: false, error: data.message || "更新失败" };
+      }
+
+      console.log(`[QQ] 频道消息更新成功: ${data.id || messageId}`);
+      return { success: true, messageId: data.id || messageId };
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      return { success: false, error: errMsg };
+    }
+  }
+
+  /**
+   * 更新群聊消息
+   */
+  private async updateGroupMessage(
+    messageId: string,
+    content: string,
+    token: string,
+    groupId: string
+  ): Promise<SendResult> {
+    try {
+      console.log(`[QQ] 更新群聊消息: ${groupId}/${messageId}`);
+
+      const response = await fetch(
+        `${this.apiBase}/v2/groups/${groupId}/messages/${messageId}`,
+        {
+          method: "PATCH",
+          headers: {
+            Authorization: `QQBot ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            content,
+            msg_type: 0,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[QQ] 群聊消息更新失败: ${response.status} ${errorText}`);
+        return { success: false, error: `更新失败: ${response.status} ${errorText}` };
+      }
+
+      const data = (await response.json()) as { id?: string; code?: number; message?: string };
+
+      if (data.code) {
+        return { success: false, error: data.message || "更新失败" };
+      }
+
+      console.log(`[QQ] 群聊消息更新成功: ${data.id || messageId}`);
+      return { success: true, messageId: data.id || messageId };
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      return { success: false, error: errMsg };
+    }
+  }
+
+  /**
+   * 更新单聊消息
+   */
+  private async updateC2CMessage(
+    messageId: string,
+    content: string,
+    token: string,
+    userOpenid: string
+  ): Promise<SendResult> {
+    try {
+      console.log(`[QQ] 更新单聊消息: ${userOpenid}/${messageId}`);
+
+      const response = await fetch(
+        `${this.apiBase}/v2/users/${userOpenid}/messages/${messageId}`,
+        {
+          method: "PATCH",
+          headers: {
+            Authorization: `QQBot ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            content,
+            msg_type: 0,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[QQ] 单聊消息更新失败: ${response.status} ${errorText}`);
+        return { success: false, error: `更新失败: ${response.status} ${errorText}` };
+      }
+
+      const data = (await response.json()) as { id?: string; code?: number; message?: string };
+
+      if (data.code) {
+        return { success: false, error: data.message || "更新失败" };
+      }
+
+      console.log(`[QQ] 单聊消息更新成功: ${data.id || messageId}`);
+      return { success: true, messageId: data.id || messageId };
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      return { success: false, error: errMsg };
+    }
+  }
+
+  /**
+   * 更新私聊消息
+   */
+  private async updateDirectMessage(
+    messageId: string,
+    content: string,
+    token: string,
+    dmsId: string
+  ): Promise<SendResult> {
+    try {
+      console.log(`[QQ] 更新私聊消息: ${dmsId}/${messageId}`);
+
+      const response = await fetch(
+        `${this.apiBase}/dms/${dmsId}/messages/${messageId}`,
+        {
+          method: "PATCH",
+          headers: {
+            Authorization: `QQBot ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            content,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[QQ] 私聊消息更新失败: ${response.status} ${errorText}`);
+        return { success: false, error: `更新失败: ${response.status} ${errorText}` };
+      }
+
+      const data = (await response.json()) as { id?: string; code?: number; message?: string };
+
+      if (data.code) {
+        return { success: false, error: data.message || "更新失败" };
+      }
+
+      console.log(`[QQ] 私聊消息更新成功: ${data.id || messageId}`);
+      return { success: true, messageId: data.id || messageId };
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : String(error);
       return { success: false, error: errMsg };

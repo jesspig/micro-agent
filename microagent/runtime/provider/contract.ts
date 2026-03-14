@@ -1,5 +1,6 @@
 import type { IProvider } from "../contracts.js";
 import type { ProviderCapabilities, ProviderConfig, ProviderStatus } from "./types.js";
+import type { ChatRequest, ChatResponse, StreamCallback } from "../types.js";
 
 /**
  * IProvider 扩展接口
@@ -23,4 +24,12 @@ export interface IProviderExtended extends IProvider {
    * @returns 连接是否成功
    */
   testConnection(): Promise<boolean>;
+
+  /**
+   * 执行流式聊天请求
+   * @param request 聊天请求
+   * @param callback 流式回调函数
+   * @returns 最终聊天响应
+   */
+  streamChat(request: ChatRequest, callback: StreamCallback): Promise<ChatResponse>;
 }

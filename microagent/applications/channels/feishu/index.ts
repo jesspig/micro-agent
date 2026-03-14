@@ -7,9 +7,10 @@
  * 安装依赖: bun add @larksuiteoapi/node-sdk
  */
 
-import type { ChannelConfig, InboundMessage, OutboundMessage, SendResult } from "../../runtime/channel/types.js";
-import { BaseChannel } from "../../runtime/channel/base.js";
-import type { ChannelCapabilities } from "../../runtime/types.js";
+import type { ChannelConfig, InboundMessage, OutboundMessage, SendResult } from "../../../runtime/channel/types.js";
+import { BaseChannel } from "../../../runtime/channel/base.js";
+import type { ChannelCapabilities } from "../../../runtime/types.js";
+import { convertToFeishuElements } from "./markdown.js";
 
 // ============================================================================
 // 类型定义
@@ -71,6 +72,8 @@ export class FeishuChannel extends BaseChannel {
     reply: true,
     edit: true,
     delete: false,
+    markdown: true,
+    streaming: true,
   };
 
   /** 飞书特定配置 */
@@ -170,16 +173,17 @@ export class FeishuChannel extends BaseChannel {
     }
 
     try {
+      // 根据 format 决定消息类型
+      const isMarkdown = message.format === "markdown";
+
       // 使用飞书 SDK 发送消息
       const response = await this.client.im.message.create({
         params: {
           receive_id_type: "chat_id",
         },
-        data: {
-          receive_id: message.to,
-          msg_type: "text",
-          content: JSON.stringify({ text: message.text }),
-        },
+        data: isMarkdown
+          ? this.buildInteractiveMessage(message)
+          : this.buildTextMessage(message),
       });
 
       const result: SendResult = { success: true };
@@ -191,6 +195,106 @@ export class FeishuChannel extends BaseChannel {
       const errMsg = error instanceof Error ? error.message : String(error);
       return { success: false, error: errMsg };
     }
+  }
+
+  /**
+   * 更新已有消息（用于流式输出）
+   * 飞书 API: PUT /im/v1/messages/{message_id}
+   * @param messageId - 消息 ID
+   * @param text - 新消息内容
+   * @param format - 消息格式
+   * @returns 发送结果
+   */
+  async updateMessage(messageId: string, text: string, format?: "text" | "markdown"): Promise<SendResult> {
+    if (!this.client) {
+      return { success: false, error: "飞书客户端未初始化" };
+    }
+
+    try {
+      const isMarkdown = format === "markdown";
+
+      // 飞书消息更新 API
+      const response = await this.client.im.message.update({
+        path: {
+          message_id: messageId,
+        },
+        params: {
+          receive_id_type: "chat_id",
+        },
+        data: isMarkdown
+          ? {
+              content: JSON.stringify({
+                zh_cn: { content: [[{ tag: "text", text }]] },
+              }),
+              msg_type: "post",
+            }
+          : {
+              content: JSON.stringify({ text }),
+              msg_type: "text",
+            },
+      });
+
+      if (response.code !== 0) {
+        return { success: false, error: response.msg || "更新失败" };
+      }
+
+      return { success: true, messageId };
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      return { success: false, error: errMsg };
+    }
+  }
+
+  /**
+   * 构建文本消息
+   */
+  private buildTextMessage(message: OutboundMessage) {
+    return {
+      receive_id: message.to,
+      msg_type: "text",
+      content: JSON.stringify({ text: message.text }),
+    };
+  }
+
+  /**
+   * 构建交互式卡片消息（interactive 类型，JSON 2.0 结构）
+   * 飞书卡片 JSON 2.0 富文本组件支持：
+   * - 标题（# ~ ######）
+   * - 加粗、斜体、删除线
+   * - 链接、代码块、列表
+   * - 表格、引用、分割线
+   * - 彩色文本、标签等
+   */
+  private buildInteractiveMessage(message: OutboundMessage) {
+    // 转换 Markdown 为飞书富文本元素
+    const { title, elements } = convertToFeishuElements(message.text);
+
+    // 构建飞书卡片 JSON 2.0 结构
+    const card: Record<string, unknown> = {
+      schema: "2.0",
+      config: {
+        wide_screen_mode: true,
+      },
+      body: {
+        elements,
+      },
+    };
+
+    // 如果有标题，添加 header 组件
+    if (title) {
+      card.header = {
+        title: {
+          tag: "plain_text",
+          content: title,
+        },
+      };
+    }
+
+    return {
+      receive_id: message.to,
+      msg_type: "interactive",
+      content: JSON.stringify(card),
+    };
   }
 
   /**
