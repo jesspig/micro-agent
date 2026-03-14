@@ -7,6 +7,18 @@
  * 不支持：表格、图片
  */
 
+// ============================================================================
+// 预编译正则表达式（模块加载时只编译一次，避免重复编译开销）
+// ============================================================================
+
+/** 图片语法正则：匹配 ![alt](url) 格式 */
+const IMAGE_SYNTAX_REGEX = /!\[([^\]]*)\]\([^)]+\)/g;
+
+/** 表格分隔行正则：匹配 |---|---| 格式的分隔行 */
+const TABLE_SEPARATOR_REGEX = /^\|[\s\-:|]+\|$/;
+
+// ============================================================================
+
 /**
  * 转换 Markdown 内容为 QQ 兼容格式
  */
@@ -14,7 +26,9 @@ export function convertMarkdown(content: string): string {
   let result = content;
 
   // 移除图片语法（QQ markdown 不支持外链图片）
-  result = result.replace(/!\[([^\]]*)\]\([^)]+\)/g, '[$1]');
+  // 重置正则 lastIndex（全局正则需要重置）
+  IMAGE_SYNTAX_REGEX.lastIndex = 0;
+  result = result.replace(IMAGE_SYNTAX_REGEX, '[$1]');
 
   // 转换表格为代码块
   result = convertTableToCodeBlock(result);
@@ -33,7 +47,7 @@ function convertTableToCodeBlock(content: string): string {
 
   for (const line of lines) {
     const isTableRow = line.trim().startsWith('|') && line.trim().endsWith('|');
-    const isTableSeparator = /^\|[\s\-:|]+\|$/.test(line.trim());
+    const isTableSeparator = TABLE_SEPARATOR_REGEX.test(line.trim());
 
     if (isTableRow && !isTableSeparator) {
       if (!inTable) {

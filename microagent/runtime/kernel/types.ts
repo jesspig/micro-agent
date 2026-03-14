@@ -4,6 +4,8 @@
  * 定义 Agent 核心调度相关的类型
  */
 
+import type { StreamChunk } from "../types.js";
+
 // ============================================================================
 // Agent 状态
 // ============================================================================
@@ -61,7 +63,7 @@ export interface AgentConfig {
   /** 是否启用流式输出 */
   enableStreaming?: boolean;
   /** 流式输出回调（用于 Channel 消息更新） */
-  onStreamChunk?: (chunk: { delta: string; text: string; done: boolean }) => void | Promise<void>;
+  onStreamChunk?: (chunk: StreamChunk) => void | Promise<void>;
 }
 
 // ============================================================================

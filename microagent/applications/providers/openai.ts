@@ -52,13 +52,10 @@ interface OpenAIResponse {
   };
 }
 
-interface OpenAIError {
-  error?: {
-    message: string;
-    type: string;
-    code?: string;
-  };
-  message?: string;
+/** 非标准错误响应格式（如部分国内平台） */
+interface OpenAINonStandardError {
+  status?: string | number;
+  msg?: string;
 }
 
 export interface OpenAIProviderOptions {
@@ -85,6 +82,9 @@ export class OpenAIProvider extends BaseProvider implements IProviderExtended {
   private readonly timeout: number;
   private readonly maxRetries: number;
   private readonly retryBaseDelay = 1000;
+
+  /** 缓存的请求头（避免每次请求重新创建对象） */
+  private readonly cachedHeaders: Record<string, string>;
 
   constructor(options: OpenAIProviderOptions) {
     super();
@@ -116,6 +116,12 @@ export class OpenAIProvider extends BaseProvider implements IProviderExtended {
     this.defaultModel = options.models[0]!;
     this.timeout = options.timeout ?? 60000;
     this.maxRetries = options.maxRetries ?? 3;
+
+    // 初始化缓存请求头
+    this.cachedHeaders = { "Content-Type": "application/json" };
+    if (this.config.apiKey) {
+      this.cachedHeaders.Authorization = `Bearer ${this.config.apiKey}`;
+    }
   }
 
   getSupportedModels(): string[] {
@@ -428,25 +434,69 @@ export class OpenAIProvider extends BaseProvider implements IProviderExtended {
         signal: controller.signal,
       });
 
-      const json = await response.json() as Record<string, unknown>;
+      const json: unknown = await response.json();
       console.log(`[${this.name}] API 响应:`, JSON.stringify(json).substring(0, 500));
 
       // 处理 HTTP 错误
       if (!response.ok) {
-        const errorData = json as OpenAIError;
-        const errorMessage = errorData.error?.message ?? errorData.message ?? response.statusText;
+        const errorMessage = this.extractErrorMessage(json);
         throw new Error(`${this.config.name} API 错误: ${errorMessage}`);
       }
 
       // 处理非标准错误格式（如 {"status":"435","msg":"Model not support"}）
-      if (json.status && json.msg && !json.choices) {
-        throw new Error(`${this.config.name} API 错误: ${json.msg as string} (status: ${json.status as string})`);
+      if (this.isNonStandardError(json)) {
+        throw new Error(`${this.config.name} API 错误: ${json.msg} (status: ${json.status})`);
       }
 
-      return json as unknown as OpenAIResponse;
+      return this.validateOpenAIResponse(json);
     } finally {
       clearTimeout(timeoutId);
     }
+  }
+
+  /**
+   * 从响应中提取错误消息
+   */
+  private extractErrorMessage(json: unknown): string {
+    if (typeof json === "object" && json !== null) {
+      const obj = json as Record<string, unknown>;
+      if (obj.error && typeof obj.error === "object") {
+        const error = obj.error as Record<string, unknown>;
+        if (typeof error.message === "string") return error.message;
+      }
+      if (typeof obj.message === "string") return obj.message;
+    }
+    return "未知错误";
+  }
+
+  /**
+   * 检查是否为非标准错误响应
+   */
+  private isNonStandardError(json: unknown): json is OpenAINonStandardError {
+    return (
+      typeof json === "object" &&
+      json !== null &&
+      "status" in json &&
+      "msg" in json &&
+      !("choices" in json)
+    );
+  }
+
+  /**
+   * 验证并转换 OpenAI 响应
+   * 使用类型守卫确保运行时类型安全
+   */
+  private validateOpenAIResponse(json: unknown): OpenAIResponse {
+    if (typeof json !== "object" || json === null) {
+      throw new Error(`${this.config.name} API 返回无效响应格式`);
+    }
+
+    const obj = json as Record<string, unknown>;
+    if (!Array.isArray(obj.choices)) {
+      throw new Error(`${this.config.name} API 返回非标准格式响应，请检查 baseUrl 是否正确`);
+    }
+
+    return json as OpenAIResponse;
   }
 
   private isRetryableError(error: unknown): boolean {

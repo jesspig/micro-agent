@@ -232,7 +232,7 @@ export class AgentLoop {
 
     // 流式回调：发射 streaming 事件
     const streamCallback = async (chunk: StreamChunk) => {
-      // 发射 streaming 事件
+      // 发射 streaming 事件（包含完整 chunk 信息）
       this.emit({
         type: "streaming",
         delta: chunk.delta,
@@ -243,11 +243,7 @@ export class AgentLoop {
 
       // 调用用户配置的流式回调（用于 Channel 消息更新）
       if (this.config.onStreamChunk) {
-        await this.config.onStreamChunk({
-          delta: chunk.delta,
-          text: chunk.text,
-          done: chunk.done,
-        });
+        await this.config.onStreamChunk(chunk);
       }
     };
 

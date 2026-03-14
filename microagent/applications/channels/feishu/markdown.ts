@@ -21,6 +21,24 @@
  * 官方文档: https://open.feishu.cn/document/feishu-cards/card-json-v2-components/content-components/rich-text
  */
 
+// ============================================================================
+// 预编译正则表达式（模块加载时只编译一次，避免重复编译开销）
+// ============================================================================
+
+/** 图片语法正则：匹配 ![alt](url) 格式，用于转换为链接 */
+const IMAGE_SYNTAX_REGEX = /!\[([^\]]*)\]\(([^)]+)\)/g;
+
+/** 一级标题正则：匹配 # 标题 格式 */
+const H1_HEADER_REGEX = /^#\s+(.+?)(?:\n|$)/m;
+
+/** 一级标题完整匹配正则（用于移除标题行） */
+const H1_HEADER_FULL_REGEX = /^#\s+.+(?:\n|$)/m;
+
+/** 表格分隔行正则：匹配 |---|---| 格式的分隔行 */
+const TABLE_SEPARATOR_REGEX = /^\|[\s\-:|]+\|$/;
+
+// ============================================================================
+
 /** 飞书 markdown 组件 */
 export interface FeishuMarkdownComponent {
   tag: "markdown";
@@ -47,7 +65,9 @@ export function preprocessMarkdown(content: string): string {
 
   // 图片语法转为链接格式（飞书 markdown 不支持图片渲染）
   // ![alt](url) -> [alt](url)
-  result = result.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '[$1]($2)');
+  // 重置正则 lastIndex（全局正则需要重置）
+  IMAGE_SYNTAX_REGEX.lastIndex = 0;
+  result = result.replace(IMAGE_SYNTAX_REGEX, '[$1]($2)');
 
   return result;
 }
@@ -57,10 +77,10 @@ export function preprocessMarkdown(content: string): string {
  * 从内容中提取第一个一级标题，并从内容中移除
  */
 export function extractTitle(content: string): { title: string; content: string } {
-  const match = content.match(/^#\s+(.+?)(?:\n|$)/m);
+  const match = content.match(H1_HEADER_REGEX);
   if (match) {
     const title = match[1] || "";
-    const newContent = content.replace(/^#\s+.+(?:\n|$)/m, "");
+    const newContent = content.replace(H1_HEADER_FULL_REGEX, "");
     return { title, content: newContent.trim() };
   }
   return { title: "", content };
@@ -136,7 +156,7 @@ export function parseMarkdownTable(tableText: string): { rows: string[][]; succe
   const rows: string[][] = [];
 
   for (const line of lines) {
-    if (/^\|[\s\-:|]+\|$/.test(line.trim())) {
+    if (TABLE_SEPARATOR_REGEX.test(line.trim())) {
       continue;
     }
     const cells = line

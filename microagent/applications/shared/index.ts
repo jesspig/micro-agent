@@ -17,6 +17,43 @@ export {
 } from "./logger";
 
 // ============================================================================
+// 安全工具
+// ============================================================================
+
+// 常量
+export { MAX_MESSAGE_LENGTH } from "./security";
+
+// 消息长度限制
+export { truncateMessage, getMessageLimit } from "./security";
+
+// Token 脱敏
+export { maskToken } from "./security";
+
+// 日志脱敏
+export { sanitizeLog, sanitizeLogMessage, sanitizeObject } from "./security";
+
+// URL 验证
+export {
+  isSafeWebhookUrl,
+  isSafeWebhookUrlForPlatform,
+  isAllowedDomain,
+  isUrlSafe,
+  isUrlDomainAllowed,
+} from "./security";
+
+// 消息 ID 验证
+export { isValidMessageId, parseMessageId } from "./security";
+
+// Markdown 安全处理
+export { sanitizeMarkdown } from "./security";
+
+// 响应数据脱敏
+export { sanitizeResponse, type SanitizeOptions } from "./security";
+
+// 错误信息脱敏
+export { sanitizeError } from "./security";
+
+// ============================================================================
 // 常量定义
 // ============================================================================
 

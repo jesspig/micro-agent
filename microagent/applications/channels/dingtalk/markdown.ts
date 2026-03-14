@@ -9,6 +9,15 @@
  * 钉钉 Markdown 支持最为完整，仅需处理表格转换
  */
 
+// ============================================================================
+// 预编译正则表达式（模块加载时只编译一次，避免重复编译开销）
+// ============================================================================
+
+/** 表格分隔行正则：匹配 |---|---| 格式的分隔行 */
+const TABLE_SEPARATOR_REGEX = /^\|[\s\-:|]+\|$/;
+
+// ============================================================================
+
 /**
  * 转换 Markdown 内容为钉钉兼容格式
  */
@@ -32,7 +41,7 @@ function convertTableToCodeBlock(content: string): string {
 
   for (const line of lines) {
     const isTableRow = line.trim().startsWith('|') && line.trim().endsWith('|');
-    const isTableSeparator = /^\|[\s\-:|]+\|$/.test(line.trim());
+    const isTableSeparator = TABLE_SEPARATOR_REGEX.test(line.trim());
 
     if (isTableRow && !isTableSeparator) {
       if (!inTable) {

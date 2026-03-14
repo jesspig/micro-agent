@@ -45,15 +45,6 @@ interface OpenAIResponseAPIResponse {
   };
 }
 
-interface OpenAIResponseAPIError {
-  error?: {
-    message: string;
-    type: string;
-    code?: string;
-  };
-  message?: string;
-}
-
 export interface OpenAIResponseProviderOptions {
   name: string;
   displayName?: string;
@@ -235,16 +226,48 @@ export class OpenAIResponseProvider extends BaseProvider implements IProviderExt
         signal: controller.signal,
       });
 
+      const json: unknown = await response.json();
+
       if (!response.ok) {
-        const errorData = (await response.json()) as OpenAIResponseAPIError;
-        const errorMessage = errorData.error?.message ?? errorData.message ?? response.statusText;
+        const errorMessage = this.extractErrorMessage(json);
         throw new Error(`${this.config.name} API 错误: ${errorMessage}`);
       }
 
-      return (await response.json()) as OpenAIResponseAPIResponse;
+      return this.validateResponse(json);
     } finally {
       clearTimeout(timeoutId);
     }
+  }
+
+  /**
+   * 从响应中提取错误消息
+   */
+  private extractErrorMessage(json: unknown): string {
+    if (typeof json === "object" && json !== null) {
+      const obj = json as Record<string, unknown>;
+      if (obj.error && typeof obj.error === "object") {
+        const error = obj.error as Record<string, unknown>;
+        if (typeof error.message === "string") return error.message;
+      }
+      if (typeof obj.message === "string") return obj.message;
+    }
+    return "未知错误";
+  }
+
+  /**
+   * 验证并转换 Response API 响应
+   */
+  private validateResponse(json: unknown): OpenAIResponseAPIResponse {
+    if (typeof json !== "object" || json === null) {
+      throw new Error(`${this.config.name} API 返回无效响应格式`);
+    }
+
+    const obj = json as Record<string, unknown>;
+    if (!Array.isArray(obj.output)) {
+      throw new Error(`${this.config.name} API 返回非标准格式响应`);
+    }
+
+    return json as OpenAIResponseAPIResponse;
   }
 
   private isRetryableError(error: unknown): boolean {

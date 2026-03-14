@@ -11,6 +11,7 @@ import type { ChannelConfig, InboundMessage, OutboundMessage, SendResult } from 
 import { BaseChannel } from "../../../runtime/channel/base.js";
 import type { ChannelCapabilities } from "../../../runtime/types.js";
 import { convertToFeishuElements } from "./markdown.js";
+import { truncateMessage, sanitizeError } from "../../shared/security.js";
 
 // ============================================================================
 // 类型定义
@@ -51,6 +52,44 @@ interface FeishuMessageEvent {
   };
 }
 
+/**
+ * 飞书 SDK 消息响应
+ */
+interface FeishuMessageResponse {
+  code: number;
+  msg?: string;
+  data?: {
+    message_id?: string;
+  };
+}
+
+/**
+ * 飞书 SDK Client 接口（最小化定义）
+ */
+interface FeishuClient {
+  im: {
+    message: {
+      create: (params: {
+        params: { receive_id_type: string };
+        data: Record<string, unknown>;
+      }) => Promise<FeishuMessageResponse>;
+      update: (params: {
+        path: { message_id: string };
+        params: { receive_id_type: string };
+        data: Record<string, unknown>;
+      }) => Promise<FeishuMessageResponse>;
+    };
+  };
+}
+
+/**
+ * 飞书 SDK WebSocket Client 接口
+ */
+interface FeishuWSClient {
+  start: (params: { eventDispatcher: unknown }) => Promise<void>;
+  stop?: () => void;
+}
+
 // ============================================================================
 // 飞书 Channel 实现
 // ============================================================================
@@ -80,12 +119,10 @@ export class FeishuChannel extends BaseChannel {
   declare config: FeishuBotConfig;
 
   /** Lark Client */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private client: any = null;
+  private client: FeishuClient | null = null;
 
   /** WebSocket Client */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private wsClient: any = null;
+  private wsClient: FeishuWSClient | null = null;
 
   constructor(config: FeishuBotConfig) {
     super(config);
@@ -102,25 +139,35 @@ export class FeishuChannel extends BaseChannel {
 
     try {
       // 动态导入 @larksuiteoapi/node-sdk
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const lark: any = await import("@larksuiteoapi/node-sdk").catch(() => null);
+      // 使用 Record<string, unknown> 替代 any，SDK 导出为模块对象
+      const lark = await import("@larksuiteoapi/node-sdk").catch(() => null) as Record<string, unknown> | null;
 
       if (!lark) {
         throw new Error("@larksuiteoapi/node-sdk 未安装，请运行: bun add @larksuiteoapi/node-sdk");
       }
 
+      // 类型断言 SDK 构造函数
+      const Client = lark.Client as new (config: Record<string, unknown>) => FeishuClient;
+      const EventDispatcher = lark.EventDispatcher as new (config: { encryptKey: string }) => {
+        register: (handlers: Record<string, (data: FeishuMessageEvent) => Promise<void>>) => unknown;
+      };
+      const WSClient = lark.WSClient as new (config: Record<string, unknown>) => FeishuWSClient;
+      const AppType = lark.AppType as Record<string, unknown>;
+      const Domain = lark.Domain as Record<string, unknown>;
+      const LoggerLevel = lark.LoggerLevel as Record<string, unknown>;
+
       const self = this;
 
       // 创建 Client
-      this.client = new lark.Client({
+      this.client = new Client({
         appId: appId,
         appSecret: appSecret,
-        appType: lark.AppType.SelfBuild,
-        domain: lark.Domain.Feishu,
+        appType: AppType.SelfBuild,
+        domain: Domain.Feishu,
       });
 
       // 创建 EventDispatcher
-      const eventDispatcher = new lark.EventDispatcher({
+      const eventDispatcher = new EventDispatcher({
         encryptKey: encryptKey || "",
       }).register({
         // 接收消息事件
@@ -130,11 +177,11 @@ export class FeishuChannel extends BaseChannel {
       });
 
       // 创建 WebSocket 客户端
-      this.wsClient = new lark.WSClient({
+      this.wsClient = new WSClient({
         appId: appId,
         appSecret: appSecret,
-        domain: lark.Domain.Feishu,
-        loggerLevel: lark.LoggerLevel.info,
+        domain: Domain.Feishu,
+        loggerLevel: LoggerLevel.info,
       });
 
       console.log("[飞书] 正在连接...");
@@ -147,7 +194,8 @@ export class FeishuChannel extends BaseChannel {
       this.setConnected(true);
       console.log("[飞书] 连接就绪");
     } catch (error) {
-      this.setConnected(false, String(error));
+      const sanitizedError = sanitizeError(error);
+      this.setConnected(false, sanitizedError);
       throw error;
     }
   }
@@ -175,6 +223,10 @@ export class FeishuChannel extends BaseChannel {
     try {
       // 根据 format 决定消息类型
       const isMarkdown = message.format === "markdown";
+      
+      // 截断消息以符合长度限制
+      const truncatedText = truncateMessage(message.text);
+      const truncatedMessage = { ...message, text: truncatedText };
 
       // 使用飞书 SDK 发送消息
       const response = await this.client.im.message.create({
@@ -182,8 +234,8 @@ export class FeishuChannel extends BaseChannel {
           receive_id_type: "chat_id",
         },
         data: isMarkdown
-          ? this.buildInteractiveMessage(message)
-          : this.buildTextMessage(message),
+          ? this.buildInteractiveMessage(truncatedMessage)
+          : this.buildTextMessage(truncatedMessage),
       });
 
       const result: SendResult = { success: true };
@@ -192,7 +244,7 @@ export class FeishuChannel extends BaseChannel {
       }
       return result;
     } catch (error) {
-      const errMsg = error instanceof Error ? error.message : String(error);
+      const errMsg = sanitizeError(error);
       return { success: false, error: errMsg };
     }
   }
@@ -211,6 +263,8 @@ export class FeishuChannel extends BaseChannel {
     }
 
     try {
+      // 截断消息
+      const truncatedText = truncateMessage(text);
       const isMarkdown = format === "markdown";
 
       // 飞书消息更新 API
@@ -224,12 +278,12 @@ export class FeishuChannel extends BaseChannel {
         data: isMarkdown
           ? {
               content: JSON.stringify({
-                zh_cn: { content: [[{ tag: "text", text }]] },
+                zh_cn: { content: [[{ tag: "text", text: truncatedText }]] },
               }),
               msg_type: "post",
             }
           : {
-              content: JSON.stringify({ text }),
+              content: JSON.stringify({ text: truncatedText }),
               msg_type: "text",
             },
       });
@@ -240,7 +294,7 @@ export class FeishuChannel extends BaseChannel {
 
       return { success: true, messageId };
     } catch (error) {
-      const errMsg = error instanceof Error ? error.message : String(error);
+      const errMsg = sanitizeError(error);
       return { success: false, error: errMsg };
     }
   }
@@ -312,18 +366,21 @@ export class FeishuChannel extends BaseChannel {
       }
 
       // 解析消息内容
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let contentObj: any;
+      let contentObj: Record<string, unknown> | string;
       try {
-        contentObj = JSON.parse(message.content);
+        const parsed = JSON.parse(message.content);
+        contentObj = typeof parsed === "object" && parsed !== null ? parsed as Record<string, unknown> : String(parsed);
       } catch {
         contentObj = { text: message.content };
       }
 
       // 提取文本
       let content = "";
-      if (contentObj.text) {
-        content = contentObj.text.trim();
+      if (typeof contentObj === "object" && contentObj !== null) {
+        const textValue = contentObj["text"];
+        if (typeof textValue === "string") {
+          content = textValue.trim();
+        }
       } else if (typeof contentObj === "string") {
         content = contentObj.trim();
       }

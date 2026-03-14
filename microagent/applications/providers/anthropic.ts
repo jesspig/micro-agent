@@ -381,16 +381,47 @@ export class AnthropicProvider extends BaseProvider implements IProviderExtended
         signal: controller.signal,
       });
 
+      const json: unknown = await response.json().catch(() => ({}));
+
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({})) as { error?: { message?: string } };
-        const errorMessage = errorData.error?.message ?? response.statusText;
+        const errorMessage = this.extractErrorMessage(json);
         throw new Error(`${this.config.name} API 错误: ${errorMessage}`);
       }
 
-      return (await response.json()) as AnthropicResponse;
+      return this.validateResponse(json);
     } finally {
       clearTimeout(timeoutId);
     }
+  }
+
+  /**
+   * 从响应中提取错误消息
+   */
+  private extractErrorMessage(json: unknown): string {
+    if (typeof json === "object" && json !== null) {
+      const obj = json as Record<string, unknown>;
+      if (obj.error && typeof obj.error === "object") {
+        const error = obj.error as Record<string, unknown>;
+        if (typeof error.message === "string") return error.message;
+      }
+    }
+    return "未知错误";
+  }
+
+  /**
+   * 验证并转换 Anthropic 响应
+   */
+  private validateResponse(json: unknown): AnthropicResponse {
+    if (typeof json !== "object" || json === null) {
+      throw new Error(`${this.config.name} API 返回无效响应格式`);
+    }
+
+    const obj = json as Record<string, unknown>;
+    if (!Array.isArray(obj.content)) {
+      throw new Error(`${this.config.name} API 返回非标准格式响应`);
+    }
+
+    return json as AnthropicResponse;
   }
 
   private isRetryableError(error: unknown): boolean {

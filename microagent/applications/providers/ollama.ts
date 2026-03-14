@@ -460,15 +460,44 @@ export class OllamaProvider extends BaseProvider implements IProviderExtended {
         signal: controller.signal,
       });
 
+      const json: unknown = await response.json();
+
       if (!response.ok) {
-        const errorData = (await response.json()) as OllamaError;
-        throw new Error(`Ollama API 错误: ${errorData.error ?? response.statusText}`);
+        const errorMessage = this.extractErrorMessage(json);
+        throw new Error(`Ollama API 错误: ${errorMessage}`);
       }
 
-      return (await response.json()) as OllamaNativeResponse;
+      return this.validateResponse(json);
     } finally {
       clearTimeout(timeoutId);
     }
+  }
+
+  /**
+   * 从响应中提取错误消息
+   */
+  private extractErrorMessage(json: unknown): string {
+    if (typeof json === "object" && json !== null) {
+      const obj = json as Record<string, unknown>;
+      if (typeof obj.error === "string") return obj.error;
+    }
+    return "未知错误";
+  }
+
+  /**
+   * 验证并转换 Ollama 响应
+   */
+  private validateResponse(json: unknown): OllamaNativeResponse {
+    if (typeof json !== "object" || json === null) {
+      throw new Error("Ollama API 返回无效响应格式");
+    }
+
+    const obj = json as Record<string, unknown>;
+    if (!obj.message || typeof obj.message !== "object") {
+      throw new Error("Ollama API 返回非标准格式响应");
+    }
+
+    return json as OllamaNativeResponse;
   }
 
   private isRetryableError(error: unknown): boolean {
