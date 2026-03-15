@@ -123,8 +123,8 @@ export abstract class BaseChannel implements IChannelExtended {
     for (const handler of this.messageHandlers) {
       try {
         handler(message);
-      } catch (error) {
-        console.error(`[Channel:${this.id}] 消息处理器错误:`, error);
+      } catch {
+        // 静默处理处理器错误
       }
     }
     this.status.messageCount++;

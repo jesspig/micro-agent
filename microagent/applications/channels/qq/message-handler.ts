@@ -64,7 +64,6 @@ export class QQMessageHandler {
     if (!this.checkChannelPermission(channelId, senderId)) return;
 
     this.emitInboundMessage(senderId, channelId, content);
-    console.log(`[QQ] 收到频道消息[${msg.guild_id}/${channelId}]: ${senderId}: ${content}`);
   }
 
   /**
@@ -81,7 +80,6 @@ export class QQMessageHandler {
     if (!this.checkUserPermission(senderId)) return;
 
     this.emitInboundMessage(senderId, senderId, content);
-    console.log(`[QQ] 收到私聊消息: ${senderId}: ${content}`);
   }
 
   /**
@@ -103,7 +101,6 @@ export class QQMessageHandler {
       groupOpenid: msg.group_openid,
       memberOpenid: msg.author?.member_openid,
     });
-    console.log(`[QQ] 收到群聊消息[${groupId}]: ${senderId}: ${content}`);
   }
 
   /**
@@ -121,7 +118,6 @@ export class QQMessageHandler {
     if (!this.checkUserPermission(senderId)) return;
 
     this.emitInboundMessage(senderId, userOpenid, content, { userOpenid });
-    console.log(`[QQ] 收到单聊消息: ${senderId}: ${content}`);
   }
 
   // ============================================================================
@@ -134,7 +130,6 @@ export class QQMessageHandler {
   private shouldSkipMessage(msgId: string, isBot?: boolean): boolean {
     if (this.isProcessed(msgId)) return true;
     if (isBot) {
-      console.log(`[QQ] 跳过机器人消息: ${msgId}`);
       return true;
     }
     return false;
@@ -146,7 +141,6 @@ export class QQMessageHandler {
   private checkChannelPermission(channelId: string, senderId: string): boolean {
     const allowChannels = this.config.allowChannels || [];
     if (allowChannels.length > 0 && !allowChannels.includes("*") && !allowChannels.includes(channelId)) {
-      console.log(`[QQ] 拒绝来自频道 ${channelId} 的消息`);
       return false;
     }
     return this.checkUserPermission(senderId);
@@ -158,7 +152,6 @@ export class QQMessageHandler {
   private checkUserPermission(senderId: string): boolean {
     const allowFrom = this.config.allowFrom || [];
     if (allowFrom.length > 0 && !allowFrom.includes("*") && !allowFrom.includes(senderId)) {
-      console.log(`[QQ] 拒绝来自用户 ${senderId} 的消息`);
       return false;
     }
     return true;
@@ -225,7 +218,7 @@ export class QQMessageHandler {
     }
 
     if (cleaned > 0) {
-      console.log(`[QQ] 清理了 ${cleaned} 个过期消息 ID，当前数量: ${this.processedIds.size}`);
+      // 记录清理但不做输出
     }
   }
 }

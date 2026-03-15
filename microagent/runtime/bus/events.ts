@@ -55,8 +55,8 @@ class EventBus<T extends Record<string, unknown>> implements IEventEmitter<T> {
     for (const handler of handlers) {
       try {
         handler(payload);
-      } catch (error) {
-        console.error(`[EventBus] Handler error for "${String(event)}":`, error);
+      } catch {
+        // 静默处理处理器错误
       }
     }
   }

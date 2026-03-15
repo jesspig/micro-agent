@@ -45,7 +45,6 @@ export class QQWebSocket {
       this.ws = new WebSocket(url);
 
       this.ws.onopen = () => {
-        console.log("[QQ] WebSocket 已连接");
         resolve();
       };
 
@@ -53,25 +52,22 @@ export class QQWebSocket {
         try {
           const msg = JSON.parse(event.data as string) as WSMessage;
           this.handleMessage(msg);
-        } catch (error) {
-          console.error("[QQ] 解析消息失败:", error);
+        } catch {
+          // 解析消息失败，静默处理
         }
       };
 
-      this.ws.onerror = (error) => {
-        console.error("[QQ] WebSocket 错误:", error);
+      this.ws.onerror = () => {
         this.onConnectionChange?.(false, "WebSocket 错误");
       };
 
-      this.ws.onclose = (event) => {
-        console.log(`[QQ] WebSocket 已关闭: code=${event.code}, reason=${event.reason}`);
+      this.ws.onclose = () => {
         this.onConnectionChange?.(false);
         this.stopHeartbeat();
 
         // 自动重连
         if (this.running && this.reconnectCount < MAX_RECONNECT_COUNT) {
           this.reconnectCount++;
-          console.log(`[QQ] 尝试重连 (${this.reconnectCount}/${MAX_RECONNECT_COUNT})...`);
           this.reconnectTimer = setTimeout(() => this.reconnect(), 5000);
         }
       };
@@ -93,17 +89,11 @@ export class QQWebSocket {
         break;
 
       case OP.RECONNECT:
-        console.log("[QQ] 服务端要求重连");
         this.reconnect();
         break;
 
       case OP.INVALID_SESSION:
         // OP 9 表示会话无效，需要重新 IDENTIFY
-        console.log("[QQ] 收到 INVALID_SESSION，可能原因：");
-        console.log("  1. intents 参数包含未开通权限的事件");
-        console.log("  2. token 无效或已过期");
-        console.log("  3. 沙箱环境权限受限");
-        console.log(`  原始数据: ${JSON.stringify(msg.d)}`);
         // 清除 token 缓存，下次重新获取
         this.auth.clear();
         // 不重连，等待人工检查配置
@@ -121,7 +111,7 @@ export class QQWebSocket {
         break;
 
       default:
-        console.log(`[QQ] 收到未知 OP: ${msg.op}, 数据: ${JSON.stringify(msg.d)}`);
+        // 未知 OP，静默处理
         break;
     }
   }
@@ -140,7 +130,6 @@ export class QQWebSocket {
    * 处理 Hello 消息
    */
   private handleHello(data: HelloData): void {
-    console.log("[QQ] 收到 HELLO");
     this.heartbeatInterval = data?.heartbeat_interval ?? DEFAULT_HEARTBEAT_INTERVAL;
 
     // 开始心跳
@@ -180,7 +169,6 @@ export class QQWebSocket {
       },
     };
 
-    console.log(`[QQ] 发送 IDENTIFY, intents: ${intents} (私域机器人)`);
     this.ws?.send(JSON.stringify(identify));
   }
 
@@ -227,16 +215,15 @@ export class QQWebSocket {
     try {
       const gatewayUrl = await this.auth.getGateway();
       await this.connect(gatewayUrl);
-    } catch (error) {
-      console.error("[QQ] 重连失败:", error);
+    } catch {
+      // 重连失败，静默处理
     }
   }
 
   /**
    * 处理 READY 事件
    */
-  handleReady(sessionId?: string): void {
-    console.log("[QQ] 连接就绪, session_id:", sessionId);
+  handleReady(): void {
     this.reconnectCount = 0;
     this.onConnectionChange?.(true);
   }
@@ -269,7 +256,5 @@ export class QQWebSocket {
     // 重置状态
     this.sequence = null;
     this.reconnectCount = 0;
-
-    console.log("[QQ] WebSocket 已断开");
   }
 }

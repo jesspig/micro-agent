@@ -321,28 +321,6 @@ export function sanitizeError(error: unknown): string {
   }
 }
 
-/**
- * 安全日志输出
- * 
- * @param label - 日志标签
- * @param data - 日志数据
- */
-export function safeLog(label: string, data: unknown): void {
-  const sanitized = sanitizeObject(data);
-  console.log(`[${label}]`, JSON.stringify(sanitized));
-}
-
-/**
- * 安全错误日志输出
- * 
- * @param label - 日志标签
- * @param error - 错误对象
- */
-export function safeErrorLog(label: string, error: unknown): void {
-  const message = sanitizeError(error);
-  console.error(`[${label}]`, message);
-}
-
 // ============================================================================
 // 消息 ID 验证
 // ============================================================================

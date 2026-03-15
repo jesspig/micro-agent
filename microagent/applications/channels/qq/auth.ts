@@ -42,8 +42,6 @@ export class QQAuth {
       throw new Error("QQ Channel 需要 appId 和 clientSecret 配置");
     }
 
-    console.log("[QQ] 正在获取 AccessToken...");
-
     const response = await fetch(TOKEN_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -63,9 +61,6 @@ export class QQAuth {
 
     this.accessToken = data.access_token;
     this.tokenExpireTime = Date.now() + data.expires_in * 1000;
-
-    // 脱敏日志：不输出完整 token
-    console.log(`[QQ] AccessToken 已获取，有效期 ${data.expires_in} 秒`);
 
     return this.accessToken;
   }

@@ -312,10 +312,8 @@ export class AgentLoop {
     for (const handler of this.handlers) {
       try {
         handler(event);
-      } catch (error) {
-        if (this.config.enableLogging) {
-          console.error("[AgentLoop] Handler error:", error);
-        }
+      } catch {
+        // 静默处理处理器错误
       }
     }
   }

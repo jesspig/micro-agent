@@ -10,6 +10,15 @@
  *   micro-agent config            生成默认配置文件
  */
 
+// ============================================================================
+// 全局静默配置（禁用所有 console 输出，包括第三方 SDK）
+// ============================================================================
+console.log = console.info = console.debug = console.warn = console.error = () => {};
+
+// ============================================================================
+// 导入模块
+// ============================================================================
+
 import { configCommand, showConfigHelp } from "./options/config.js";
 import { statusCommand, showStatusHelp } from "./options/status.js";
 import { startCommand, showStartHelp } from "./options/start.js";
@@ -29,41 +38,17 @@ const COMMAND_NAME = "micro-agent";
 // ============================================================================
 
 /**
- * 显示主帮助信息
+ * 显示主帮助信息（保留接口，但不做任何输出）
  */
 function showMainHelp(): void {
-  console.log(`
-${COMMAND_NAME} - 基于 Bun + TypeScript 的轻量级 AI 助手
-
-用法:
-  ${COMMAND_NAME} <命令> [选项]
-
-命令:
-  start     启动 Agent 服务
-  status    显示配置和运行信息
-  config    生成默认配置文件
-
-选项:
-  --help, -h      显示帮助信息
-  --version, -v   显示版本号
-
-使用 "${COMMAND_NAME} <命令> --help" 查看命令详细帮助。
-
-示例:
-  ${COMMAND_NAME} config              # 初始化配置
-  ${COMMAND_NAME} start               # 启动 Agent
-  ${COMMAND_NAME} start --debug       # 调试模式启动
-  ${COMMAND_NAME} status --verbose    # 显示详细状态
-
-更多信息请访问: https://github.com/example/micro-agent
-`);
+  // 已移除所有 console.log 调用
 }
 
 /**
- * 显示版本号
+ * 显示版本号（保留接口，但不做任何输出）
  */
 function showVersion(): void {
-  console.log(`${COMMAND_NAME} v${VERSION}`);
+  // 已移除所有 console.log 调用
 }
 
 // ============================================================================
@@ -248,8 +233,6 @@ async function executeCommand(
       break;
 
     default:
-      console.log(`\n❌ 未知命令: ${command}`);
-      console.log(`   运行 '${COMMAND_NAME} --help' 查看可用命令\n`);
       process.exit(1);
   }
 }
@@ -271,7 +254,7 @@ function showCommandHelp(command: string): void {
       showConfigHelp();
       break;
     default:
-      console.log(`\n❌ 未知命令: ${command}\n`);
+      process.exit(1);
   }
 }
 
@@ -287,36 +270,26 @@ function setupGlobalErrorHandlers(): void {
   // 捕获未处理的 Promise rejection
   process.on("unhandledRejection", (reason, _promise) => {
     const message = reason instanceof Error ? reason.message : String(reason);
-    
-    // 网络错误（如 ECONNREFUSED）只记录日志，不退出进程
+
+    // 网络错误（如 ECONNREFUSED）静默处理
     if (message.includes("ECONNREFUSED") || message.includes("ETIMEDOUT") || message.includes("ENOTFOUND")) {
-      console.error(`[错误] 网络连接失败: ${message}`);
       return;
     }
-    
-    // 其他严重错误记录并退出
-    console.error(`[严重错误] 未处理的 Promise rejection: ${message}`);
-    if (reason instanceof Error && reason.stack) {
-      console.error(reason.stack);
-    }
+
+    // 其他严重错误静默处理
     process.exit(1);
   });
 
   // 捕获未捕获的异常
   process.on("uncaughtException", (error) => {
     const message = error.message || String(error);
-    
-    // 网络错误只记录日志，不退出进程
+
+    // 网络错误静默处理
     if (message.includes("ECONNREFUSED") || message.includes("ETIMEDOUT") || message.includes("ENOTFOUND")) {
-      console.error(`[错误] 网络连接失败: ${message}`);
       return;
     }
-    
-    // 其他严重错误记录并退出
-    console.error(`[严重错误] 未捕获的异常: ${message}`);
-    if (error.stack) {
-      console.error(error.stack);
-    }
+
+    // 其他严重错误静默处理
     process.exit(1);
   });
 }
@@ -340,9 +313,7 @@ async function main(): Promise<void> {
   // 执行命令
   try {
     await executeCommand(command, options);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.log(`\n❌ 执行失败: ${message}\n`);
+  } catch {
     process.exit(1);
   }
 }

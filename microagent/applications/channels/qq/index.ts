@@ -86,7 +86,6 @@ export class QQChannel extends BaseChannel {
 
     try {
       const gatewayUrl = await this.auth.getGateway();
-      console.log(`[QQ] 正在连接 Gateway: ${gatewayUrl.replace(/[^/]+@/, "***@")}`);
       await this.ws.connect(gatewayUrl);
       this.messageHandler.startCleanup();
     } catch (error) {
@@ -103,7 +102,6 @@ export class QQChannel extends BaseChannel {
     this.ws.disconnect();
     this.auth.clear();
     this.setConnected(false);
-    console.log("[QQ] Bot 已停止");
   }
 
   /**
@@ -137,7 +135,6 @@ export class QQChannel extends BaseChannel {
       return result;
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : String(error);
-      console.error(`[QQ] 发送异常: ${errMsg}`);
       return { success: false, error: errMsg };
     }
   }
@@ -176,7 +173,6 @@ export class QQChannel extends BaseChannel {
       return { success: false, error: `无效的 messageId 格式: ${messageId}` };
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : String(error);
-      console.error(`[QQ] 更新消息异常: ${errMsg}`);
       return { success: false, error: errMsg };
     }
   }
@@ -187,12 +183,9 @@ export class QQChannel extends BaseChannel {
   private handleDispatch(eventType: string | undefined, data: unknown): void {
     if (!eventType) return;
 
-    const dataStr = typeof data === "object" ? JSON.stringify(data).substring(0, 200) : String(data);
-    console.log(`[QQ] 事件: ${eventType}, 数据: ${dataStr}`);
-
     switch (eventType) {
       case "READY":
-        this.ws.handleReady((data as { session_id?: string }).session_id);
+        this.ws.handleReady();
         break;
 
       case "MESSAGE_CREATE":
@@ -213,7 +206,7 @@ export class QQChannel extends BaseChannel {
         break;
 
       default:
-        console.log(`[QQ] 未处理事件: ${eventType}`);
+        // 未处理事件，静默忽略
         break;
     }
   }

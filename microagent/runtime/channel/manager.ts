@@ -84,7 +84,7 @@ export class ChannelManager {
 
     for (const result of results) {
       if (result.status === "rejected") {
-        console.error(`[ChannelManager] 启动消息通道失败:`, result.reason);
+        // 静默处理启动失败
       }
     }
   }

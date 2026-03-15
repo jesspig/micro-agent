@@ -12,7 +12,6 @@ import { MCPToolWrapper } from "./wrapper.js";
 import type { MCPConfig, MCPServerConfig, MCPServerInfo } from "./types.js";
 import { resolveEnvVars } from "../../config/env-resolver.js";
 import { AGENT_DIR } from "../../shared/constants.js";
-import { getLogger } from "../../shared/logger.js";
 
 // ============================================================================
 // MCP 服务器管理器
@@ -24,7 +23,6 @@ import { getLogger } from "../../shared/logger.js";
  * 管理 MCP 服务器的生命周期和工具注册
  */
 export class MCPManager {
-  private readonly logger = getLogger();
   private connections = new Map<string, MCPConnectionResult>();
   private tools = new Map<string, MCPToolWrapper>();
   private serverInfo = new Map<string, MCPServerInfo>();
@@ -37,17 +35,14 @@ export class MCPManager {
     const path = configPath || join(AGENT_DIR, "mcp.json");
 
     try {
-      this.logger.debug(`加载 MCP 配置: ${path}`);
       const content = await readFile(path, "utf-8");
       const rawConfig = JSON.parse(content);
 
       // 解析环境变量
       this.config = this.resolveEnvInConfig(rawConfig);
-      this.logger.info(`MCP 配置已加载: ${Object.keys(this.config.mcpServers).length} 个服务器`);
       return this.config;
     } catch (error) {
       // 配置文件不存在或解析失败，返回空配置
-      this.logger.warn(`MCP 配置加载失败: ${path}`, { error: error instanceof Error ? error.message : String(error) });
       this.config = { mcpServers: {} };
       return this.config;
     }
@@ -123,10 +118,6 @@ export class MCPManager {
       };
       this.serverInfo.set(name, info);
 
-      this.logger.info(
-        `MCP 服务器 '${name}' 已连接，注册 ${connection.tools.length} 个工具`
-      );
-
       return info;
     } catch (error) {
       const info: MCPServerInfo = {
@@ -136,10 +127,6 @@ export class MCPManager {
         error: error instanceof Error ? error.message : String(error),
       };
       this.serverInfo.set(name, info);
-
-      this.logger.error(
-        `MCP 服务器 '${name}' 连接失败: ${error instanceof Error ? error.message : String(error)}`
-      );
 
       return info;
     }
@@ -163,14 +150,11 @@ export class MCPManager {
    * 关闭所有连接
    */
   async closeAll(): Promise<void> {
-    for (const [name, connection] of this.connections) {
+    for (const [_name, connection] of this.connections) {
       try {
         await connection.close();
-        this.logger.debug(`MCP 服务器 '${name}' 已断开`);
-      } catch (error) {
-        this.logger.error(
-          `MCP 服务器 '${name}' 断开失败: ${error instanceof Error ? error.message : String(error)}`
-        );
+      } catch {
+        // 忽略关闭错误
       }
     }
 

@@ -12,7 +12,6 @@ import type { ISkillExtended } from "../../runtime/skill/contract.js";
 import type { SkillConfig, SkillContent } from "../../runtime/skill/types.js";
 import type { SkillMeta } from "../../runtime/types.js";
 import { SKILLS_DIR } from "../shared/constants.js";
-import { getLogger } from "../shared/logger.js";
 
 // ============================================================================
 // 常量定义
@@ -135,9 +134,6 @@ export class FilesystemSkill extends Skill implements ISkillExtended {
   /** 已加载的内容 */
   private loadedContent: SkillContent | null = null;
 
-  /** 日志器 */
-  private readonly logger = getLogger();
-
   /**
    * 创建文件系统 Skill 实例
    * @param config - Skill 配置
@@ -169,7 +165,6 @@ export class FilesystemSkill extends Skill implements ISkillExtended {
       const exists = await file.exists();
 
       if (!exists) {
-        this.logger.warn(`Skill 文件不存在: ${this.filePath}`);
         return "";
       }
 
@@ -185,7 +180,6 @@ export class FilesystemSkill extends Skill implements ISkillExtended {
 
       return body;
     } catch (error) {
-      this.logger.error(`加载 Skill 内容失败: ${this.config.name}`, error);
       throw error;
     }
   }
@@ -221,9 +215,6 @@ export class FilesystemSkillLoader extends BaseSkillLoader {
   /** Skill 目录路径 */
   private readonly skillsDir: string;
 
-  /** 日志器 */
-  private readonly logger = getLogger();
-
   /** 是否已初始化 */
   private initialized = false;
 
@@ -247,7 +238,6 @@ export class FilesystemSkillLoader extends BaseSkillLoader {
       await this.scanSkillsDirectory();
       this.initialized = true;
     } catch (error) {
-      this.logger.error("初始化 Skill 加载器失败", error);
       throw error;
     }
   }
@@ -266,7 +256,6 @@ export class FilesystemSkillLoader extends BaseSkillLoader {
     }
 
     if (!dirExists) {
-      this.logger.debug(`Skill 目录不存在: ${this.skillsDir}`);
       return;
     }
 
@@ -280,7 +269,7 @@ export class FilesystemSkillLoader extends BaseSkillLoader {
         const absolutePath = join(this.skillsDir, relativePath);
         await this.loadSkillMetadata(absolutePath);
       } catch (error) {
-        this.logger.error(`加载 Skill 元数据失败: ${relativePath}`, error);
+        // 忽略错误
       }
     }
   }
@@ -294,7 +283,6 @@ export class FilesystemSkillLoader extends BaseSkillLoader {
     const exists = await file.exists();
 
     if (!exists) {
-      this.logger.warn(`Skill 文件不存在: ${skillFile}`);
       return;
     }
 
@@ -341,8 +329,6 @@ export class FilesystemSkillLoader extends BaseSkillLoader {
 
     // 注册到加载器
     this.registerSkill(skill);
-
-    this.logger.debug(`已加载 Skill: ${skillName}`);
   }
 
   /**
@@ -363,14 +349,12 @@ export class FilesystemSkillLoader extends BaseSkillLoader {
 
     const skill = this.getSkill(name);
     if (!skill) {
-      this.logger.warn(`Skill 不存在: ${name}`);
       return null;
     }
 
     try {
       return await skill.loadContent();
     } catch (error) {
-      this.logger.error(`加载 Skill 内容失败: ${name}`, error);
       return null;
     }
   }

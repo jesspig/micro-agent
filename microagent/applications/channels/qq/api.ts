@@ -26,8 +26,6 @@ export class QQApi {
     const token = await this.auth.getAccessToken();
     const content = truncateMessage(text, MAX_MESSAGE_LENGTH);
 
-    console.log(`[QQ] 发送频道消息到 ${channelId}: ${content.substring(0, 50)}...`);
-
     const body = isMarkdown
       ? { markdown: { content } }
       : { content };
@@ -43,7 +41,6 @@ export class QQApi {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`[QQ] 频道发送失败: ${response.status} ${errorText}`);
       return { success: false, error: `发送失败: ${response.status} ${errorText}` };
     }
 
@@ -51,7 +48,6 @@ export class QQApi {
 
     // 检查业务错误
     if (data.code) {
-      console.error(`[QQ] 发送业务错误: ${data.code} ${data.message}`);
       return { success: false, error: `${data.message || "发送失败"} (code: ${data.code})` };
     }
 
@@ -60,7 +56,6 @@ export class QQApi {
       result.messageId = `${channelId}:${data.id}`;
       result.metadata = { rawMessageId: data.id, channelId };
     }
-    console.log(`[QQ] 频道消息发送成功: ${data.id || "unknown"}`);
     return result;
   }
 
@@ -74,8 +69,6 @@ export class QQApi {
   ): Promise<SendResult> {
     const token = await this.auth.getAccessToken();
     const content = truncateMessage(text, MAX_MESSAGE_LENGTH);
-
-    console.log(`[QQ] 发送群聊消息到 ${groupId}: ${content.substring(0, 50)}...`);
 
     const body = isMarkdown
       ? { markdown: { content }, msg_type: 2 }
@@ -92,7 +85,6 @@ export class QQApi {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`[QQ] 群聊发送失败: ${response.status} ${errorText}`);
       return { success: false, error: `群聊发送失败: ${response.status} ${errorText}` };
     }
 
@@ -102,7 +94,6 @@ export class QQApi {
       result.messageId = `group:${groupId}:${data.id}`;
       result.metadata = { rawMessageId: data.id, groupId };
     }
-    console.log(`[QQ] 群聊消息发送成功: ${data.id || "unknown"}`);
     return result;
   }
 
@@ -116,8 +107,6 @@ export class QQApi {
   ): Promise<SendResult> {
     const token = await this.auth.getAccessToken();
     const content = truncateMessage(text, MAX_MESSAGE_LENGTH);
-
-    console.log(`[QQ] 发送单聊消息到 ${userOpenid}: ${content.substring(0, 50)}...`);
 
     const body = isMarkdown
       ? { markdown: { content }, msg_type: 2 }
@@ -134,7 +123,6 @@ export class QQApi {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`[QQ] 单聊发送失败: ${response.status} ${errorText}`);
       return { success: false, error: `单聊发送失败: ${response.status} ${errorText}` };
     }
 
@@ -144,7 +132,6 @@ export class QQApi {
       result.messageId = `c2c:${userOpenid}:${data.id}`;
       result.metadata = { rawMessageId: data.id, userOpenid };
     }
-    console.log(`[QQ] 单聊消息发送成功: ${data.id || "unknown"}`);
     return result;
   }
 
@@ -158,8 +145,6 @@ export class QQApi {
   ): Promise<SendResult> {
     const token = await this.auth.getAccessToken();
     const content = truncateMessage(text, MAX_MESSAGE_LENGTH);
-
-    console.log(`[QQ] 发送私聊消息到 ${dmsId}: ${content.substring(0, 50)}...`);
 
     const body = isMarkdown
       ? { markdown: { content } }
@@ -176,7 +161,6 @@ export class QQApi {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`[QQ] 私聊发送失败: ${response.status} ${errorText}`);
       return { success: false, error: `私聊发送失败: ${response.status} ${errorText}` };
     }
 
@@ -186,7 +170,6 @@ export class QQApi {
       result.messageId = `dms:${dmsId}:${data.id}`;
       result.metadata = { rawMessageId: data.id, dmsId };
     }
-    console.log(`[QQ] 私聊消息发送成功: ${data.id || "unknown"}`);
     return result;
   }
 
@@ -200,8 +183,6 @@ export class QQApi {
   ): Promise<SendResult> {
     const token = await this.auth.getAccessToken();
     const content = truncateMessage(text, MAX_MESSAGE_LENGTH);
-
-    console.log(`[QQ] 更新频道消息: ${channelId}/${messageId}`);
 
     const response = await fetch(
       `${this.auth.apiBase}/channels/${channelId}/messages/${messageId}`,
@@ -229,8 +210,6 @@ export class QQApi {
     const token = await this.auth.getAccessToken();
     const content = truncateMessage(text, MAX_MESSAGE_LENGTH);
 
-    console.log(`[QQ] 更新群聊消息: ${groupId}/${messageId}`);
-
     const response = await fetch(
       `${this.auth.apiBase}/v2/groups/${groupId}/messages/${messageId}`,
       {
@@ -256,8 +235,6 @@ export class QQApi {
   ): Promise<SendResult> {
     const token = await this.auth.getAccessToken();
     const content = truncateMessage(text, MAX_MESSAGE_LENGTH);
-
-    console.log(`[QQ] 更新单聊消息: ${userOpenid}/${messageId}`);
 
     const response = await fetch(
       `${this.auth.apiBase}/v2/users/${userOpenid}/messages/${messageId}`,
@@ -285,8 +262,6 @@ export class QQApi {
     const token = await this.auth.getAccessToken();
     const content = truncateMessage(text, MAX_MESSAGE_LENGTH);
 
-    console.log(`[QQ] 更新私聊消息: ${dmsId}/${messageId}`);
-
     const response = await fetch(
       `${this.auth.apiBase}/dms/${dmsId}/messages/${messageId}`,
       {
@@ -311,7 +286,6 @@ export class QQApi {
   ): Promise<SendResult> {
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`[QQ] 消息更新失败: ${response.status} ${errorText}`);
       return { success: false, error: `更新失败: ${response.status} ${errorText}` };
     }
 
@@ -321,7 +295,6 @@ export class QQApi {
       return { success: false, error: data.message || "更新失败" };
     }
 
-    console.log(`[QQ] 消息更新成功: ${data.id || messageId}`);
     return { success: true, messageId: data.id || messageId };
   }
 }

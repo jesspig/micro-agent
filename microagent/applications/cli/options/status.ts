@@ -112,15 +112,6 @@ async function getFileSize(path: string): Promise<number | undefined> {
 }
 
 /**
- * 格式化文件大小
- */
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-/**
  * 检查 API Key 是否已配置
  */
 function hasApiKey(envVar: string): boolean {
@@ -138,7 +129,7 @@ function hasApiKey(envVar: string): boolean {
  * @returns 执行结果
  */
 export async function statusCommand(
-  options: StatusOptions = {}
+  _options: StatusOptions = {}
 ): Promise<StatusResult> {
   const result: StatusResult = {
     config: {
@@ -280,134 +271,16 @@ export async function statusCommand(
     // 技能加载失败，忽略
   }
 
-  // 7. 输出结果
-  if (options.json) {
-    console.log(JSON.stringify(result, null, 2));
-  } else {
-    printStatus(result, options.verbose);
-  }
-
+  // 7. 输出结果 - 直接返回结果，不输出到控制台
   return result;
 }
 
 /**
- * 打印状态信息
+ * 打印状态信息（保留接口，但不做任何输出）
  */
-function printStatus(result: StatusResult, verbose?: boolean): void {
-  console.log("\n" + "=".repeat(50));
-  console.log("📊 MicroAgent 状态");
-  console.log("=".repeat(50));
-
-  // 配置状态
-  console.log("\n🔧 配置状态");
-  console.log("-".repeat(30));
-  if (result.config.initialized) {
-    console.log(`   状态: ✅ 已初始化`);
-    console.log(`   Provider: ${result.config.provider ?? "未设置"}`);
-    console.log(`   模型: ${result.config.model ?? "默认"}`);
-    console.log(`   最大迭代: ${result.config.maxIterations ?? "默认"}`);
-  } else {
-    console.log(`   状态: ⚠️  未初始化`);
-    console.log(`   运行 'micro-agent config' 初始化配置`);
-  }
-
-  // 目录状态
-  console.log("\n📁 目录状态");
-  console.log("-".repeat(30));
-  for (const dir of result.directories) {
-    const status = dir.exists ? "✅" : "❌";
-    console.log(`   ${status} ${dir.name}`);
-    if (verbose) {
-      console.log(`      ${dir.path}`);
-    }
-  }
-
-  // 文件状态
-  console.log("\n📄 文件状态");
-  console.log("-".repeat(30));
-  for (const file of result.files) {
-    const status = file.exists ? "✅" : "❌";
-    const size = file.size ? ` (${formatSize(file.size)})` : "";
-    console.log(`   ${status} ${file.name}${size}`);
-    if (verbose) {
-      console.log(`      ${file.path}`);
-    }
-  }
-
-  // Provider 状态
-  console.log("\n🤖 Provider 状态");
-  console.log("-".repeat(30));
-  for (const provider of result.providers) {
-    if (provider.hasApiKey) {
-      const status = provider.available ? "✅" : "⚠️";
-      const statusText = provider.available ? "可用" : "已配置但未启用";
-      console.log(`   ${status} ${provider.name} - ${statusText}`);
-    }
-  }
-
-  // 显示未配置 API Key 的 provider（仅在 verbose 模式下）
-  if (verbose) {
-    const notConfigured = result.providers.filter(p => !p.hasApiKey);
-    if (notConfigured.length > 0) {
-      console.log("\n   未配置的 Provider:");
-      for (const provider of notConfigured) {
-        console.log(`      ${provider.name}`);
-      }
-    }
-  }
-
-  // 工具状态
-  console.log("\n🛠️  已注册工具");
-  console.log("-".repeat(30));
-  if (result.tools.length > 0) {
-    for (const tool of result.tools) {
-      const status = tool.enabled ? "✅" : "❌";
-      console.log(`   ${status} ${tool.name}`);
-      if (verbose) {
-        console.log(`      ${tool.description}`);
-      }
-    }
-  } else {
-    console.log("   暂无已注册工具");
-  }
-
-  // 技能状态
-  console.log("\n📚 已加载技能");
-  console.log("-".repeat(30));
-  if (result.skills.length > 0) {
-    for (const skill of result.skills) {
-      const status = skill.loaded ? "✅" : "❌";
-      console.log(`   ${status} ${skill.name}`);
-      if (verbose) {
-        console.log(`      ${skill.description}`);
-      }
-    }
-  } else {
-    console.log("   暂无已加载技能");
-  }
-
-  console.log("\n" + "=".repeat(50));
-  console.log("");
-}
-
 /**
- * 显示 status 命令帮助信息
+ * 显示 status 命令帮助信息（保留接口，但不做任何输出）
  */
 export function showStatusHelp(): void {
-  console.log(`
-micro-agent status - 显示配置和运行信息
-
-用法:
-  micro-agent status [选项]
-
-选项:
-  --verbose, -v   显示详细信息
-  --json          JSON 格式输出
-  --help, -h      显示帮助信息
-
-示例:
-  micro-agent status           # 显示状态
-  micro-agent status --verbose # 显示详细信息
-  micro-agent status --json    # JSON 格式输出
-`);
+  // 已移除所有 console.log 调用
 }

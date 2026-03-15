@@ -435,7 +435,6 @@ export class OpenAIProvider extends BaseProvider implements IProviderExtended {
       });
 
       const json: unknown = await response.json();
-      console.log(`[${this.name}] API 响应:`, JSON.stringify(json).substring(0, 500));
 
       // 处理 HTTP 错误
       if (!response.ok) {
@@ -521,7 +520,6 @@ export class OpenAIProvider extends BaseProvider implements IProviderExtended {
   private parseResponse(response: OpenAIResponse): ChatResponse {
     // 检查响应格式
     if (!response.choices || !Array.isArray(response.choices)) {
-      console.error(`[${this.name}] 响应格式错误:`, JSON.stringify(response).substring(0, 500));
       throw new Error(`${this.config.name} API 返回非标准格式响应，请检查 baseUrl 是否正确`);
     }
 

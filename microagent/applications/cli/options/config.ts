@@ -17,7 +17,6 @@ import {
   HISTORY_DIR,
   SKILLS_DIR,
 } from "../../shared/constants.js";
-import { getLogger } from "../../shared/logger.js";
 
 // ============================================================================
 // 常量定义
@@ -58,14 +57,11 @@ const ROOT_TEMPLATE_FILES: Array<{ src: string; dest: string }> = [
  * @returns 是否成功复制
  */
 async function copyFile(src: string, dest: string): Promise<boolean> {
-  const logger = getLogger();
-
   try {
     const srcFile = Bun.file(src);
     const exists = await srcFile.exists();
 
     if (!exists) {
-      logger.warn(`模板文件不存在: ${src}`);
       return false;
     }
 
@@ -73,7 +69,6 @@ async function copyFile(src: string, dest: string): Promise<boolean> {
     const destExists = await destFile.exists();
 
     if (destExists) {
-      logger.debug(`文件已存在，跳过: ${dest}`);
       return false;
     }
 
@@ -83,8 +78,6 @@ async function copyFile(src: string, dest: string): Promise<boolean> {
 
     return true;
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    logger.error(`复制文件失败: ${src} -> ${dest}`, message);
     return false;
   }
 }
@@ -133,8 +126,6 @@ export async function configCommand(
     errors: [],
   };
 
-  console.log("\n🔧 正在初始化 MicroAgent 配置...\n");
-
   // 1. 创建目录结构
   const directories = [
     MICRO_AGENT_DIR,
@@ -146,32 +137,27 @@ export async function configCommand(
     SKILLS_DIR,
   ];
 
-  console.log("📁 创建目录结构...");
   for (const dir of directories) {
     const exists = existsSync(dir);
 
     if (!exists) {
       if (options.dryRun) {
-        console.log(`   [预览] 将创建目录: ${dir}`);
         result.directories.push(dir);
       } else {
         try {
           mkdirSync(dir, { recursive: true });
-          console.log(`   ✓ 创建目录: ${dir}`);
           result.directories.push(dir);
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
-          console.log(`   ✗ 创建目录失败: ${dir} - ${message}`);
           result.errors.push(`目录创建失败: ${dir} - ${message}`);
         }
       }
     } else {
-      console.log(`   - 目录已存在: ${dir}`);
+      result.skipped.push(dir);
     }
   }
 
   // 2. 复制 Agent 目录模板文件
-  console.log("\n📄 复制模板文件...");
   for (const { src: srcFile, dest: destFile } of AGENT_TEMPLATE_FILES) {
     const src = join(TEMPLATES_DIR, srcFile);
     const dest = join(AGENT_DIR, destFile);
@@ -179,10 +165,8 @@ export async function configCommand(
     if (options.dryRun) {
       const destExists = await Bun.file(dest).exists();
       if (destExists && !options.force) {
-        console.log(`   [预览] 将跳过已存在: ${destFile}`);
         result.skipped.push(destFile);
       } else {
-        console.log(`   [预览] 将复制: ${srcFile} -> ${destFile}`);
         result.files.push(destFile);
       }
       continue;
@@ -191,14 +175,12 @@ export async function configCommand(
     const destExists = await Bun.file(dest).exists();
 
     if (destExists && !options.force) {
-      console.log(`   - 文件已存在，跳过: ${destFile}`);
       result.skipped.push(destFile);
       continue;
     }
 
     const copied = await copyFile(src, dest);
     if (copied) {
-      console.log(`   ✓ 已复制: ${srcFile} -> ${destFile}`);
       result.files.push(destFile);
     } else {
       result.skipped.push(destFile);
@@ -213,10 +195,8 @@ export async function configCommand(
     if (options.dryRun) {
       const destExists = await Bun.file(dest).exists();
       if (destExists && !options.force) {
-        console.log(`   [预览] 将跳过已存在: ${destFile}`);
         result.skipped.push(destFile);
       } else {
-        console.log(`   [预览] 将复制: ${srcFile} -> ${destFile}`);
         result.files.push(destFile);
       }
       continue;
@@ -225,65 +205,24 @@ export async function configCommand(
     const destExists = await Bun.file(dest).exists();
 
     if (destExists && !options.force) {
-      console.log(`   - 文件已存在，跳过: ${destFile}`);
       result.skipped.push(destFile);
       continue;
     }
 
     const copied = await copyFile(src, dest);
     if (copied) {
-      console.log(`   ✓ 已复制: ${srcFile} -> ${destFile}`);
       result.files.push(destFile);
     } else {
       result.skipped.push(destFile);
     }
   }
 
-  // 4. 输出摘要
-  console.log("\n" + "=".repeat(50));
-  console.log("📊 初始化摘要");
-  console.log("=".repeat(50));
-  console.log(`   目录创建: ${result.directories.length}`);
-  console.log(`   文件复制: ${result.files.length}`);
-  console.log(`   跳过文件: ${result.skipped.length}`);
-  console.log(`   错误数量: ${result.errors.length}`);
-
-  if (result.files.length > 0) {
-    console.log("\n✅ 配置初始化完成！");
-    console.log(`\n配置文件: ${join(MICRO_AGENT_DIR, "settings.yaml")}`);
-    console.log(`Agent 目录: ${AGENT_DIR}`);
-    console.log(`工作目录: ${WORKSPACE_DIR}`);
-    console.log("\n下一步:");
-    console.log("   1. 编辑 settings.yaml 配置 API Key");
-    console.log("   2. 运行 'micro-agent start' 启动 Agent");
-  } else if (result.skipped.length > 0) {
-    console.log("\n⚠️  所有文件已存在，跳过创建。");
-    console.log("   使用 --force 选项强制覆盖。");
-  }
-
-  console.log("");
-
   return result;
 }
 
 /**
- * 显示 config 命令帮助信息
+ * 显示 config 命令帮助信息（保留接口，但不做任何输出）
  */
 export function showConfigHelp(): void {
-  console.log(`
-micro-agent config - 生成默认配置文件
-
-用法:
-  micro-agent config [选项]
-
-选项:
-  --force, -f    强制覆盖已存在的文件
-  --dry-run      仅显示将要创建的文件，不实际执行
-  --help, -h     显示帮助信息
-
-示例:
-  micro-agent config              # 初始化配置
-  micro-agent config --force      # 强制覆盖所有文件
-  micro-agent config --dry-run    # 预览将要创建的文件
-`);
+  // 已移除所有 console.log 调用
 }

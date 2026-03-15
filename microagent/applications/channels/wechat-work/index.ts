@@ -114,7 +114,6 @@ export class WechatWorkChannel extends BaseChannel {
 
     // 模式一：群机器人 Webhook（仅发送，不接收）
     if (webhookKey && !botId) {
-      console.log("[企业微信] 使用群机器人 Webhook 模式（仅支持发送消息）");
       this.setConnected(true);
       return;
     }
@@ -143,10 +142,19 @@ export class WechatWorkChannel extends BaseChannel {
       this.running = true;
 
       // 创建 WSClient 实例
-      // SDK API: new WSClient({ botId, secret })
+      // SDK API: new WSClient({ botId, secret, logger })
+      // 配置空 Logger 禁用 SDK 日志输出
+      const noopLogger = {
+        debug: () => {},
+        info: () => {},
+        warn: () => {},
+        error: () => {},
+      };
+
       this.wsClient = new sdk.WSClient({
         botId,
         secret,
+        logger: noopLogger,
       }) as WecomWSClient;
 
       const self = this;
@@ -157,17 +165,14 @@ export class WechatWorkChannel extends BaseChannel {
         self.handleMessage(frame as WecomMessageFrame);
       });
 
-      this.wsClient.on("error", (error: unknown) => {
-        console.error("[企业微信] SDK 错误:", error instanceof Error ? error.message : "未知错误");
+      this.wsClient.on("error", (_error: unknown) => {
+        // SDK 错误，静默处理
       });
 
-      console.log("[企业微信] 正在连接智能机器人...");
-      
       // 启动连接
       // SDK API: wsClient.connect() 返回 this
       this.wsClient.connect();
       this.setConnected(true);
-      console.log("[企业微信] 智能机器人已连接");
 
       // 保持运行
       while (this.running) {
@@ -191,7 +196,6 @@ export class WechatWorkChannel extends BaseChannel {
       }
       this.wsClient = null;
     }
-    console.log("[企业微信] Bot 已停止");
   }
 
   /**
@@ -344,7 +348,6 @@ export class WechatWorkChannel extends BaseChannel {
         const result = (await response.json()) as WecomApiResponse;
 
         if (result.errcode && result.errcode !== 0) {
-          console.error(`[企业微信] response_url 回复失败 (${result.errcode}): ${result.errmsg}`);
           return { success: false, error: result.errmsg || "发送失败" };
         }
 
@@ -428,7 +431,6 @@ export class WechatWorkChannel extends BaseChannel {
       // 权限检查
       const allowList = this.config.allowFrom || [];
       if (allowList.length > 0 && !allowList.includes("*") && !allowList.includes(senderId)) {
-        console.log(`[企业微信] 拒绝来自未授权用户的消息`);
         return;
       }
 
@@ -442,9 +444,8 @@ export class WechatWorkChannel extends BaseChannel {
       };
 
       this.emitMessage(inboundMsg);
-      console.log(`[企业微信] 收到消息: ${senderId}: ${content}`);
-    } catch (error) {
-      console.error("[企业微信] 处理消息错误:", error instanceof Error ? error.message : "未知错误");
+    } catch {
+      // 处理消息错误，静默处理
     }
   }
 }

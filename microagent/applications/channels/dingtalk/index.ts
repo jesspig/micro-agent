@@ -135,8 +135,6 @@ export class DingTalkChannel extends BaseChannel {
       throw new Error("钉钉 Channel 需要 clientId 和 clientSecret 配置");
     }
 
-    console.log("[钉钉] 正在初始化 Stream SDK...");
-
     const self = this;
 
     try {
@@ -152,20 +150,17 @@ export class DingTalkChannel extends BaseChannel {
         .registerCallbackListener(
           "/v1.0/im/bot/messages/get",
           async (res: DWClientDownStream) => {
-            console.log("[钉钉] 收到回调消息");
             await self.handleBotMessage(res);
           }
         )
         .connect();
 
-      console.log("[钉钉] Stream SDK 已启动");
       this.setConnected(true);
 
       // 启动定时清理（每小时清理一次过期消息 ID）
       this.cleanupTimer = setInterval(() => this.cleanupProcessedIds(), 60 * 60 * 1000);
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : String(error);
-      console.error(`[钉钉] Stream SDK 启动失败: ${errMsg}`);
       this.setConnected(false, errMsg);
       // 不抛出异常，允许其他 Channel 正常启动
     }
@@ -187,7 +182,6 @@ export class DingTalkChannel extends BaseChannel {
     this.processedIds.clear();
 
     this.setConnected(false);
-    console.log("[钉钉] Bot 已停止");
   }
 
   async send(message: OutboundMessage): Promise<SendResult> {
@@ -375,8 +369,7 @@ export class DingTalkChannel extends BaseChannel {
       }
 
       return null;
-    } catch (error) {
-      console.error("[钉钉] 获取 Access Token 失败:", error);
+    } catch {
       return null;
     }
   }
@@ -428,7 +421,7 @@ export class DingTalkChannel extends BaseChannel {
     }
 
     if (cleaned > 0) {
-      console.log(`[钉钉] 清理了 ${cleaned} 个过期消息 ID，当前数量: ${this.processedIds.size}`);
+      // 记录清理但不做输出
     }
   }
 
@@ -442,7 +435,6 @@ export class DingTalkChannel extends BaseChannel {
       // 消息去重检查
       const msgId = data.msgId;
       if (msgId && this.isProcessed(msgId)) {
-        console.log(`[钉钉] 跳过已处理的消息: ${msgId}`);
         return;
       }
 
@@ -459,18 +451,13 @@ export class DingTalkChannel extends BaseChannel {
       }
 
       const senderId = data.senderStaffId || data.senderId || "unknown";
-      const senderName = data.senderNick || "Unknown";
       const conversationType = data.conversationType;
       const conversationId = data.conversationId || data.openConversationId;
       const sessionWebhook = data.sessionWebhook;
 
-      // 安全日志：仅记录关键信息，不记录原始响应
-      console.log(`[钉钉] 收到消息: 发送者=${senderId}, 会话类型=${conversationType}`);
-
       // 权限检查
       const allowList = this.config.allowFrom || [];
       if (allowList.length > 0 && !allowList.includes("*") && !allowList.includes(senderId)) {
-        console.log(`[钉钉] 拒绝来自 ${senderId} 的消息（未在 allowFrom 列表中）`);
         return;
       }
 
@@ -491,9 +478,8 @@ export class DingTalkChannel extends BaseChannel {
       };
 
       this.emitMessage(inboundMsg);
-      console.log(`[钉钉] 收到消息: ${senderName}(${senderId}): ${content}`);
-    } catch (error) {
-      console.error("[钉钉] 处理机器人消息错误:", error);
+    } catch {
+      // 处理消息错误，静默处理
     }
   }
 }

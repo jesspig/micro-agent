@@ -167,8 +167,7 @@ export class OllamaProvider extends BaseProvider implements IProviderExtended {
       } finally {
         clearTimeout(timeoutId);
       }
-    } catch (error) {
-      console.warn("获取 Ollama 模型列表失败，使用默认模型:", error);
+    } catch {
       return [this.defaultModel];
     }
   }

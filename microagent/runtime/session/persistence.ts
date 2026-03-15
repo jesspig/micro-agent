@@ -106,8 +106,8 @@ export async function loadSessionFile(date?: Date): Promise<SessionEntry[]> {
     const content = await readFile(filePath, "utf-8");
     const lines = content.trim().split("\n").filter(Boolean);
     return lines.map((line) => JSON.parse(line) as SessionEntry);
-  } catch (error) {
-    console.error(`[Session] 加载会话文件失败: ${filePath}`, error);
+  } catch {
+    // 静默处理加载失败
     return [];
   }
 }

@@ -11,7 +11,6 @@ import {
 } from "./schema.js";
 import { resolveEnvVarsDeep } from "./env-resolver.js";
 import { SETTINGS_FILE } from "../shared/constants.js";
-import { getLogger } from "../shared/logger.js";
 
 // ============================================================================
 // 默认配置
@@ -48,7 +47,6 @@ const DEFAULT_AGENT_CONFIG = {
  * @returns 完整配置对象
  */
 export async function loadSettings(configPath?: string): Promise<Settings> {
-  const logger = getLogger();
   const filePath = configPath ?? SETTINGS_FILE;
 
   // 读取配置文件
@@ -56,7 +54,6 @@ export async function loadSettings(configPath?: string): Promise<Settings> {
 
   // 配置文件不存在，返回默认配置
   if (rawContent === null) {
-    logger.info(`配置文件不存在，使用默认配置: ${filePath}`);
     return getDefaultSettings();
   }
 
@@ -81,7 +78,6 @@ export async function loadSettings(configPath?: string): Promise<Settings> {
     throw new ConfigValidationError(`配置验证失败: ${issues}`, filePath);
   }
 
-  logger.debug(`配置加载成功: ${filePath}`);
   return validationResult.data;
 }
 

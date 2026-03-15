@@ -184,15 +184,12 @@ export class FeishuChannel extends BaseChannel {
         loggerLevel: LoggerLevel.info,
       });
 
-      console.log("[飞书] 正在连接...");
-
       // 启动 WebSocket 连接
       await this.wsClient.start({
         eventDispatcher: eventDispatcher,
       });
 
       this.setConnected(true);
-      console.log("[飞书] 连接就绪");
     } catch (error) {
       const sanitizedError = sanitizeError(error);
       this.setConnected(false, sanitizedError);
@@ -212,7 +209,6 @@ export class FeishuChannel extends BaseChannel {
       this.wsClient = null;
     }
     this.client = null;
-    console.log("[飞书] Bot 已停止");
   }
 
   async send(message: OutboundMessage): Promise<SendResult> {
@@ -392,7 +388,6 @@ export class FeishuChannel extends BaseChannel {
       // 权限检查
       const allowList = this.config.allowFrom || [];
       if (allowList.length > 0 && !allowList.includes("*") && !allowList.includes(senderId)) {
-        console.log(`[飞书] 拒绝来自 ${senderId} 的消息（未在 allowFrom 列表中）`);
         return;
       }
 
@@ -405,9 +400,8 @@ export class FeishuChannel extends BaseChannel {
       };
 
       this.emitMessage(inboundMsg);
-      console.log(`[飞书] 收到消息: ${senderId}@${chatId}: ${content}`);
-    } catch (error) {
-      console.error("[飞书] 处理消息错误:", error);
+    } catch {
+      // 处理消息错误，静默处理
     }
   }
 }

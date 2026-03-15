@@ -41,7 +41,6 @@ import {
   DEFAULT_MAX_ITERATIONS,
   DEFAULT_TIMEOUT_MS,
 } from "../shared/constants.js";
-import { getLogger } from "../shared/logger.js";
 
 // ============================================================================
 // 常量定义
@@ -111,9 +110,6 @@ export interface AgentBuildResult {
  * 提供流式 API 组装 Agent 组件
  */
 export class AgentBuilder {
-  /** 日志器 */
-  private readonly logger = getLogger();
-
   /** 配置对象 */
   private settings: Settings | null = null;
 
@@ -214,8 +210,6 @@ export class AgentBuilder {
    * @returns 构建结果
    */
   async build(): Promise<AgentBuildResult> {
-    this.logger.info("开始构建 Agent...");
-
     // 1. 初始化运行时目录
     await this.ensureDirectories();
 
@@ -245,8 +239,6 @@ export class AgentBuilder {
     // 9. 创建会话管理器
     const sessionManager = new SessionManager();
 
-    this.logger.info("Agent 构建完成");
-
     return {
       agent,
       sessionManager,
@@ -275,8 +267,6 @@ export class AgentBuilder {
   private async ensureDirectories(): Promise<void> {
     if (this.dirInitialized) return;
 
-    this.logger.debug("初始化运行时目录...");
-
     // 创建主目录
     await this.ensureDir(MICRO_AGENT_DIR);
     await this.ensureDir(WORKSPACE_DIR);
@@ -290,7 +280,6 @@ export class AgentBuilder {
     await this.copyTemplates();
 
     this.dirInitialized = true;
-    this.logger.debug("运行时目录初始化完成");
   }
 
   /**
@@ -302,10 +291,8 @@ export class AgentBuilder {
       const isExists = await this.pathExists(dir);
       if (!isExists) {
         await mkdir(dir, { recursive: true });
-        this.logger.debug(`创建目录: ${dir}`);
       }
     } catch (error) {
-      this.logger.error(`创建目录失败: ${dir}`, error);
       throw error;
     }
   }
@@ -338,23 +325,19 @@ export class AgentBuilder {
         // 检查目标文件是否存在
         const destExists = await this.pathExists(destPath);
         if (destExists) {
-          this.logger.debug(`模板文件已存在，跳过: ${file}`);
           continue;
         }
 
         // 检查源文件是否存在
         const srcExists = await this.pathExists(srcPath);
         if (!srcExists) {
-          this.logger.debug(`模板源文件不存在，跳过: ${file}`);
           continue;
         }
 
         // 复制文件
         await copyFile(srcPath, destPath);
-        this.logger.debug(`复制模板文件: ${file}`);
       } catch (error) {
         // 复制失败不影响启动
-        this.logger.error(`复制模板文件失败: ${file}`, error);
       }
     }
 
@@ -366,20 +349,17 @@ export class AgentBuilder {
       try {
         const destExists = await this.pathExists(destPath);
         if (destExists) {
-          this.logger.debug(`模板文件已存在，跳过: ${dest}`);
           continue;
         }
 
         const srcExists = await this.pathExists(srcPath);
         if (!srcExists) {
-          this.logger.debug(`模板源文件不存在，跳过: ${src}`);
           continue;
         }
 
         await copyFile(srcPath, destPath);
-        this.logger.debug(`复制模板文件: ${src} -> ${dest}`);
       } catch (error) {
-        this.logger.error(`复制模板文件失败: ${dest}`, error);
+        // 忽略错误
       }
     }
   }
@@ -416,7 +396,6 @@ export class AgentBuilder {
   private async createProvider(settings: Settings): Promise<IProviderExtended> {
     // 使用自定义 Provider
     if (this.customProvider) {
-      this.logger.debug(`使用自定义 Provider: ${this.customProvider.name}`);
       return this.customProvider;
     }
 
@@ -435,8 +414,6 @@ export class AgentBuilder {
     if (!providerConfig) {
       throw new Error(`Provider "${providerName}" 配置不存在`);
     }
-
-    this.logger.debug(`创建 Provider: ${providerName} (type: ${providerConfig.type})`);
 
     // 验证必填字段
     if (!providerConfig.baseUrl) {
@@ -519,8 +496,6 @@ export class AgentBuilder {
       }
     }
 
-    this.logger.debug(`注册工具: ${toolNames.join(", ")}`);
-
     // 注册工具
     for (const name of toolNames) {
       const factory = toolFactories[name];
@@ -528,10 +503,7 @@ export class AgentBuilder {
         const tool = factory();
         if (tool) {
           this.tools.register(tool);
-          this.logger.debug(`已注册工具: ${name}`);
         }
-      } else {
-        this.logger.warn(`工具工厂不存在: ${name}`);
       }
     }
 
@@ -548,41 +520,20 @@ export class AgentBuilder {
       const config = await mcpManager.loadConfig();
 
       if (Object.keys(config.mcpServers).length === 0) {
-        this.logger.info("未配置 MCP 服务器");
         return;
       }
 
-      this.logger.info(`正在连接 ${Object.keys(config.mcpServers).length} 个 MCP 服务器...`);
-
       // 连接所有启用的服务器并注册工具
-      const results = await mcpManager.connectAll((tool, serverName) => {
+      const results = await mcpManager.connectAll((tool, _serverName) => {
         this.tools.register(tool);
-        this.logger.debug(`已注册 MCP 工具: ${tool.name} (来自 ${serverName})`);
       });
 
-      // 汇总结果
-      const connected = results.filter((r) => r.status === "connected");
-      const failed = results.filter((r) => r.status === "error");
-      const skipped = results.filter((r) => r.status === "disconnected");
-
-      if (connected.length > 0) {
-        const totalTools = connected.reduce((sum, r) => sum + r.toolCount, 0);
-        this.logger.info(
-          `MCP: 已连接 ${connected.length} 个服务器，共 ${totalTools} 个工具`
-        );
-      }
-
-      if (skipped.length > 0) {
-        this.logger.info(`MCP: 跳过 ${skipped.length} 个禁用的服务器`);
-      }
-
-      if (failed.length > 0) {
-        for (const r of failed) {
-          this.logger.warn(`MCP 服务器 "${r.name}" 连接失败: ${r.error}`);
-        }
-      }
-    } catch (error) {
-      this.logger.error("加载 MCP 工具失败", error);
+      // 静默处理结果
+      results.filter((r) => r.status === "connected");
+      results.filter((r) => r.status === "error");
+      results.filter((r) => r.status === "disconnected");
+    } catch {
+      // 静默处理错误
     }
   }
 
@@ -594,17 +545,12 @@ export class AgentBuilder {
    * 加载技能
    */
   private async loadSkills(): Promise<void> {
-    this.logger.debug("加载技能...");
-
     const loader = new FilesystemSkillLoader(SKILLS_DIR);
     const skills = await loader.listSkills();
 
     for (const skill of skills) {
       this.skills.register(skill);
-      this.logger.debug(`已加载技能: ${skill.config.name}`);
     }
-
-    this.logger.debug(`共加载 ${skills.length} 个技能`);
   }
 
   // ============================================================================
