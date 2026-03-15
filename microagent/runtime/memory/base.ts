@@ -7,6 +7,15 @@
 import type { Message } from "../types.js";
 import type { IMemoryExtended } from "./contract.js";
 import type { MemoryConfig, MemoryEntry, MemorySearchResult } from "./types.js";
+import {
+  memoryLogger,
+  createTimer,
+  logMethodCall,
+  logMethodReturn,
+  logMethodError,
+} from "../../applications/shared/logger.js";
+
+const logger = memoryLogger();
 
 // ============================================================================
 // BaseMemory 抽象类
@@ -80,11 +89,45 @@ export abstract class BaseMemory implements IMemoryExtended {
    * @param entry - 历史条目
    */
   async appendHistory(entry: string): Promise<void> {
-    this.historyBuffer.push(entry);
+    const timer = createTimer();
+    logMethodCall(logger, {
+      method: "appendHistory",
+      module: "BaseMemory",
+      params: { entryLength: entry.length },
+    });
 
-    // 缓冲区满了触发整合
-    if (this.historyBuffer.length >= this.maxBufferSize) {
-      await this.flushHistory();
+    try {
+      this.historyBuffer.push(entry);
+
+      // 缓冲区满了触发整合
+      if (this.historyBuffer.length >= this.maxBufferSize) {
+        logger.info("记忆操作", {
+          action: "buffer_full",
+          bufferSize: this.historyBuffer.length,
+        });
+        await this.flushHistory();
+      }
+
+      logMethodReturn(logger, {
+        method: "appendHistory",
+        module: "BaseMemory",
+        result: { bufferLength: this.historyBuffer.length },
+        duration: timer(),
+      });
+    } catch (err: unknown) {
+      const error = err as Error;
+      logMethodError(logger, {
+        method: "appendHistory",
+        module: "BaseMemory",
+        error: {
+          name: error.name,
+          message: error.message,
+          ...(error.stack ? { stack: error.stack } : {}),
+        },
+        params: { entryLength: entry.length },
+        duration: timer(),
+      });
+      throw err;
     }
   }
 
@@ -94,14 +137,56 @@ export abstract class BaseMemory implements IMemoryExtended {
    * @param messages - 消息列表
    */
   async consolidate(messages: Message[]): Promise<void> {
-    if (messages.length === 0) return;
+    const timer = createTimer();
+    logMethodCall(logger, {
+      method: "consolidate",
+      module: "BaseMemory",
+      params: { messageCount: messages.length },
+    });
 
-    // 提取最近的对话
-    const recentMessages = messages.slice(-10);
-    const summary = this.summarizeMessages(recentMessages);
+    try {
+      if (messages.length === 0) {
+        logMethodReturn(logger, {
+          method: "consolidate",
+          module: "BaseMemory",
+          result: { skipped: true, reason: "empty_messages" },
+          duration: timer(),
+        });
+        return;
+      }
 
-    if (summary) {
-      await this.writeLongTerm(summary);
+      // 提取最近的对话
+      const recentMessages = messages.slice(-10);
+      const summary = this.summarizeMessages(recentMessages);
+
+      if (summary) {
+        logger.info("记忆操作", {
+          action: "consolidate",
+          summaryLength: summary.length,
+        });
+        await this.writeLongTerm(summary);
+      }
+
+      logMethodReturn(logger, {
+        method: "consolidate",
+        module: "BaseMemory",
+        result: { summaryWritten: !!summary },
+        duration: timer(),
+      });
+    } catch (err: unknown) {
+      const error = err as Error;
+      logMethodError(logger, {
+        method: "consolidate",
+        module: "BaseMemory",
+        error: {
+          name: error.name,
+          message: error.message,
+          ...(error.stack ? { stack: error.stack } : {}),
+        },
+        params: { messageCount: messages.length },
+        duration: timer(),
+      });
+      throw err;
     }
   }
 
@@ -114,12 +199,57 @@ export abstract class BaseMemory implements IMemoryExtended {
    * 将缓冲区内容写入长期记忆并清空
    */
   protected async flushHistory(): Promise<void> {
-    if (this.historyBuffer.length === 0) return;
+    const timer = createTimer();
+    logMethodCall(logger, {
+      method: "flushHistory",
+      module: "BaseMemory",
+      params: { bufferLength: this.historyBuffer.length },
+    });
 
-    const content = this.historyBuffer.join("\n");
-    this.historyBuffer = [];
+    try {
+      if (this.historyBuffer.length === 0) {
+        logMethodReturn(logger, {
+          method: "flushHistory",
+          module: "BaseMemory",
+          result: { skipped: true, reason: "empty_buffer" },
+          duration: timer(),
+        });
+        return;
+      }
 
-    await this.writeLongTerm(content);
+      const content = this.historyBuffer.join("\n");
+      const entryCount = this.historyBuffer.length;
+      this.historyBuffer = [];
+
+      logger.info("记忆操作", {
+        action: "flush_history",
+        entryCount,
+        contentLength: content.length,
+      });
+
+      await this.writeLongTerm(content);
+
+      logMethodReturn(logger, {
+        method: "flushHistory",
+        module: "BaseMemory",
+        result: { flushedEntries: entryCount },
+        duration: timer(),
+      });
+    } catch (err: unknown) {
+      const error = err as Error;
+      logMethodError(logger, {
+        method: "flushHistory",
+        module: "BaseMemory",
+        error: {
+          name: error.name,
+          message: error.message,
+          ...(error.stack ? { stack: error.stack } : {}),
+        },
+        params: {},
+        duration: timer(),
+      });
+      throw err;
+    }
   }
 
   /**
