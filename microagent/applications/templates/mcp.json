@@ -1,102 +1,58 @@
 {
-  "$schema": "https://github.com/modelcontextprotocol/spec/blob/main/schema/schema.json",
-  "description": "MicroAgent MCP 服务器配置文件。配置外部工具服务器以扩展 Agent 能力。",
-
   "mcpServers": {
-    "example-server": {
-      "disabled": true,
-      "command": "node",
-      "args": ["path/to/mcp-server/index.js"],
-      "env": {
-        "API_KEY": "${EXAMPLE_API_KEY}"
-      },
-      "description": "示例 MCP 服务器配置，启用前请修改"
-    },
-
     "filesystem": {
-      "disabled": true,
+      "disabled": false,
       "command": "npx",
       "args": [
         "-y",
         "@modelcontextprotocol/server-filesystem",
         "${WORKSPACE_PATH}"
-      ],
-      "description": "文件系统 MCP 服务器，提供文件操作能力"
+      ]
     },
-
-    "github": {
-      "disabled": true,
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-github"],
-      "env": {
-        "GITHUB_TOKEN": "${GITHUB_TOKEN}"
-      },
-      "description": "GitHub MCP 服务器，提供仓库、Issues、PR 等操作"
+    "git": {
+      "disabled": false,
+      "command": "uvx",
+      "args": [
+        "mcp-server-git"
+      ]
     },
-
-    "postgres": {
-      "disabled": true,
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-postgres"],
-      "env": {
-        "POSTGRES_CONNECTION_STRING": "${POSTGRES_URL}"
-      },
-      "description": "PostgreSQL 数据库 MCP 服务器"
+    "fetch": {
+      "disabled": false,
+      "command": "uvx",
+      "args": [
+        "mcp-server-fetch"
+      ]
     },
-
-    "sqlite": {
-      "disabled": true,
+    "memory": {
+      "disabled": false,
       "command": "npx",
       "args": [
         "-y",
-        "@modelcontextprotocol/server-sqlite",
-        "${WORKSPACE_PATH}/data.db"
-      ],
-      "description": "SQLite 数据库 MCP 服务器"
+        "@modelcontextprotocol/server-memory"
+      ]
     },
-
-    "brave-search": {
-      "disabled": true,
+    "sequential-thinking": {
+      "disabled": false,
       "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-brave-search"],
-      "env": {
-        "BRAVE_API_KEY": "${BRAVE_API_KEY}"
-      },
-      "description": "Brave 搜索 MCP 服务器，提供网络搜索能力"
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-sequential-thinking"
+      ]
     },
-
-    "puppeteer": {
-      "disabled": true,
+    "time": {
+      "disabled": false,
+      "command": "uvx",
+      "args": [
+        "mcp-server-time"
+      ]
+    },
+    "everything": {
+      "disabled": false,
       "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-puppeteer"],
-      "description": "Puppeteer MCP 服务器，提供浏览器自动化能力"
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-everything"
+      ]
     }
-  },
-
-  "globalSettings": {
-    "timeout": 30000,
-    "retryCount": 3,
-    "logLevel": "info"
-  },
-
-  "_instructions": {
-    "usage": [
-      "1. 将需要启用的服务器的 'disabled' 改为 false",
-      "2. 配置必要的环境变量（使用 ${VAR_NAME} 格式引用）",
-      "3. 确保已安装相应的 MCP 服务器包",
-      "4. 重启 MicroAgent 使配置生效"
-    ],
-    "envVariables": [
-      "环境变量使用 ${VAR_NAME} 格式",
-      "启动时会自动替换为实际的环境变量值",
-      "例如：${GITHUB_TOKEN} 会被替换为 process.env.GITHUB_TOKEN"
-    ],
-    "customServers": [
-      "可以添加自定义的 MCP 服务器配置",
-      "command: 启动命令",
-      "args: 命令行参数数组",
-      "env: 环境变量对象",
-      "disabled: 是否禁用（true/false）"
-    ]
   }
 }

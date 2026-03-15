@@ -312,8 +312,11 @@ export type WechatWorkChannelConfig = z.infer<
  * 定义会话持久化和上下文管理参数
  */
 export const SessionsConfigSchema = z.strictObject({
-  /** 上下文窗口大小（消息条数），默认 20 条 */
-  contextWindow: z.number().int().positive().default(20),
+  /** 上下文窗口大小（tokens），默认 65535 */
+  contextWindowTokens: z.number().int().positive().default(65535),
+
+  /** 压缩阈值（0-1），当上下文达到窗口的此比例时触发压缩，默认 0.7 */
+  compressionTokenThreshold: z.number().min(0).max(1).default(0.7),
 
   /** 是否启用持久化，默认 true */
   persist: z.boolean().default(true),

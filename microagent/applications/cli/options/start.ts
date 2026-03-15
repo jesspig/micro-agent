@@ -29,13 +29,14 @@ import {
   MEMORY_FILE,
   MCP_CONFIG_FILE,
 } from "../../shared/constants.js";
+import { HistoryLogger } from "../../shared/history-logger.js";
 import { loadSettings, type Settings } from "../../config/loader.js";
 import { getLogger, Logger, type LogLevel } from "../../shared/logger.js";
 import {
   createOpenAIProvider,
   createAnthropicProvider,
 } from "../../providers/index.js";
-import { getAllTools } from "../../tools/index.js";
+import { getAllTools, mcpManager } from "../../tools/index.js";
 import { FilesystemSkillLoader } from "../../skills/index.js";
 import { ToolRegistry } from "../../../runtime/tool/registry.js";
 import { AgentLoop } from "../../../runtime/kernel/agent-loop.js";
@@ -355,12 +356,21 @@ function createChannels(settings: Settings): IChannelExtended[] {
 function createMessageHandler(
   agent: AgentLoop,
   sessionManager: SessionManager,
-  channels: IChannelExtended[]
+  channels: IChannelExtended[],
+  settings: Settings
 ): (message: InboundMessage) => Promise<void> {
   const logger = getLogger();
 
   // 单用户模式：使用全局统一的 session key
   const GLOBAL_SESSION_KEY = "global";
+
+  // 获取上下文配置
+  const contextWindowTokens = settings.sessions?.contextWindowTokens ?? 65535;
+  const compressionTokenThreshold = settings.sessions?.compressionTokenThreshold ?? 0.7;
+
+  // 获取工作目录
+  const workspaceDir = settings.agents.defaults.workspace || "~/.micro-agent/workspace";
+  const historyLogger = new HistoryLogger(workspaceDir);
 
   return async (message: InboundMessage) => {
     try {
@@ -375,8 +385,43 @@ function createMessageHandler(
         content: message.text,
       });
 
-      // 运行 Agent
-      const result = await agent.run(session.getMessages());
+      // 获取所有消息
+      const allMessages = session.getMessages();
+
+      // 根据 token 限制选择消息
+      const {
+        estimateMessagesTokens,
+        selectMessagesByTokens,
+      } = await import("../../shared/token-estimator.js");
+
+      const totalTokens = estimateMessagesTokens(allMessages);
+      const compressionThreshold = contextWindowTokens * compressionTokenThreshold;
+
+      let result: Awaited<ReturnType<typeof agent.run>>;
+
+      if (totalTokens > compressionThreshold) {
+        // 超过压缩阈值，选择最近的消息
+        const selectedMessages = selectMessagesByTokens(allMessages, contextWindowTokens);
+        
+        // 找出未选择的消息（需要归档的消息）
+        const archivedMessages = allMessages.slice(0, allMessages.length - selectedMessages.length);
+        
+        if (archivedMessages.length > 0) {
+          // 归档到历史日志
+          const archived = await historyLogger.appendToHistory(archivedMessages);
+          if (archived) {
+            logger.info(`归档历史: ${archivedMessages.length} 条消息到历史日志`);
+          }
+        }
+
+        logger.debug(`上下文压缩: ${allMessages.length} 条消息 (${totalTokens} tokens) → ${selectedMessages.length} 条消息`);
+
+        // 运行 Agent
+        result = await agent.run(selectedMessages);
+      } else {
+        // 运行 Agent
+        result = await agent.run(allMessages);
+      }
 
       // 日志输出
       logger.debug(`Agent 结果: content=${result.content ? '有内容' : '无内容'}, error=${result.error || '无错误'}`);
@@ -457,7 +502,7 @@ async function runAgentService(
   const agent = new AgentLoop(provider, toolRegistry, agentConfig);
 
   // 创建消息处理器
-  const messageHandler = createMessageHandler(agent, sessionManager, channels);
+  const messageHandler = createMessageHandler(agent, sessionManager, channels, settings);
 
   // 注册消息处理器到所有 Channel
   for (const channel of channels) {
@@ -475,6 +520,17 @@ async function runAgentService(
   return new Promise((resolve) => {
     const cleanup = async () => {
       logger.info("正在停止服务...");
+
+      // 关闭 MCP 连接
+      try {
+        const { mcpManager } = await import("../../tools/mcp/index.js");
+        await mcpManager.closeAll();
+        logger.info("MCP 连接已关闭");
+      } catch (error) {
+        logger.warn(`关闭 MCP 连接时出错: ${error}`);
+      }
+
+      // 停止 Channel
       await channelManager.stopAll();
       logger.info("Agent 服务已停止");
       resolve();
@@ -556,6 +612,50 @@ export async function startCommand(
       logger.debug(`注册工具: ${tool.name}`);
     }
 
+    // 5.1 异步加载 MCP 工具（不阻塞启动）
+    const loadMCPTools = async () => {
+      try {
+        const mcpConfig = await mcpManager.loadConfig();
+        const serverCount = Object.keys(mcpConfig.mcpServers).length;
+
+        if (serverCount === 0) {
+          logger.info("未配置 MCP 服务器");
+          return;
+        }
+
+        logger.info(`正在连接 ${serverCount} 个 MCP 服务器...`);
+
+        const results = await mcpManager.connectAll((tool, serverName) => {
+          toolRegistry.register(tool);
+          logger.debug(`注册 MCP 工具: ${tool.name} (来自 ${serverName})`);
+        });
+
+        const connected = results.filter((r) => r.status === "connected");
+        const failed = results.filter((r) => r.status === "error");
+        const skipped = results.filter((r) => r.status === "disconnected");
+
+        if (connected.length > 0) {
+          const totalTools = connected.reduce((sum, r) => sum + r.toolCount, 0);
+          logger.info(`MCP: 已连接 ${connected.length} 个服务器，共 ${totalTools} 个工具`);
+        }
+
+        if (skipped.length > 0) {
+          logger.info(`MCP: 跳过 ${skipped.length} 个禁用的服务器`);
+        }
+
+        if (failed.length > 0) {
+          for (const r of failed) {
+            logger.warn(`MCP 服务器 "${r.name}" 连接失败: ${r.error}`);
+          }
+        }
+      } catch (error) {
+        logger.error(`加载 MCP 工具失败: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    };
+
+    // 后台异步加载 MCP，不阻塞启动
+    loadMCPTools();
+
     // 6. 加载技能
     logger.info("加载技能...");
     const skillLoader = new FilesystemSkillLoader();
@@ -586,14 +686,17 @@ export async function startCommand(
     const GLOBAL_SESSION_KEY = "global";
 
     // 读取会话配置
-    const contextWindow = settings.sessions?.contextWindow ?? 20;
+    const contextWindowTokens = settings.sessions?.contextWindowTokens ?? 65535;
+    const compressionTokenThreshold = settings.sessions?.compressionTokenThreshold ?? 0.7;
     const persistEnabled = settings.sessions?.persist ?? true;
 
     // 仅在持久化启用时加载历史
     if (persistEnabled) {
       try {
-        await sessionManager.loadHistory(GLOBAL_SESSION_KEY, contextWindow);
-        logger.info(`已加载历史会话（最近 ${contextWindow} 条）`);
+        await sessionManager.loadHistory(GLOBAL_SESSION_KEY);
+        const session = sessionManager.get(GLOBAL_SESSION_KEY);
+        const messageCount = session?.getState().messageCount ?? 0;
+        logger.info(`已加载历史会话（共 ${messageCount} 条消息）`);
       } catch (error) {
         logger.warn(`加载历史会话失败: ${error}`);
       }

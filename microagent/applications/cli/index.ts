@@ -276,6 +276,52 @@ function showCommandHelp(command: string): void {
 }
 
 // ============================================================================
+// 全局错误处理
+// ============================================================================
+
+/**
+ * 设置全局错误处理器
+ * 防止 SDK 内部错误导致进程崩溃
+ */
+function setupGlobalErrorHandlers(): void {
+  // 捕获未处理的 Promise rejection
+  process.on("unhandledRejection", (reason, _promise) => {
+    const message = reason instanceof Error ? reason.message : String(reason);
+    
+    // 网络错误（如 ECONNREFUSED）只记录日志，不退出进程
+    if (message.includes("ECONNREFUSED") || message.includes("ETIMEDOUT") || message.includes("ENOTFOUND")) {
+      console.error(`[错误] 网络连接失败: ${message}`);
+      return;
+    }
+    
+    // 其他严重错误记录并退出
+    console.error(`[严重错误] 未处理的 Promise rejection: ${message}`);
+    if (reason instanceof Error && reason.stack) {
+      console.error(reason.stack);
+    }
+    process.exit(1);
+  });
+
+  // 捕获未捕获的异常
+  process.on("uncaughtException", (error) => {
+    const message = error.message || String(error);
+    
+    // 网络错误只记录日志，不退出进程
+    if (message.includes("ECONNREFUSED") || message.includes("ETIMEDOUT") || message.includes("ENOTFOUND")) {
+      console.error(`[错误] 网络连接失败: ${message}`);
+      return;
+    }
+    
+    // 其他严重错误记录并退出
+    console.error(`[严重错误] 未捕获的异常: ${message}`);
+    if (error.stack) {
+      console.error(error.stack);
+    }
+    process.exit(1);
+  });
+}
+
+// ============================================================================
 // 主入口
 // ============================================================================
 
@@ -283,6 +329,8 @@ function showCommandHelp(command: string): void {
  * CLI 主入口
  */
 async function main(): Promise<void> {
+  // 设置全局错误处理器
+  setupGlobalErrorHandlers();
   // 获取命令行参数（跳过 node/bun 和脚本路径）
   const args = process.argv.slice(2);
 

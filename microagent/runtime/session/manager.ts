@@ -211,11 +211,10 @@ export class SessionManager {
   /**
    * 加载历史会话到指定 Session
    * @param sessionKey - Session 标识
-   * @param contextWindow - 上下文窗口大小（消息条数），默认 20
    */
-  async loadHistory(sessionKey: string, contextWindow: number = 20): Promise<void> {
+  async loadHistory(sessionKey: string): Promise<void> {
     const session = this.getOrCreate(sessionKey);
-    const entries = await loadRecentSessions(contextWindow);
+    const entries = await loadRecentSessions(0); // 0 表示加载所有消息
 
     for (const entry of entries) {
       session.addMessage(entryToMessage(entry));

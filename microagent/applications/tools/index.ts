@@ -13,6 +13,21 @@ export { ShellTool } from "./shell.js";
 export { WebTool } from "./web.js";
 
 // ============================================================================
+// MCP 工具模块
+// ============================================================================
+
+export {
+  MCPManager,
+  mcpManager,
+  MCPToolWrapper,
+  type MCPConfig,
+  type MCPServerConfig,
+  type MCPServerInfo,
+  type MCPServerStatus,
+  type MCPToolDefinition,
+} from "./mcp/index.js";
+
+// ============================================================================
 // 工具工厂
 // ============================================================================
 

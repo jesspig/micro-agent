@@ -27,6 +27,7 @@ import { createOpenAIResponseProvider } from "../providers/openai-response.js";
 import { createAnthropicProvider } from "../providers/anthropic.js";
 import { createOllamaProvider } from "../providers/ollama.js";
 import { toolFactories } from "../tools/index.js";
+import { mcpManager } from "../tools/mcp/index.js";
 import { FilesystemSkillLoader } from "../skills/index.js";
 import {
   MICRO_AGENT_DIR,
@@ -532,6 +533,56 @@ export class AgentBuilder {
       } else {
         this.logger.warn(`工具工厂不存在: ${name}`);
       }
+    }
+
+    // 加载 MCP 工具
+    await this.loadMCPTools();
+  }
+
+  /**
+   * 加载 MCP 工具
+   */
+  private async loadMCPTools(): Promise<void> {
+    try {
+      // 加载 MCP 配置
+      const config = await mcpManager.loadConfig();
+
+      if (Object.keys(config.mcpServers).length === 0) {
+        this.logger.info("未配置 MCP 服务器");
+        return;
+      }
+
+      this.logger.info(`正在连接 ${Object.keys(config.mcpServers).length} 个 MCP 服务器...`);
+
+      // 连接所有启用的服务器并注册工具
+      const results = await mcpManager.connectAll((tool, serverName) => {
+        this.tools.register(tool);
+        this.logger.debug(`已注册 MCP 工具: ${tool.name} (来自 ${serverName})`);
+      });
+
+      // 汇总结果
+      const connected = results.filter((r) => r.status === "connected");
+      const failed = results.filter((r) => r.status === "error");
+      const skipped = results.filter((r) => r.status === "disconnected");
+
+      if (connected.length > 0) {
+        const totalTools = connected.reduce((sum, r) => sum + r.toolCount, 0);
+        this.logger.info(
+          `MCP: 已连接 ${connected.length} 个服务器，共 ${totalTools} 个工具`
+        );
+      }
+
+      if (skipped.length > 0) {
+        this.logger.info(`MCP: 跳过 ${skipped.length} 个禁用的服务器`);
+      }
+
+      if (failed.length > 0) {
+        for (const r of failed) {
+          this.logger.warn(`MCP 服务器 "${r.name}" 连接失败: ${r.error}`);
+        }
+      }
+    } catch (error) {
+      this.logger.error("加载 MCP 工具失败", error);
     }
   }
 
