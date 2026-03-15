@@ -71,9 +71,59 @@ export async function connectMCPServer(
     inputSchema: tool.inputSchema as MCPToolDefinition["inputSchema"],
   }));
 
-  // 创建关闭函数
+  // 创建关闭函数（确保终止子进程）
   const close = async () => {
     await client.close();
+
+    // 显式终止子进程（修复 SDK 不终止子进程的问题）
+    // StdioClientTransport 有 pid getter 可以获取进程 ID
+    if (transport instanceof StdioClientTransport) {
+      const pid = (transport as StdioClientTransport & { pid: number | null }).pid;
+      if (pid) {
+        // 在 Windows 上使用 taskkill 静默终止进程树
+        if (process.platform === "win32") {
+          try {
+            const { execSync } = await import("node:child_process");
+            // 使用 /F 强制终止，/T 终止进程树
+            execSync(`taskkill /pid ${pid} /T /F`, {
+              stdio: "ignore", // 隐藏输出
+            });
+          } catch {
+            // taskkill 失败时回退到普通 kill
+            process.kill(pid, "SIGKILL");
+          }
+        } else {
+          // Unix 系统使用 SIGTERM 然后 SIGKILL
+          try {
+            process.kill(pid, "SIGTERM");
+            // 给进程 3 秒时间优雅退出
+            await new Promise<void>((resolve) => {
+              const timeout = setTimeout(() => {
+                try {
+                  process.kill(pid, "SIGKILL");
+                } catch {
+                  // 进程可能已经退出
+                }
+                resolve();
+              }, 3000);
+              // 检查进程是否退出
+              const checkInterval = setInterval(() => {
+                try {
+                  process.kill(pid, 0); // 检查进程是否存在
+                } catch {
+                  // 进程已退出
+                  clearTimeout(timeout);
+                  clearInterval(checkInterval);
+                  resolve();
+                }
+              }, 100);
+            });
+          } catch {
+            // 进程可能已经退出
+          }
+        }
+      }
+    }
   };
 
   return { client, tools: mcpTools, close };
@@ -85,7 +135,7 @@ export async function connectMCPServer(
 function createTransport(
   transportType: string | undefined,
   config: MCPServerConfig
-) {
+): StdioClientTransport | SSEClientTransport | StreamableHTTPClientTransport {
   switch (transportType) {
     case "stdio": {
       if (!config.command) {
@@ -102,6 +152,8 @@ function createTransport(
         command: config.command,
         args: config.args ?? [],
         env: config.env ? { ...baseEnv, ...config.env } : baseEnv,
+        // 隐藏子进程的 stderr 输出（避免 Python 进程终止时的堆栈跟踪）
+        stderr: "ignore",
       });
     }
 
