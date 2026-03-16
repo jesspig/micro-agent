@@ -29,6 +29,8 @@
   "license": "MIT",
   "dependencies": {
     "@larksuiteoapi/node-sdk": "^1.59.0",
+    "@logtape/file": "^2.0.4",
+    "@logtape/logtape": "^2.0.4",
     "@modelcontextprotocol/sdk": "^1.12.1",
     "@wecom/aibot-node-sdk": "^1.0.1",
     "dingtalk-stream-sdk-nodejs": "^2.0.4",

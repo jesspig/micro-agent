@@ -1,6 +1,9 @@
 import type { ChatRequest, ChatResponse, StreamCallback, StreamChunk } from "../types.js";
 import type { IProviderExtended } from "./contract.js";
 import type { ProviderCapabilities, ProviderConfig, ProviderStatus } from "./types.js";
+import { providerLogger, createTimer, logMethodCall, logMethodReturn, logMethodError } from "../../applications/shared/logger.js";
+
+const logger = providerLogger();
 
 /**
  * Provider 抽象基类
@@ -43,28 +46,51 @@ export abstract class BaseProvider implements IProviderExtended {
    * @returns 最终响应
    */
   async streamChat(request: ChatRequest, callback: StreamCallback): Promise<ChatResponse> {
-    const response = await this.chat(request);
-    
-    // 一次性返回完整响应
-    const chunk: StreamChunk = {
-      delta: response.text,
-      text: response.text,
-      done: true,
-    };
-    
-    // 仅在有值时添加可选属性
-    if (response.reasoning !== undefined) {
-      chunk.reasoning = response.reasoning;
+    const timer = createTimer();
+    logMethodCall(logger, { method: "streamChat", module: "BaseProvider", params: { model: request.model } });
+
+    try {
+      const response = await this.chat(request);
+      
+      // 一次性返回完整响应
+      const chunk: StreamChunk = {
+        delta: response.text,
+        text: response.text,
+        done: true,
+      };
+      
+      // 仅在有值时添加可选属性
+      if (response.reasoning !== undefined) {
+        chunk.reasoning = response.reasoning;
+      }
+      if (response.toolCalls !== undefined) {
+        chunk.toolCalls = response.toolCalls;
+      }
+      if (response.usage !== undefined) {
+        chunk.usage = response.usage;
+      }
+      
+      await callback(chunk);
+
+      logMethodReturn(logger, { 
+        method: "streamChat", 
+        module: "BaseProvider", 
+        result: { usage: response.usage },
+        duration: timer() 
+      });
+
+      return response;
+    } catch (err) {
+      const error = err as Error;
+      logMethodError(logger, { 
+        method: "streamChat", 
+        module: "BaseProvider", 
+        error: { name: error.name, message: error.message, stack: error.stack },
+        params: { model: request.model },
+        duration: timer() 
+      });
+      throw err;
     }
-    if (response.toolCalls !== undefined) {
-      chunk.toolCalls = response.toolCalls;
-    }
-    if (response.usage !== undefined) {
-      chunk.usage = response.usage;
-    }
-    
-    await callback(chunk);
-    return response;
   }
 
   /**
@@ -78,6 +104,9 @@ export abstract class BaseProvider implements IProviderExtended {
    * @returns 状态信息
    */
   getStatus(): ProviderStatus {
+    const timer = createTimer();
+    logMethodCall(logger, { method: "getStatus", module: "BaseProvider" });
+
     const status: ProviderStatus = {
       name: this.name,
       available: true,
@@ -87,6 +116,14 @@ export abstract class BaseProvider implements IProviderExtended {
     if (this.lastUsed !== undefined) {
       status.lastUsed = this.lastUsed;
     }
+
+    logMethodReturn(logger, { 
+      method: "getStatus", 
+      module: "BaseProvider", 
+      result: { name: status.name, available: status.available, errorCount: status.errorCount },
+      duration: timer() 
+    });
+
     return status;
   }
 
@@ -96,6 +133,9 @@ export abstract class BaseProvider implements IProviderExtended {
    * @returns 连接是否成功
    */
   async testConnection(): Promise<boolean> {
+    const timer = createTimer();
+    logMethodCall(logger, { method: "testConnection", module: "BaseProvider" });
+
     try {
       const models = this.getSupportedModels();
       const defaultModel = models[0] ?? "default";
@@ -104,8 +144,28 @@ export abstract class BaseProvider implements IProviderExtended {
         messages: [{ role: "user", content: "test" }],
         maxTokens: 1,
       });
+
+      logger.info("连接测试成功", { provider: this.name, model: defaultModel });
+
+      logMethodReturn(logger, { 
+        method: "testConnection", 
+        module: "BaseProvider", 
+        result: true,
+        duration: timer() 
+      });
+
       return true;
-    } catch {
+    } catch (err) {
+      const error = err as Error;
+      logger.warn("连接测试失败", { provider: this.name, error: error.message });
+
+      logMethodReturn(logger, { 
+        method: "testConnection", 
+        module: "BaseProvider", 
+        result: false,
+        duration: timer() 
+      });
+
       return false;
     }
   }
@@ -115,6 +175,7 @@ export abstract class BaseProvider implements IProviderExtended {
    */
   protected recordUsage(): void {
     this.lastUsed = Date.now();
+    logger.debug("记录使用时间", { provider: this.name, lastUsed: this.lastUsed });
   }
 
   /**
@@ -122,5 +183,6 @@ export abstract class BaseProvider implements IProviderExtended {
    */
   protected recordError(): void {
     this.errorCount++;
+    logger.warn("记录错误", { provider: this.name, errorCount: this.errorCount });
   }
 }

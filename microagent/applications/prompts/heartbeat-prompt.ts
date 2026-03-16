@@ -4,6 +4,10 @@
  * 用于判断是否执行定时任务
  */
 
+import { promptsLogger, createTimer, sanitize, logMethodCall, logMethodReturn, logMethodError } from "../shared/logger.js";
+
+const logger = promptsLogger();
+
 // ============================================================================
 // 类型定义
 // ============================================================================
@@ -136,18 +140,34 @@ export const HEARTBEAT_RESULT_TEMPLATE = `心跳任务执行完成。
 export function buildHeartbeatDecisionPrompt(
   params: HeartbeatDecisionParams,
 ): { system: string; user: string } {
-  let userPrompt = HEARTBEAT_USER_TEMPLATE
-    .replace("{{heartbeatContent}}", params.heartbeatContent)
-    .replace("{{currentTime}}", params.currentTime || getCurrentTimeString());
+  const timer = createTimer();
+  logMethodCall(logger, { method: "buildHeartbeatDecisionPrompt", module: "heartbeat-prompt", params: { 
+    heartbeatContentLength: params.heartbeatContent.length,
+    hasCurrentState: !!params.currentState,
+    currentTime: params.currentTime
+  } });
 
-  // 添加当前状态部分
-  const stateSection = buildCurrentStateSection(params.currentState);
-  userPrompt = userPrompt.replace("{{currentStateSection}}", stateSection);
+  try {
+    let userPrompt = HEARTBEAT_USER_TEMPLATE
+      .replace("{{heartbeatContent}}", params.heartbeatContent)
+      .replace("{{currentTime}}", params.currentTime || getCurrentTimeString());
 
-  return {
-    system: HEARTBEAT_SYSTEM_PROMPT,
-    user: userPrompt,
-  };
+    // 添加当前状态部分
+    const stateSection = buildCurrentStateSection(params.currentState);
+    userPrompt = userPrompt.replace("{{currentStateSection}}", stateSection);
+
+    const result = {
+      system: HEARTBEAT_SYSTEM_PROMPT,
+      user: userPrompt,
+    };
+
+    logMethodReturn(logger, { method: "buildHeartbeatDecisionPrompt", module: "heartbeat-prompt", result: { systemLength: result.system.length, userLength: result.user.length }, duration: timer() });
+    return result;
+  } catch (err) {
+    const error = err as Error;
+    logMethodError(logger, { method: "buildHeartbeatDecisionPrompt", module: "heartbeat-prompt", error: { name: error.name, message: error.message, ...(error.stack ? { stack: error.stack } : {}) }, params: {}, duration: timer() });
+    throw error;
+  }
 }
 
 /**
@@ -161,17 +181,32 @@ export function buildHeartbeatResultPrompt(
   executionTime: string,
   results: Array<{ task: string; status: string; message?: string }>,
 ): string {
-  const resultsText = results
-    .map((r) => {
-      const statusIcon = r.status === "success" ? "✓" : "✗";
-      const messageText = r.message ? `: ${r.message}` : "";
-      return `- ${statusIcon} **${r.task}**${messageText}`;
-    })
-    .join("\n");
+  const timer = createTimer();
+  logMethodCall(logger, { method: "buildHeartbeatResultPrompt", module: "heartbeat-prompt", params: { 
+    executionTime,
+    resultCount: results.length
+  } });
 
-  return HEARTBEAT_RESULT_TEMPLATE
-    .replace("{{executionTime}}", executionTime)
-    .replace("{{results}}", resultsText);
+  try {
+    const resultsText = results
+      .map((r) => {
+        const statusIcon = r.status === "success" ? "✓" : "✗";
+        const messageText = r.message ? `: ${r.message}` : "";
+        return `- ${statusIcon} **${r.task}**${messageText}`;
+      })
+      .join("\n");
+
+    const result = HEARTBEAT_RESULT_TEMPLATE
+      .replace("{{executionTime}}", executionTime)
+      .replace("{{results}}", resultsText);
+
+    logMethodReturn(logger, { method: "buildHeartbeatResultPrompt", module: "heartbeat-prompt", result: { length: result.length }, duration: timer() });
+    return result;
+  } catch (err) {
+    const error = err as Error;
+    logMethodError(logger, { method: "buildHeartbeatResultPrompt", module: "heartbeat-prompt", error: { name: error.name, message: error.message, ...(error.stack ? { stack: error.stack } : {}) }, params: {}, duration: timer() });
+    throw error;
+  }
 }
 
 /**
@@ -183,10 +218,24 @@ export function buildHeartbeatResultPrompt(
 export function buildSimpleHeartbeatPrompt(
   heartbeatContent: string,
 ): { system: string; user: string } {
-  return {
-    system: HEARTBEAT_SYSTEM_PROMPT,
-    user: `当前时间：${getCurrentTimeString()}\n\n心跳任务配置：\n${heartbeatContent}\n\n请判断是否需要执行任务。`,
-  };
+  const timer = createTimer();
+  logMethodCall(logger, { method: "buildSimpleHeartbeatPrompt", module: "heartbeat-prompt", params: { 
+    heartbeatContentLength: heartbeatContent.length
+  } });
+
+  try {
+    const result = {
+      system: HEARTBEAT_SYSTEM_PROMPT,
+      user: `当前时间：${getCurrentTimeString()}\n\n心跳任务配置：\n${heartbeatContent}\n\n请判断是否需要执行任务。`,
+    };
+
+    logMethodReturn(logger, { method: "buildSimpleHeartbeatPrompt", module: "heartbeat-prompt", result: { systemLength: result.system.length, userLength: result.user.length }, duration: timer() });
+    return result;
+  } catch (err) {
+    const error = err as Error;
+    logMethodError(logger, { method: "buildSimpleHeartbeatPrompt", module: "heartbeat-prompt", error: { name: error.name, message: error.message, ...(error.stack ? { stack: error.stack } : {}) }, params: {}, duration: timer() });
+    throw error;
+  }
 }
 
 // ============================================================================
@@ -254,26 +303,35 @@ function getCurrentTimeString(): string {
 export function parseHeartbeatDecision(
   response: string,
 ): HeartbeatDecisionResult | null {
+  const timer = createTimer();
+  logMethodCall(logger, { method: "parseHeartbeatDecision", module: "heartbeat-prompt", params: { responseLength: response.length } });
+
   try {
     // 尝试提取 JSON 块
     const jsonMatch = response.match(/```json\s*([\s\S]*?)\s*```/);
     if (jsonMatch && jsonMatch[1]) {
       const parsed = JSON.parse(jsonMatch[1]);
-      return {
+      const result = {
         shouldExecute: parsed.shouldExecute ?? false,
         tasks: extractTaskNames(parsed.tasks),
         reason: parsed.reason ?? "",
       };
+      logMethodReturn(logger, { method: "parseHeartbeatDecision", module: "heartbeat-prompt", result: sanitize(result), duration: timer() });
+      return result;
     }
 
     // 尝试直接解析
     const parsed = JSON.parse(response);
-    return {
+    const result = {
       shouldExecute: parsed.shouldExecute ?? false,
       tasks: extractTaskNames(parsed.tasks),
       reason: parsed.reason ?? "",
     };
-  } catch {
+    logMethodReturn(logger, { method: "parseHeartbeatDecision", module: "heartbeat-prompt", result: sanitize(result), duration: timer() });
+    return result;
+  } catch (err) {
+    // 解析失败返回 null（这是正常情况，不需要记录错误日志）
+    logMethodReturn(logger, { method: "parseHeartbeatDecision", module: "heartbeat-prompt", result: null, duration: timer() });
     return null;
   }
 }

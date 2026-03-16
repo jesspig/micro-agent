@@ -5,15 +5,50 @@
  */
 
 // ============================================================================
-// 日志工具
+// 日志工具 (LogTape)
 // ============================================================================
 
+// 日志配置
 export {
-  Logger,
-  getLogger,
-  resetLogger,
-  type LogLevel,
-  type LoggerConfig,
+  initLogger,
+  getModuleLogger,
+  isLoggerInitialized,
+  getDefaultLevel,
+  kernelLogger,
+  providerLogger,
+  toolLogger,
+  sessionLogger,
+  busLogger,
+  channelLogger,
+  memoryLogger,
+  skillLogger,
+  builderLogger,
+  configLogger,
+  cliLogger,
+  providersLogger,
+  channelsLogger,
+  toolsLogger,
+  mcpLogger,
+  skillsLogger,
+  promptsLogger,
+  sharedLogger,
+} from "./logger";
+
+// 日志辅助函数
+export {
+  logMethodCall,
+  logMethodReturn,
+  logMethodError,
+  createTimer,
+  sanitize,
+} from "./logger";
+
+// 日志类型
+export type {
+  LoggerConfig,
+  MethodCallLogData,
+  MethodReturnLogData,
+  MethodErrorLogData,
 } from "./logger";
 
 // ============================================================================
@@ -87,8 +122,14 @@ export {
   DEFAULT_TIMEOUT_MS,
   DEFAULT_TEMPERATURE,
   DEFAULT_MAX_TOKENS,
-  MAX_LOG_FILE_SIZE,
+  DEFAULT_LOG_MAX_FILE_SIZE_MB,
+  MIN_LOG_FILE_SIZE_MB,
+  MAX_LOG_FILE_SIZE_MB,
+  DEFAULT_LOG_GRANULARITY,
+  MIN_LOG_GRANULARITY_MINUTES,
+  MAX_LOG_GRANULARITY_MINUTES,
   LOG_RETENTION_DAYS,
+  DEFAULT_LOG_SANITIZE,
 } from "./constants";
 
 // Agent 执行参数

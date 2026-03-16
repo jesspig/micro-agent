@@ -4,6 +4,10 @@
  * 导出所有工具实现和工厂函数
  */
 
+import { toolsLogger, createTimer, logMethodCall, logMethodReturn, logMethodError, sanitize } from "../shared/logger.js";
+
+const logger = toolsLogger();
+
 // ============================================================================
 // 工具实现
 // ============================================================================
@@ -52,9 +56,21 @@ export const toolFactories: Record<string, ToolFactory> = {
  * @returns 工具实例数组
  */
 export function getAllTools() {
-  return Object.values(toolFactories)
-    .map((factory) => factory())
-    .filter((tool): tool is NonNullable<typeof tool> => tool !== null);
+  const timer = createTimer();
+  logMethodCall(logger, { method: "getAllTools", module: "tools" });
+
+  try {
+    const tools = Object.values(toolFactories)
+      .map((factory) => factory())
+      .filter((tool): tool is NonNullable<typeof tool> => tool !== null);
+
+    logMethodReturn(logger, { method: "getAllTools", module: "tools", result: sanitize({ count: tools.length }), duration: timer() });
+    return tools;
+  } catch (error) {
+    const err = error instanceof Error ? error : new Error(String(error));
+    logMethodError(logger, { method: "getAllTools", module: "tools", error: { name: err.name, message: err.message, ...(err.stack ? { stack: err.stack } : {}) }, duration: timer() });
+    throw err;
+  }
 }
 
 /**
@@ -63,8 +79,20 @@ export function getAllTools() {
  * @returns 工具实例或 null
  */
 export function getTool(name: string) {
-  const factory = toolFactories[name];
-  return factory ? factory() : null;
+  const timer = createTimer();
+  logMethodCall(logger, { method: "getTool", module: "tools", params: { name } });
+
+  try {
+    const factory = toolFactories[name];
+    const tool = factory ? factory() : null;
+
+    logMethodReturn(logger, { method: "getTool", module: "tools", result: sanitize({ found: !!tool, name }), duration: timer() });
+    return tool;
+  } catch (error) {
+    const err = error instanceof Error ? error : new Error(String(error));
+    logMethodError(logger, { method: "getTool", module: "tools", error: { name: err.name, message: err.message, ...(err.stack ? { stack: err.stack } : {}) }, params: { name }, duration: timer() });
+    throw err;
+  }
 }
 
 /**
@@ -72,5 +100,17 @@ export function getTool(name: string) {
  * @returns 工具定义数组
  */
 export function getAllToolDefinitions() {
-  return getAllTools().map((tool) => tool.getDefinition());
+  const timer = createTimer();
+  logMethodCall(logger, { method: "getAllToolDefinitions", module: "tools" });
+
+  try {
+    const definitions = getAllTools().map((tool) => tool.getDefinition());
+
+    logMethodReturn(logger, { method: "getAllToolDefinitions", module: "tools", result: sanitize({ count: definitions.length }), duration: timer() });
+    return definitions;
+  } catch (error) {
+    const err = error instanceof Error ? error : new Error(String(error));
+    logMethodError(logger, { method: "getAllToolDefinitions", module: "tools", error: { name: err.name, message: err.message, ...(err.stack ? { stack: err.stack } : {}) }, duration: timer() });
+    throw err;
+  }
 }

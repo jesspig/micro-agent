@@ -7,6 +7,9 @@
  */
 
 import type { Message } from "../../runtime/types.js";
+import { sharedLogger, createTimer, logMethodCall, logMethodReturn, logMethodError } from "./logger.js";
+
+const logger = sharedLogger();
 
 // ============================================================================
 // Token 估算函数
@@ -23,19 +26,33 @@ import type { Message } from "../../runtime/types.js";
  * @returns 估算的 token 数量
  */
 export function estimateStringTokens(text: string): number {
-  if (!text || text.length === 0) {
-    return 0;
+  const timer = createTimer();
+  logMethodCall(logger, { method: "estimateStringTokens", module: "token-estimator", params: { textLength: text?.length } });
+
+  try {
+    let result: number;
+
+    if (!text || text.length === 0) {
+      result = 0;
+    } else {
+      // 统计中文字符
+      const chineseChars = (text.match(/[\u4e00-\u9fff]/g) || []).length;
+      const otherChars = text.length - chineseChars;
+
+      // 估算 token 数量
+      const chineseTokens = Math.ceil(chineseChars / 1.5);
+      const otherTokens = Math.ceil(otherChars / 4);
+
+      result = chineseTokens + otherTokens;
+    }
+
+    logMethodReturn(logger, { method: "estimateStringTokens", module: "token-estimator", result, duration: timer() });
+    return result;
+  } catch (err) {
+    const error = err as Error;
+    logMethodError(logger, { method: "estimateStringTokens", module: "token-estimator", error: { name: error.name, message: error.message, ...(error.stack ? { stack: error.stack } : {}) }, params: { textLength: text?.length }, duration: timer() });
+    throw error;
   }
-
-  // 统计中文字符
-  const chineseChars = (text.match(/[\u4e00-\u9fff]/g) || []).length;
-  const otherChars = text.length - chineseChars;
-
-  // 估算 token 数量
-  const chineseTokens = Math.ceil(chineseChars / 1.5);
-  const otherTokens = Math.ceil(otherChars / 4);
-
-  return chineseTokens + otherTokens;
 }
 
 /**
@@ -45,41 +62,39 @@ export function estimateStringTokens(text: string): number {
  * @returns 估算的 token 数量
  */
 export function estimateMessageTokens(message: Message): number {
-  let totalTokens = 0;
+  const timer = createTimer();
+  logMethodCall(logger, { method: "estimateMessageTokens", module: "token-estimator", params: { role: message.role, hasContent: !!message.content } });
 
-  // 估算 content 的 token 数量
-  const content = message.content;
-  if (typeof content === "string") {
-    totalTokens += estimateStringTokens(content);
-  } else if (Array.isArray(content)) {
-    // 处理多模态内容（文本 + 图片等）
-    for (const part of content) {
-      if (typeof part === "string") {
-        totalTokens += estimateStringTokens(part);
-      } else if (part.type === "text" && typeof part.text === "string") {
-        totalTokens += estimateStringTokens(part.text);
-      } else if (part.type === "image_url") {
-        // 图片内容固定估算 85 tokens（根据 GPT-4 Vision 的经验值）
-        totalTokens += 85;
-      }
+  try {
+    let totalTokens = 0;
+
+    // 估算 content 的 token 数量
+    if (typeof message.content === "string") {
+      totalTokens += estimateStringTokens(message.content);
     }
-  }
 
-  // 估算其他字段的 token 数量
-  if (message.name && typeof message.name === "string") {
-    totalTokens += estimateStringTokens(message.name);
-  }
+    // 估算其他字段的 token 数量
+    if (message.name && typeof message.name === "string") {
+      totalTokens += estimateStringTokens(message.name);
+    }
 
-  if (message.tool_calls) {
-    // 工具调用固定估算 15 tokens/tool
-    totalTokens += message.tool_calls.length * 15;
-  }
+    if (message.toolCalls) {
+      // 工具调用固定估算 15 tokens/tool
+      totalTokens += message.toolCalls.length * 15;
+    }
 
-  if (message.tool_call_id && typeof message.tool_call_id === "string") {
-    totalTokens += estimateStringTokens(message.tool_call_id);
-  }
+    if (message.toolCallId && typeof message.toolCallId === "string") {
+      totalTokens += estimateStringTokens(message.toolCallId);
+    }
 
-  return Math.max(1, totalTokens);
+    const result = Math.max(1, totalTokens);
+    logMethodReturn(logger, { method: "estimateMessageTokens", module: "token-estimator", result, duration: timer() });
+    return result;
+  } catch (err) {
+    const error = err as Error;
+    logMethodError(logger, { method: "estimateMessageTokens", module: "token-estimator", error: { name: error.name, message: error.message, ...(error.stack ? { stack: error.stack } : {}) }, params: { role: message.role }, duration: timer() });
+    throw error;
+  }
 }
 
 /**
@@ -89,9 +104,21 @@ export function estimateMessageTokens(message: Message): number {
  * @returns 估算的总 token 数量
  */
 export function estimateMessagesTokens(messages: Message[]): number {
-  return messages.reduce((total, message) => {
-    return total + estimateMessageTokens(message);
-  }, 0);
+  const timer = createTimer();
+  logMethodCall(logger, { method: "estimateMessagesTokens", module: "token-estimator", params: { messageCount: messages.length } });
+
+  try {
+    const result = messages.reduce((total, message) => {
+      return total + estimateMessageTokens(message);
+    }, 0);
+
+    logMethodReturn(logger, { method: "estimateMessagesTokens", module: "token-estimator", result, duration: timer() });
+    return result;
+  } catch (err) {
+    const error = err as Error;
+    logMethodError(logger, { method: "estimateMessagesTokens", module: "token-estimator", error: { name: error.name, message: error.message, ...(error.stack ? { stack: error.stack } : {}) }, params: { messageCount: messages.length }, duration: timer() });
+    throw error;
+  }
 }
 
 /**
@@ -108,46 +135,60 @@ export function selectMessagesByTokens(
   messages: Message[],
   maxTokens: number,
 ): Message[] {
-  if (messages.length === 0) {
-    return [];
-  }
+  const timer = createTimer();
+  logMethodCall(logger, { method: "selectMessagesByTokens", module: "token-estimator", params: { messageCount: messages.length, maxTokens } });
 
-  // 从末尾开始选择消息
-  const selected: Message[] = [];
-  let currentTokens = 0;
+  try {
+    if (messages.length === 0) {
+      logMethodReturn(logger, { method: "selectMessagesByTokens", module: "token-estimator", result: { selectedCount: 0 }, duration: timer() });
+      return [];
+    }
 
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const message = messages[i];
-    const messageTokens = estimateMessageTokens(message);
+    // 从末尾开始选择消息
+    const selected: Message[] = [];
+    let currentTokens = 0;
 
-    // 检查添加此消息是否会超过限制
-    if (currentTokens + messageTokens > maxTokens) {
-      // 如果超过限制，检查是否是用户消息
-      if (message.role === "user" && selected.length > 0) {
-        // 如果是用户消息且已选择了一些消息，则强制包含此用户消息
-        // 然后丢弃之前选择的消息（它们会孤立）
-        selected.length = 0;
-        currentTokens = 0;
-        selected.unshift(message);
-        currentTokens += messageTokens;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const message = messages[i]!;
+      const messageTokens = estimateMessageTokens(message);
+
+      // 检查添加此消息是否会超过限制
+      if (currentTokens + messageTokens > maxTokens) {
+        // 如果超过限制，检查是否是用户消息
+        if (message.role === "user" && selected.length > 0) {
+          // 如果是用户消息且已选择了一些消息，则强制包含此用户消息
+          // 然后丢弃之前选择的消息（它们会孤立）
+          selected.length = 0;
+          currentTokens = 0;
+          selected.unshift(message);
+          currentTokens += messageTokens;
+        }
+        break;
       }
-      break;
+
+      // 添加消息
+      selected.unshift(message);
+      currentTokens += messageTokens;
     }
 
-    // 添加消息
-    selected.unshift(message);
-    currentTokens += messageTokens;
-  }
-
-  // 确保从用户消息开始
-  for (let i = 0; i < selected.length; i++) {
-    if (selected[i].role === "user") {
-      return selected.slice(i);
+    // 确保从用户消息开始
+    for (let i = 0; i < selected.length; i++) {
+      const msg = selected[i]!;
+      if (msg.role === "user") {
+        const result = selected.slice(i);
+        logMethodReturn(logger, { method: "selectMessagesByTokens", module: "token-estimator", result: { selectedCount: result.length, totalTokens: currentTokens }, duration: timer() });
+        return result;
+      }
     }
-  }
 
-  // 如果没有用户消息，返回空列表
-  return [];
+    // 如果没有用户消息，返回空列表
+    logMethodReturn(logger, { method: "selectMessagesByTokens", module: "token-estimator", result: { selectedCount: 0, reason: "no_user_message" }, duration: timer() });
+    return [];
+  } catch (err) {
+    const error = err as Error;
+    logMethodError(logger, { method: "selectMessagesByTokens", module: "token-estimator", error: { name: error.name, message: error.message, ...(error.stack ? { stack: error.stack } : {}) }, params: { messageCount: messages.length, maxTokens }, duration: timer() });
+    throw error;
+  }
 }
 
 /**
@@ -163,10 +204,21 @@ export function shouldCompressContext(
   contextWindowTokens: number,
   compressionThreshold: number,
 ): boolean {
-  const totalTokens = estimateMessagesTokens(messages);
-  const threshold = contextWindowTokens * compressionThreshold;
+  const timer = createTimer();
+  logMethodCall(logger, { method: "shouldCompressContext", module: "token-estimator", params: { messageCount: messages.length, contextWindowTokens, compressionThreshold } });
 
-  return totalTokens >= threshold;
+  try {
+    const totalTokens = estimateMessagesTokens(messages);
+    const threshold = contextWindowTokens * compressionThreshold;
+
+    const result = totalTokens >= threshold;
+    logMethodReturn(logger, { method: "shouldCompressContext", module: "token-estimator", result: { shouldCompress: result, totalTokens, threshold }, duration: timer() });
+    return result;
+  } catch (err) {
+    const error = err as Error;
+    logMethodError(logger, { method: "shouldCompressContext", module: "token-estimator", error: { name: error.name, message: error.message, ...(error.stack ? { stack: error.stack } : {}) }, params: { messageCount: messages.length, contextWindowTokens, compressionThreshold }, duration: timer() });
+    throw error;
+  }
 }
 
 /**
@@ -182,12 +234,25 @@ export function calculateTokensToRemove(
   contextWindowTokens: number,
   compressionThreshold: number,
 ): number {
-  const totalTokens = estimateMessagesTokens(messages);
-  const targetTokens = contextWindowTokens * compressionThreshold;
+  const timer = createTimer();
+  logMethodCall(logger, { method: "calculateTokensToRemove", module: "token-estimator", params: { messageCount: messages.length, contextWindowTokens, compressionThreshold } });
 
-  if (totalTokens <= targetTokens) {
-    return 0;
+  try {
+    const totalTokens = estimateMessagesTokens(messages);
+    const targetTokens = contextWindowTokens * compressionThreshold;
+
+    let result: number;
+    if (totalTokens <= targetTokens) {
+      result = 0;
+    } else {
+      result = totalTokens - targetTokens;
+    }
+
+    logMethodReturn(logger, { method: "calculateTokensToRemove", module: "token-estimator", result, duration: timer() });
+    return result;
+  } catch (err) {
+    const error = err as Error;
+    logMethodError(logger, { method: "calculateTokensToRemove", module: "token-estimator", error: { name: error.name, message: error.message, ...(error.stack ? { stack: error.stack } : {}) }, params: { messageCount: messages.length, contextWindowTokens, compressionThreshold }, duration: timer() });
+    throw error;
   }
-
-  return totalTokens - targetTokens;
 }

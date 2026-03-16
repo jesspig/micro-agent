@@ -12,7 +12,17 @@ import { MCPToolWrapper } from "./wrapper.js";
 import type { MCPConfig, MCPServerConfig, MCPServerInfo } from "./types.js";
 import { resolveEnvVars } from "../../config/env-resolver.js";
 import { AGENT_DIR } from "../../shared/constants.js";
-import { getLogger } from "../../shared/logger.js";
+import {
+  mcpLogger,
+  createTimer,
+  sanitize,
+  logMethodCall,
+  logMethodReturn,
+  logMethodError,
+} from "../../shared/logger.js";
+
+const logger = mcpLogger();
+const MODULE_NAME = "MCPManager";
 
 // ============================================================================
 // MCP 服务器管理器
@@ -24,7 +34,6 @@ import { getLogger } from "../../shared/logger.js";
  * 管理 MCP 服务器的生命周期和工具注册
  */
 export class MCPManager {
-  private readonly logger = getLogger();
   private connections = new Map<string, MCPConnectionResult>();
   private tools = new Map<string, MCPToolWrapper>();
   private serverInfo = new Map<string, MCPServerInfo>();
@@ -34,21 +43,50 @@ export class MCPManager {
    * 加载 MCP 配置
    */
   async loadConfig(configPath?: string): Promise<MCPConfig> {
+    const timer = createTimer();
+    logMethodCall(logger, {
+      method: "loadConfig",
+      module: MODULE_NAME,
+      params: { configPath },
+    });
+
     const path = configPath || join(AGENT_DIR, "mcp.json");
 
     try {
-      this.logger.debug(`加载 MCP 配置: ${path}`);
       const content = await readFile(path, "utf-8");
       const rawConfig = JSON.parse(content);
 
       // 解析环境变量
       this.config = this.resolveEnvInConfig(rawConfig);
-      this.logger.info(`MCP 配置已加载: ${Object.keys(this.config.mcpServers).length} 个服务器`);
+
+      const serverCount = Object.keys(this.config.mcpServers).length;
+      logger.info("MCP配置加载成功", { path, serverCount });
+
+      logMethodReturn(logger, {
+        method: "loadConfig",
+        module: MODULE_NAME,
+        result: sanitize({ serverCount }),
+        duration: timer(),
+      });
+
       return this.config;
     } catch (error) {
       // 配置文件不存在或解析失败，返回空配置
-      this.logger.warn(`MCP 配置加载失败: ${path}`, { error: error instanceof Error ? error.message : String(error) });
       this.config = { mcpServers: {} };
+
+      const err = error as Error;
+      logger.warn("MCP配置加载失败，使用空配置", {
+        path,
+        error: err.message,
+      });
+
+      logMethodReturn(logger, {
+        method: "loadConfig",
+        module: MODULE_NAME,
+        result: sanitize({ serverCount: 0, fallback: true }),
+        duration: timer(),
+      });
+
       return this.config;
     }
   }
@@ -59,16 +97,27 @@ export class MCPManager {
   async connectAll(
     onRegister?: (tool: ITool, serverName: string) => void
   ): Promise<MCPServerInfo[]> {
+    const timer = createTimer();
+    logMethodCall(logger, {
+      method: "connectAll",
+      module: MODULE_NAME,
+      params: {},
+    });
+
     if (!this.config) {
       await this.loadConfig();
     }
 
     const results: MCPServerInfo[] = [];
+    const serverEntries = Object.entries(this.config!.mcpServers);
 
-    for (const [name, serverConfig] of Object.entries(
-      this.config!.mcpServers
-    )) {
+    logger.info("开始连接所有MCP服务器", {
+      serverCount: serverEntries.length,
+    });
+
+    for (const [name, serverConfig] of serverEntries) {
       if (serverConfig.disabled) {
+        logger.info("跳过已禁用的MCP服务器", { serverName: name });
         this.serverInfo.set(name, {
           name,
           status: "disconnected",
@@ -82,6 +131,22 @@ export class MCPManager {
       results.push(info);
     }
 
+    const connectedCount = results.filter((r) => r.status === "connected").length;
+    const errorCount = results.filter((r) => r.status === "error").length;
+
+    logger.info("MCP服务器连接完成", {
+      total: results.length,
+      connected: connectedCount,
+      errors: errorCount,
+    });
+
+    logMethodReturn(logger, {
+      method: "connectAll",
+      module: MODULE_NAME,
+      result: sanitize({ total: results.length, connected: connectedCount, errors: errorCount }),
+      duration: timer(),
+    });
+
     return results;
   }
 
@@ -93,9 +158,18 @@ export class MCPManager {
     config: MCPServerConfig,
     onRegister?: (tool: ITool, serverName: string) => void
   ): Promise<MCPServerInfo> {
+    const timer = createTimer();
+    logMethodCall(logger, {
+      method: "connectServer",
+      module: MODULE_NAME,
+      params: { serverName: name },
+    });
+
     this.serverInfo.set(name, { name, status: "connecting", toolCount: 0 });
 
     try {
+      logger.info("正在连接MCP服务器", { serverName: name });
+
       // 连接服务器
       const connection = await connectMCPServer(name, config);
 
@@ -123,23 +197,41 @@ export class MCPManager {
       };
       this.serverInfo.set(name, info);
 
-      this.logger.info(
-        `MCP 服务器 '${name}' 已连接，注册 ${connection.tools.length} 个工具`
-      );
+      logger.info("MCP服务器连接成功", {
+        serverName: name,
+        toolCount: connection.tools.length,
+      });
+
+      logMethodReturn(logger, {
+        method: "connectServer",
+        module: MODULE_NAME,
+        result: sanitize(info),
+        duration: timer(),
+      });
 
       return info;
     } catch (error) {
+      const err = error as Error;
       const info: MCPServerInfo = {
         name,
         status: "error",
         toolCount: 0,
-        error: error instanceof Error ? error.message : String(error),
+        error: err.message,
       };
       this.serverInfo.set(name, info);
 
-      this.logger.error(
-        `MCP 服务器 '${name}' 连接失败: ${error instanceof Error ? error.message : String(error)}`
-      );
+      logger.error("MCP服务器连接失败", {
+        serverName: name,
+        error: err.message,
+      });
+
+      logMethodError(logger, {
+        method: "connectServer",
+        module: MODULE_NAME,
+        error: { name: err.name, message: err.message, stack: err.stack },
+        params: { serverName: name },
+        duration: timer(),
+      });
 
       return info;
     }
@@ -149,34 +241,81 @@ export class MCPManager {
    * 获取所有 MCP 工具
    */
   getTools(): ITool[] {
-    return Array.from(this.tools.values());
+    const timer = createTimer();
+    logMethodCall(logger, {
+      method: "getTools",
+      module: MODULE_NAME,
+      params: {},
+    });
+
+    const tools = Array.from(this.tools.values());
+
+    logMethodReturn(logger, {
+      method: "getTools",
+      module: MODULE_NAME,
+      result: sanitize({ toolCount: tools.length }),
+      duration: timer(),
+    });
+
+    return tools;
   }
 
   /**
    * 获取服务器状态列表
    */
   getServerInfo(): MCPServerInfo[] {
-    return Array.from(this.serverInfo.values());
+    const timer = createTimer();
+    logMethodCall(logger, {
+      method: "getServerInfo",
+      module: MODULE_NAME,
+      params: {},
+    });
+
+    const info = Array.from(this.serverInfo.values());
+
+    logMethodReturn(logger, {
+      method: "getServerInfo",
+      module: MODULE_NAME,
+      result: sanitize({ serverCount: info.length }),
+      duration: timer(),
+    });
+
+    return info;
   }
 
   /**
    * 关闭所有连接
    */
   async closeAll(): Promise<void> {
-    for (const [name, connection] of this.connections) {
+    const timer = createTimer();
+    logMethodCall(logger, {
+      method: "closeAll",
+      module: MODULE_NAME,
+      params: {},
+    });
+
+    const connectionCount = this.connections.size;
+
+    for (const [_name, connection] of this.connections) {
       try {
         await connection.close();
-        this.logger.debug(`MCP 服务器 '${name}' 已断开`);
-      } catch (error) {
-        this.logger.error(
-          `MCP 服务器 '${name}' 断开失败: ${error instanceof Error ? error.message : String(error)}`
-        );
+      } catch {
+        // 忽略关闭错误
       }
     }
 
     this.connections.clear();
     this.tools.clear();
     this.serverInfo.clear();
+
+    logger.info("所有MCP连接已关闭", { closedCount: connectionCount });
+
+    logMethodReturn(logger, {
+      method: "closeAll",
+      module: MODULE_NAME,
+      result: sanitize({ closedCount: connectionCount }),
+      duration: timer(),
+    });
   }
 
   // ============================================================================
@@ -187,6 +326,13 @@ export class MCPManager {
    * 解析配置中的环境变量
    */
   private resolveEnvInConfig(config: MCPConfig): MCPConfig {
+    const timer = createTimer();
+    logMethodCall(logger, {
+      method: "resolveEnvInConfig",
+      module: MODULE_NAME,
+      params: {},
+    });
+
     const resolved: MCPConfig = {
       mcpServers: {},
     };
@@ -213,6 +359,13 @@ export class MCPManager {
       };
       resolved.mcpServers[name] = resolvedConfig;
     }
+
+    logMethodReturn(logger, {
+      method: "resolveEnvInConfig",
+      module: MODULE_NAME,
+      result: sanitize({ serverCount: Object.keys(resolved.mcpServers).length }),
+      duration: timer(),
+    });
 
     return resolved;
   }

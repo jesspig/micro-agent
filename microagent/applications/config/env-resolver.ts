@@ -6,6 +6,9 @@
 
 import { ENV_VAR_PATTERN } from "../shared/constants.js";
 
+const MODULE_NAME = "EnvResolver";
+import { configLogger, createTimer, logMethodCall, logMethodReturn } from "../shared/logger.js";
+
 // ============================================================================
 // 类型定义
 // ============================================================================
@@ -38,12 +41,21 @@ interface EnvVarMatch {
  * @returns 解析后的文本
  */
 export function resolveEnvVars(text: string): string {
-  return text.replace(ENV_VAR_PATTERN, (match: string): string => {
+  const timer = createTimer();
+  const logger = configLogger();
+  
+  logMethodCall(logger, { method: "resolveEnvVars", module: MODULE_NAME, params: { textLength: text.length } });
+  
+  let resolvedCount = 0;
+  const result = text.replace(ENV_VAR_PATTERN, (match: string): string => {
     const parsed = parseEnvVarMatch(match);
     if (!parsed) {
       return match;
     }
 
+    resolvedCount++;
+    // 记录解析的变量名（脱敏）
+    resolvedVarNames.add(parsed.name);
     const envValue = process.env[parsed.name];
 
     // 变量存在且非空
@@ -59,6 +71,13 @@ export function resolveEnvVars(text: string): string {
     // 无默认值，返回空字符串
     return "";
   });
+  
+  if (resolvedCount > 0) {
+    logger.debug("环境变量解析完成", { resolvedCount, duration: timer() });
+  }
+  
+  logMethodReturn(logger, { method: "resolveEnvVars", module: MODULE_NAME, result: `resolved[${resolvedCount}]`, duration: timer() });
+  return result;
 }
 
 /**
@@ -107,6 +126,9 @@ function parseEnvVarMatch(match: string): EnvVarMatch | null {
   };
 }
 
+/** 已解析的环境变量名集合（用于日志脱敏） */
+const resolvedVarNames = new Set<string>();
+
 /**
  * 递归解析对象中的所有环境变量引用
  * 
@@ -114,12 +136,35 @@ function parseEnvVarMatch(match: string): EnvVarMatch | null {
  * @returns 解析后的对象
  */
 export function resolveEnvVarsDeep<T>(obj: T): T {
+  const timer = createTimer();
+  const logger = configLogger();
+  
+  logMethodCall(logger, { method: "resolveEnvVarsDeep", module: MODULE_NAME, params: { type: typeof obj } });
+  
+  // 清空已解析变量名集合
+  resolvedVarNames.clear();
+  
+  const result = resolveEnvVarsDeepImpl(obj);
+  
+  // 输出解析的变量名列表（脱敏）
+  if (resolvedVarNames.size > 0) {
+    logger.debug("环境变量解析完成", { varNames: Array.from(resolvedVarNames), count: resolvedVarNames.size });
+  }
+  
+  logMethodReturn(logger, { method: "resolveEnvVarsDeep", module: MODULE_NAME, result: typeof result, duration: timer() });
+  return result;
+}
+
+/**
+ * 递归解析实现（内部函数）
+ */
+function resolveEnvVarsDeepImpl<T>(obj: T): T {
   if (typeof obj === "string") {
     return resolveEnvVars(obj) as T;
   }
 
   if (Array.isArray(obj)) {
-    return obj.map((item) => resolveEnvVarsDeep(item)) as T;
+    return obj.map((item) => resolveEnvVarsDeepImpl(item)) as T;
   }
 
   if (obj !== null && typeof obj === "object") {
@@ -127,7 +172,7 @@ export function resolveEnvVarsDeep<T>(obj: T): T {
     for (const [key, value] of Object.entries(obj)) {
       // 同时解析对象的键和值
       const resolvedKey = resolveEnvVars(key);
-      result[resolvedKey] = resolveEnvVarsDeep(value);
+      result[resolvedKey] = resolveEnvVarsDeepImpl(value);
     }
     return result as T;
   }
@@ -142,10 +187,18 @@ export function resolveEnvVarsDeep<T>(obj: T): T {
  * @returns 是否包含环境变量引用
  */
 export function hasEnvVarRef(text: string): boolean {
+  const timer = createTimer();
+  const logger = configLogger();
+  
+  logMethodCall(logger, { method: "hasEnvVarRef", module: MODULE_NAME, params: { textLength: text.length } });
+  
   // 重置正则表达式的 lastIndex，因为使用了 g 标志
   ENV_VAR_PATTERN.lastIndex = 0;
   const match = ENV_VAR_PATTERN.exec(text);
-  if (!match) return false;
+  if (!match) {
+    logMethodReturn(logger, { method: "hasEnvVarRef", module: MODULE_NAME, result: false, duration: timer() });
+    return false;
+  }
 
   // 检查匹配到的内容是否是有效的环境变量引用
   // 有效格式：${VAR_NAME} 或 ${VAR_NAME:-default} 或 ${VAR_NAME-default}
@@ -162,5 +215,7 @@ export function hasEnvVarRef(text: string): boolean {
   const varName = inner.slice(0, varNameEnd);
 
   // 环境变量名不应该包含空格
-  return !/\s/.test(varName);
+  const result = !/\s/.test(varName);
+  logMethodReturn(logger, { method: "hasEnvVarRef", module: MODULE_NAME, result, duration: timer() });
+  return result;
 }

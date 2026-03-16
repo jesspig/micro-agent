@@ -7,6 +7,7 @@
 import type { ToolDefinition } from "../types.js";
 import type { ToolParameterSchema, ToolResult } from "./types.js";
 import type { IToolExtended } from "./contract.js";
+import { toolLogger, createTimer, sanitize, logMethodCall, logMethodReturn } from "../../applications/shared/logger.js";
 
 // ============================================================================
 // 抽象基类
@@ -23,6 +24,9 @@ import type { IToolExtended } from "./contract.js";
 export abstract class BaseTool<TParams extends Record<string, unknown> = Record<string, unknown>>
   implements IToolExtended
 {
+  /** 日志器 */
+  protected logger = toolLogger();
+
   /** 工具名称 */
   abstract readonly name: string;
   /** 工具描述 */
@@ -42,11 +46,23 @@ export abstract class BaseTool<TParams extends Record<string, unknown> = Record<
    * @returns 工具定义（包含参数 schema）
    */
   getDefinition(): ToolDefinition {
-    return {
+    const timer = createTimer();
+    logMethodCall(this.logger, { method: "getDefinition", module: "BaseTool" });
+
+    const result: ToolDefinition = {
       name: this.name,
       description: this.description,
       parameters: this.parameters,
     };
+
+    logMethodReturn(this.logger, {
+      method: "getDefinition",
+      module: "BaseTool",
+      result: sanitize({ name: result.name }),
+      duration: timer(),
+    });
+
+    return result;
   }
 
   // ============================================================================

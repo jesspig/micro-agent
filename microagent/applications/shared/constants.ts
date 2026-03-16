@@ -26,7 +26,7 @@ export const SESSIONS_DIR = join(MICRO_AGENT_DIR, "sessions");
 /** 日志目录 */
 export const LOGS_DIR = join(MICRO_AGENT_DIR, "logs");
 
-/** 历史日志目录 */
+/** 每日记录目录 */
 export const HISTORY_DIR = join(AGENT_DIR, "history");
 
 /** 技能目录 */
@@ -79,11 +79,33 @@ export const DEFAULT_TEMPERATURE = 0.7;
 /** 默认最大输出 token 数 */
 export const DEFAULT_MAX_TOKENS = 4096;
 
-/** 日志文件最大大小（字节） */
-export const MAX_LOG_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+// ============================================================================
+// 日志配置常量
+// ============================================================================
+
+/** 默认日志文件最大大小（MB） */
+export const DEFAULT_LOG_MAX_FILE_SIZE_MB = 10;
+
+/** 日志文件最小大小（MB） */
+export const MIN_LOG_FILE_SIZE_MB = 1;
+
+/** 日志文件最大大小（MB） */
+export const MAX_LOG_FILE_SIZE_MB = 200;
+
+/** 默认日志颗粒度 */
+export const DEFAULT_LOG_GRANULARITY = "1H";
+
+/** 日志颗粒度最小值（分钟）- 过小会导致频繁轮转增加 I/O 开销 */
+export const MIN_LOG_GRANULARITY_MINUTES = 30;
+
+/** 日志颗粒度最大值（分钟）= 7 天 - 过大不利于快速检索和传输 */
+export const MAX_LOG_GRANULARITY_MINUTES = 7 * 24 * 60;
 
 /** 日志保留天数 */
 export const LOG_RETENTION_DAYS = 7;
+
+/** 默认开启敏感信息脱敏 */
+export const DEFAULT_LOG_SANITIZE = true;
 
 // ============================================================================
 // Agent 执行参数

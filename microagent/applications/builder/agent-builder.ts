@@ -10,6 +10,8 @@
  */
 
 import { mkdir, exists, copyFile } from "node:fs/promises";
+
+const MODULE_NAME = "AgentBuilder";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -41,7 +43,14 @@ import {
   DEFAULT_MAX_ITERATIONS,
   DEFAULT_TIMEOUT_MS,
 } from "../shared/constants.js";
-import { getLogger } from "../shared/logger.js";
+import {
+  builderLogger,
+  createTimer,
+  sanitize,
+  logMethodCall,
+  logMethodReturn,
+  logMethodError,
+} from "../shared/logger.js";
 
 // ============================================================================
 // 常量定义
@@ -111,9 +120,6 @@ export interface AgentBuildResult {
  * 提供流式 API 组装 Agent 组件
  */
 export class AgentBuilder {
-  /** 日志器 */
-  private readonly logger = getLogger();
-
   /** 配置对象 */
   private settings: Settings | null = null;
 
@@ -214,55 +220,81 @@ export class AgentBuilder {
    * @returns 构建结果
    */
   async build(): Promise<AgentBuildResult> {
-    this.logger.info("开始构建 Agent...");
+    const timer = createTimer();
+    const logger = builderLogger();
+    logMethodCall(logger, { method: "build", module: MODULE_NAME });
 
-    // 1. 初始化运行时目录
-    await this.ensureDirectories();
+    try {
+      // 1. 初始化运行时目录
+      logger.info("Agent构建", { step: "ensureDirectories" });
+      await this.ensureDirectories();
 
-    // 2. 加载配置
-    const settings = await this.loadSettings();
+      // 2. 加载配置
+      logger.info("Agent构建", { step: "loadSettings" });
+      const settings = await this.loadSettings();
 
-    // 3. 创建 Provider
-    const provider = await this.createProvider(settings);
+      // 3. 创建 Provider
+      logger.info("Agent构建", { step: "createProvider" });
+      const provider = await this.createProvider(settings);
 
-    // 4. 注册工具
-    await this.registerTools(settings);
+      // 4. 注册工具
+      logger.info("Agent构建", { step: "registerTools" });
+      await this.registerTools(settings);
 
-    // 5. 加载技能
-    await this.loadSkills();
+      // 5. 加载技能
+      logger.info("Agent构建", { step: "loadSkills" });
+      await this.loadSkills();
 
-    // 6. 创建 Agent 配置
-    const agentConfig = this.createAgentConfig(settings);
+      // 6. 创建 Agent 配置
+      const agentConfig = this.createAgentConfig(settings);
 
-    // 7. 创建 Agent 实例
-    const agent = new AgentLoop(provider, this.tools, agentConfig);
+      // 7. 创建 Agent 实例
+      logger.info("Agent构建", { step: "createAgentInstance", model: agentConfig.model });
+      const agent = new AgentLoop(provider, this.tools, agentConfig);
 
-    // 8. 注册事件处理器
-    for (const handler of this.eventHandlers) {
-      agent.on(handler);
+      // 8. 注册事件处理器
+      for (const handler of this.eventHandlers) {
+        agent.on(handler);
+      }
+
+      // 9. 创建会话管理器
+      const sessionManager = new SessionManager();
+
+      const result = {
+        agent,
+        sessionManager,
+        tools: this.tools,
+        skills: this.skills,
+        settings,
+        paths: {
+          root: MICRO_AGENT_DIR,
+          workspace: WORKSPACE_DIR,
+          agent: AGENT_DIR,
+          sessions: SESSIONS_DIR,
+          logs: LOGS_DIR,
+          history: HISTORY_DIR,
+          skills: SKILLS_DIR,
+        },
+      };
+
+      logMethodReturn(logger, {
+        method: "build",
+        module: MODULE_NAME,
+        result: { toolsCount: this.tools.list().length, skillsCount: this.skills.list().length },
+        duration: timer(),
+      });
+
+      return result;
+    } catch (err) {
+      const error = err as Error;
+      logMethodError(logger, {
+        method: "build",
+        module: MODULE_NAME,
+        error: { name: error.name, message: error.message, ...(error.stack ? { stack: error.stack } : {}) },
+        duration: timer(),
+      });
+      throw error;
     }
-
-    // 9. 创建会话管理器
-    const sessionManager = new SessionManager();
-
-    this.logger.info("Agent 构建完成");
-
-    return {
-      agent,
-      sessionManager,
-      tools: this.tools,
-      skills: this.skills,
-      settings,
-      paths: {
-        root: MICRO_AGENT_DIR,
-        workspace: WORKSPACE_DIR,
-        agent: AGENT_DIR,
-        sessions: SESSIONS_DIR,
-        logs: LOGS_DIR,
-        history: HISTORY_DIR,
-        skills: SKILLS_DIR,
-      },
-    };
   }
 
   // ============================================================================
@@ -273,24 +305,42 @@ export class AgentBuilder {
    * 确保运行时目录存在
    */
   private async ensureDirectories(): Promise<void> {
-    if (this.dirInitialized) return;
+    const timer = createTimer();
+    const logger = builderLogger();
+    logMethodCall(logger, { method: "ensureDirectories", module: MODULE_NAME });
 
-    this.logger.debug("初始化运行时目录...");
+    try {
+      if (this.dirInitialized) {
+        logMethodReturn(logger, { method: "ensureDirectories", module: MODULE_NAME, result: { skipped: true }, duration: timer() });
+        return;
+      }
 
-    // 创建主目录
-    await this.ensureDir(MICRO_AGENT_DIR);
-    await this.ensureDir(WORKSPACE_DIR);
-    await this.ensureDir(AGENT_DIR);
-    await this.ensureDir(SESSIONS_DIR);
-    await this.ensureDir(LOGS_DIR);
-    await this.ensureDir(HISTORY_DIR);
-    await this.ensureDir(SKILLS_DIR);
+      // 创建主目录
+      logger.debug("创建目录", { dir: MICRO_AGENT_DIR });
+      await this.ensureDir(MICRO_AGENT_DIR);
+      await this.ensureDir(WORKSPACE_DIR);
+      await this.ensureDir(AGENT_DIR);
+      await this.ensureDir(SESSIONS_DIR);
+      await this.ensureDir(LOGS_DIR);
+      await this.ensureDir(HISTORY_DIR);
+      await this.ensureDir(SKILLS_DIR);
 
-    // 复制模板文件
-    await this.copyTemplates();
+      // 复制模板文件
+      await this.copyTemplates();
 
-    this.dirInitialized = true;
-    this.logger.debug("运行时目录初始化完成");
+      this.dirInitialized = true;
+
+      logMethodReturn(logger, { method: "ensureDirectories", module: MODULE_NAME, result: { initialized: true }, duration: timer() });
+    } catch (err) {
+      const error = err as Error;
+      logMethodError(logger, {
+        method: "ensureDirectories",
+        module: MODULE_NAME,
+        error: { name: error.name, message: error.message, ...(error.stack ? { stack: error.stack } : {}) },
+        duration: timer(),
+      });
+      throw error;
+    }
   }
 
   /**
@@ -298,14 +348,15 @@ export class AgentBuilder {
    * @param dir - 目录路径
    */
   private async ensureDir(dir: string): Promise<void> {
+    const logger = builderLogger();
     try {
       const isExists = await this.pathExists(dir);
       if (!isExists) {
         await mkdir(dir, { recursive: true });
-        this.logger.debug(`创建目录: ${dir}`);
+        logger.debug("目录创建成功", { dir });
       }
     } catch (error) {
-      this.logger.error(`创建目录失败: ${dir}`, error);
+      logger.debug("目录操作异常", { dir, error: String(error) });
       throw error;
     }
   }
@@ -316,10 +367,12 @@ export class AgentBuilder {
    * @returns 是否存在
    */
   private async pathExists(path: string): Promise<boolean> {
+    const logger = builderLogger();
     try {
       await exists(path);
       return true;
-    } catch {
+    } catch (error) {
+      logger.debug("路径检查异常", { path, error: String(error) });
       return false;
     }
   }
@@ -329,6 +382,13 @@ export class AgentBuilder {
    * 仅在目标文件不存在时复制
    */
   private async copyTemplates(): Promise<void> {
+    const timer = createTimer();
+    const logger = builderLogger();
+    logMethodCall(logger, { method: "copyTemplates", module: MODULE_NAME });
+
+    let copiedCount = 0;
+    let skippedCount = 0;
+
     // 复制 Agent 目录模板文件
     for (const file of AGENT_TEMPLATE_FILES) {
       const srcPath = join(TEMPLATES_DIR, file);
@@ -338,23 +398,23 @@ export class AgentBuilder {
         // 检查目标文件是否存在
         const destExists = await this.pathExists(destPath);
         if (destExists) {
-          this.logger.debug(`模板文件已存在，跳过: ${file}`);
+          skippedCount++;
           continue;
         }
 
         // 检查源文件是否存在
         const srcExists = await this.pathExists(srcPath);
         if (!srcExists) {
-          this.logger.debug(`模板源文件不存在，跳过: ${file}`);
           continue;
         }
 
         // 复制文件
         await copyFile(srcPath, destPath);
-        this.logger.debug(`复制模板文件: ${file}`);
+        copiedCount++;
+        logger.debug("复制模板文件", { file, destPath });
       } catch (error) {
         // 复制失败不影响启动
-        this.logger.error(`复制模板文件失败: ${file}`, error);
+        logger.warn("模板复制失败", { file, error: String(error) });
       }
     }
 
@@ -366,22 +426,30 @@ export class AgentBuilder {
       try {
         const destExists = await this.pathExists(destPath);
         if (destExists) {
-          this.logger.debug(`模板文件已存在，跳过: ${dest}`);
+          skippedCount++;
           continue;
         }
 
         const srcExists = await this.pathExists(srcPath);
         if (!srcExists) {
-          this.logger.debug(`模板源文件不存在，跳过: ${src}`);
           continue;
         }
 
         await copyFile(srcPath, destPath);
-        this.logger.debug(`复制模板文件: ${src} -> ${dest}`);
+        copiedCount++;
+        logger.debug("复制模板文件", { file: src, destPath });
       } catch (error) {
-        this.logger.error(`复制模板文件失败: ${dest}`, error);
+        // 忽略错误
+        logger.warn("模板复制失败", { file: src, error: String(error) });
       }
     }
+
+    logMethodReturn(logger, {
+      method: "copyTemplates",
+      module: MODULE_NAME,
+      result: { copiedCount, skippedCount },
+      duration: timer(),
+    });
   }
 
   // ============================================================================
@@ -393,15 +461,35 @@ export class AgentBuilder {
    * @returns 配置对象
    */
   private async loadSettings(): Promise<Settings> {
-    // 已设置配置对象
-    if (this.settings) {
-      return this.settings;
-    }
+    const timer = createTimer();
+    const logger = builderLogger();
+    logMethodCall(logger, { method: "loadSettings", module: MODULE_NAME, params: { configPath: this.configPath } });
 
-    // 从文件加载
-    const configPath = this.configPath ?? SETTINGS_FILE;
-    this.settings = await loadSettings(configPath);
-    return this.settings;
+    try {
+      // 已设置配置对象
+      if (this.settings) {
+        logMethodReturn(logger, { method: "loadSettings", module: MODULE_NAME, result: { source: "cached" }, duration: timer() });
+        return this.settings;
+      }
+
+      // 从文件加载
+      const configPath = this.configPath ?? SETTINGS_FILE;
+      logger.debug("加载配置文件", { configPath });
+      this.settings = await loadSettings(configPath);
+
+      logMethodReturn(logger, { method: "loadSettings", module: MODULE_NAME, result: { source: "file", configPath }, duration: timer() });
+      return this.settings;
+    } catch (err) {
+      const error = err as Error;
+      logMethodError(logger, {
+        method: "loadSettings",
+        module: MODULE_NAME,
+        error: { name: error.name, message: error.message, ...(error.stack ? { stack: error.stack } : {}) },
+        params: { configPath: this.configPath },
+        duration: timer(),
+      });
+      throw error;
+    }
   }
 
   // ============================================================================
@@ -414,75 +502,105 @@ export class AgentBuilder {
    * @returns Provider 实例
    */
   private async createProvider(settings: Settings): Promise<IProviderExtended> {
-    // 使用自定义 Provider
-    if (this.customProvider) {
-      this.logger.debug(`使用自定义 Provider: ${this.customProvider.name}`);
-      return this.customProvider;
-    }
+    const timer = createTimer();
+    const logger = builderLogger();
+    logMethodCall(logger, { method: "createProvider", module: MODULE_NAME });
 
-    // 从配置中获取启用的 Provider
-    const providers = settings.providers ?? {};
-    const enabledProvider = Object.entries(providers).find(
-      ([_, config]) => config?.enabled === true
-    );
+    try {
+      // 使用自定义 Provider
+      if (this.customProvider) {
+        logger.debug("使用自定义 Provider", { hasCustomProvider: true });
+        logMethodReturn(logger, { method: "createProvider", module: MODULE_NAME, result: { type: "custom" }, duration: timer() });
+        return this.customProvider;
+      }
 
-    if (!enabledProvider) {
-      throw new Error("未找到已启用的 Provider 配置");
-    }
+      // 从配置中获取启用的 Provider
+      const providers = settings.providers ?? {};
+      const enabledProvider = Object.entries(providers).find(
+        ([_, config]) => config?.enabled === true
+      );
 
-    const [providerName, providerConfig] = enabledProvider;
+      if (!enabledProvider) {
+        throw new Error("未找到已启用的 Provider 配置");
+      }
 
-    if (!providerConfig) {
-      throw new Error(`Provider "${providerName}" 配置不存在`);
-    }
+      const [providerName, providerConfig] = enabledProvider;
 
-    this.logger.debug(`创建 Provider: ${providerName} (type: ${providerConfig.type})`);
+      if (!providerConfig) {
+        throw new Error(`Provider "${providerName}" 配置不存在`);
+      }
 
-    // 验证必填字段
-    if (!providerConfig.baseUrl) {
-      throw new Error(`Provider "${providerName}" 缺少 baseUrl 配置`);
-    }
-    if (!providerConfig.models || providerConfig.models.length === 0) {
-      throw new Error(`Provider "${providerName}" 缺少 models 配置`);
-    }
+      // 验证必填字段
+      if (!providerConfig.baseUrl) {
+        throw new Error(`Provider "${providerName}" 缺少 baseUrl 配置`);
+      }
+      if (!providerConfig.models || providerConfig.models.length === 0) {
+        throw new Error(`Provider "${providerName}" 缺少 models 配置`);
+      }
 
-    // 根据 type 字段创建对应的 Provider
-    switch (providerConfig.type) {
-      case "openai":
-        return createOpenAIProvider({
-          name: providerName,
-          displayName: providerName,
-          baseUrl: providerConfig.baseUrl,
-          ...(providerConfig.apiKey ? { apiKey: providerConfig.apiKey } : {}),
-          models: providerConfig.models,
-        });
+      logger.debug("创建 Provider", { providerName, type: providerConfig.type });
 
-      case "openai-response":
-        return createOpenAIResponseProvider({
-          name: providerName,
-          displayName: providerName,
-          baseUrl: providerConfig.baseUrl,
-          ...(providerConfig.apiKey ? { apiKey: providerConfig.apiKey } : {}),
-          models: providerConfig.models,
-        });
+      // 根据 type 字段创建对应的 Provider
+      let provider: IProviderExtended;
+      switch (providerConfig.type) {
+        case "openai":
+          provider = createOpenAIProvider({
+            name: providerName,
+            displayName: providerName,
+            baseUrl: providerConfig.baseUrl,
+            ...(providerConfig.apiKey ? { apiKey: providerConfig.apiKey } : {}),
+            models: providerConfig.models,
+          });
+          break;
 
-      case "anthropic":
-        return createAnthropicProvider({
-          name: providerName,
-          displayName: providerName,
-          baseUrl: providerConfig.baseUrl,
-          ...(providerConfig.apiKey ? { apiKey: providerConfig.apiKey } : {}),
-          models: providerConfig.models,
-        });
+        case "openai-response":
+          provider = createOpenAIResponseProvider({
+            name: providerName,
+            displayName: providerName,
+            baseUrl: providerConfig.baseUrl,
+            ...(providerConfig.apiKey ? { apiKey: providerConfig.apiKey } : {}),
+            models: providerConfig.models,
+          });
+          break;
 
-      case "ollama":
-        return createOllamaProvider({
-          baseUrl: providerConfig.baseUrl,
-          models: providerConfig.models,
-        });
+        case "anthropic":
+          provider = createAnthropicProvider({
+            name: providerName,
+            displayName: providerName,
+            baseUrl: providerConfig.baseUrl,
+            ...(providerConfig.apiKey ? { apiKey: providerConfig.apiKey } : {}),
+            models: providerConfig.models,
+          });
+          break;
 
-      default:
-        throw new Error(`未知的 Provider 类型: ${providerConfig.type}`);
+        case "ollama":
+          provider = createOllamaProvider({
+            baseUrl: providerConfig.baseUrl,
+            models: providerConfig.models,
+          });
+          break;
+
+        default:
+          throw new Error(`未知的 Provider 类型: ${providerConfig.type}`);
+      }
+
+      logMethodReturn(logger, {
+        method: "createProvider",
+        module: MODULE_NAME,
+        result: { providerName, type: providerConfig.type, modelsCount: providerConfig.models.length },
+        duration: timer(),
+      });
+
+      return provider;
+    } catch (err) {
+      const error = err as Error;
+      logMethodError(logger, {
+        method: "createProvider",
+        module: MODULE_NAME,
+        error: { name: error.name, message: error.message, ...(error.stack ? { stack: error.stack } : {}) },
+        duration: timer(),
+      });
+      throw error;
     }
   }
 
@@ -495,94 +613,110 @@ export class AgentBuilder {
    * @param settings - 配置对象
    */
   private async registerTools(settings: Settings): Promise<void> {
-    // 确定要注册的工具
-    let toolNames = this.customToolNames;
+    const timer = createTimer();
+    const logger = builderLogger();
+    logMethodCall(logger, { method: "registerTools", module: MODULE_NAME });
 
-    // 如果没有指定，使用配置中的工具列表或全部工具
-    if (toolNames.length === 0) {
-      const allToolNames = Object.keys(toolFactories);
+    try {
+      // 确定要注册的工具
+      let toolNames = this.customToolNames;
 
-      if (settings.tools) {
-        const { enabled, disabled } = settings.tools;
+      // 如果没有指定，使用配置中的工具列表或全部工具
+      if (toolNames.length === 0) {
+        const allToolNames = Object.keys(toolFactories);
 
-        // 如果启用了特定工具，只注册这些工具
-        if (enabled && enabled.length > 0) {
-          toolNames = enabled.filter(
-            (name) => allToolNames.includes(name) && !disabled.includes(name)
-          );
+        if (settings.tools) {
+          const { enabled, disabled } = settings.tools;
+
+          // 如果启用了特定工具，只注册这些工具
+          if (enabled && enabled.length > 0) {
+            toolNames = enabled.filter(
+              (name) => allToolNames.includes(name) && !disabled.includes(name)
+            );
+          } else {
+            // 否则注册所有工具，除了被禁用的
+            toolNames = allToolNames.filter((name) => !disabled.includes(name));
+          }
         } else {
-          // 否则注册所有工具，除了被禁用的
-          toolNames = allToolNames.filter((name) => !disabled.includes(name));
+          toolNames = allToolNames;
         }
-      } else {
-        toolNames = allToolNames;
       }
-    }
 
-    this.logger.debug(`注册工具: ${toolNames.join(", ")}`);
+      logger.debug("注册工具", { toolNames, count: toolNames.length });
 
-    // 注册工具
-    for (const name of toolNames) {
-      const factory = toolFactories[name];
-      if (factory) {
-        const tool = factory();
-        if (tool) {
-          this.tools.register(tool);
-          this.logger.debug(`已注册工具: ${name}`);
+      // 注册工具
+      for (const name of toolNames) {
+        const factory = toolFactories[name];
+        if (factory) {
+          const tool = factory();
+          if (tool) {
+            this.tools.register(tool);
+          }
         }
-      } else {
-        this.logger.warn(`工具工厂不存在: ${name}`);
       }
-    }
 
-    // 加载 MCP 工具
-    await this.loadMCPTools();
+      // 加载 MCP 工具
+      await this.loadMCPTools();
+
+      logMethodReturn(logger, {
+        method: "registerTools",
+        module: MODULE_NAME,
+        result: { toolsCount: this.tools.list().length },
+        duration: timer(),
+      });
+    } catch (err) {
+      const error = err as Error;
+      logMethodError(logger, {
+        method: "registerTools",
+        module: MODULE_NAME,
+        error: { name: error.name, message: error.message, ...(error.stack ? { stack: error.stack } : {}) },
+        duration: timer(),
+      });
+      throw error;
+    }
   }
 
   /**
    * 加载 MCP 工具
    */
   private async loadMCPTools(): Promise<void> {
+    const timer = createTimer();
+    const logger = builderLogger();
+    logMethodCall(logger, { method: "loadMCPTools", module: MODULE_NAME });
+
     try {
       // 加载 MCP 配置
       const config = await mcpManager.loadConfig();
 
       if (Object.keys(config.mcpServers).length === 0) {
-        this.logger.info("未配置 MCP 服务器");
+        logMethodReturn(logger, { method: "loadMCPTools", module: MODULE_NAME, result: { serversCount: 0 }, duration: timer() });
         return;
       }
 
-      this.logger.info(`正在连接 ${Object.keys(config.mcpServers).length} 个 MCP 服务器...`);
+      logger.debug("加载 MCP 配置", { serversCount: Object.keys(config.mcpServers).length });
 
       // 连接所有启用的服务器并注册工具
-      const results = await mcpManager.connectAll((tool, serverName) => {
+      const results = await mcpManager.connectAll((tool, _serverName) => {
         this.tools.register(tool);
-        this.logger.debug(`已注册 MCP 工具: ${tool.name} (来自 ${serverName})`);
       });
 
-      // 汇总结果
-      const connected = results.filter((r) => r.status === "connected");
-      const failed = results.filter((r) => r.status === "error");
-      const skipped = results.filter((r) => r.status === "disconnected");
+      // 统计连接结果
+      const connected = results.filter((r) => r.status === "connected").length;
+      const errors = results.filter((r) => r.status === "error").length;
+      const disconnected = results.filter((r) => r.status === "disconnected").length;
 
-      if (connected.length > 0) {
-        const totalTools = connected.reduce((sum, r) => sum + r.toolCount, 0);
-        this.logger.info(
-          `MCP: 已连接 ${connected.length} 个服务器，共 ${totalTools} 个工具`
-        );
-      }
+      logger.info("MCP 连接结果", { connected, errors, disconnected });
 
-      if (skipped.length > 0) {
-        this.logger.info(`MCP: 跳过 ${skipped.length} 个禁用的服务器`);
-      }
-
-      if (failed.length > 0) {
-        for (const r of failed) {
-          this.logger.warn(`MCP 服务器 "${r.name}" 连接失败: ${r.error}`);
-        }
-      }
-    } catch (error) {
-      this.logger.error("加载 MCP 工具失败", error);
+      logMethodReturn(logger, {
+        method: "loadMCPTools",
+        module: MODULE_NAME,
+        result: { connected, errors, disconnected },
+        duration: timer(),
+      });
+    } catch (err) {
+      const error = err as Error;
+      logger.warn("MCP 加载失败", { error: error.message });
+      logMethodReturn(logger, { method: "loadMCPTools", module: MODULE_NAME, result: { error: error.message }, duration: timer() });
     }
   }
 
@@ -594,17 +728,37 @@ export class AgentBuilder {
    * 加载技能
    */
   private async loadSkills(): Promise<void> {
-    this.logger.debug("加载技能...");
+    const timer = createTimer();
+    const logger = builderLogger();
+    logMethodCall(logger, { method: "loadSkills", module: MODULE_NAME, params: { skillsDir: SKILLS_DIR } });
 
-    const loader = new FilesystemSkillLoader(SKILLS_DIR);
-    const skills = await loader.listSkills();
+    try {
+      const loader = new FilesystemSkillLoader(SKILLS_DIR);
+      const skills = await loader.listSkills();
 
-    for (const skill of skills) {
-      this.skills.register(skill);
-      this.logger.debug(`已加载技能: ${skill.config.name}`);
+      logger.debug("加载技能", { skillsDir: SKILLS_DIR, count: skills.length });
+
+      for (const skill of skills) {
+        this.skills.register(skill);
+      }
+
+      logMethodReturn(logger, {
+        method: "loadSkills",
+        module: MODULE_NAME,
+        result: { skillsCount: skills.length },
+        duration: timer(),
+      });
+    } catch (err) {
+      const error = err as Error;
+      logMethodError(logger, {
+        method: "loadSkills",
+        module: MODULE_NAME,
+        error: { name: error.name, message: error.message, ...(error.stack ? { stack: error.stack } : {}) },
+        params: { skillsDir: SKILLS_DIR },
+        duration: timer(),
+      });
+      throw error;
     }
-
-    this.logger.debug(`共加载 ${skills.length} 个技能`);
   }
 
   // ============================================================================
@@ -617,14 +771,27 @@ export class AgentBuilder {
    * @returns Agent 配置
    */
   private createAgentConfig(settings: Settings): AgentConfig {
+    const timer = createTimer();
+    const logger = builderLogger();
+    logMethodCall(logger, { method: "createAgentConfig", module: MODULE_NAME });
+
     const agentDefaults = settings.agents.defaults;
 
-    return {
+    const config: AgentConfig = {
       model: this.agentConfig.model ?? agentDefaults.model ?? "default",
       maxIterations: this.agentConfig.maxIterations ?? agentDefaults.maxToolIterations ?? DEFAULT_MAX_ITERATIONS,
       defaultTimeout: this.agentConfig.defaultTimeout ?? DEFAULT_TIMEOUT_MS,
       enableLogging: this.agentConfig.enableLogging ?? false,
     };
+
+    logMethodReturn(logger, {
+      method: "createAgentConfig",
+      module: MODULE_NAME,
+      result: sanitize(config),
+      duration: timer(),
+    });
+
+    return config;
   }
 }
 
@@ -638,11 +805,36 @@ export class AgentBuilder {
  * @returns 构建结果
  */
 export async function createAgent(configPath?: string): Promise<AgentBuildResult> {
-  const builder = new AgentBuilder();
-  if (configPath) {
-    builder.withConfigPath(configPath);
+  const timer = createTimer();
+  const logger = builderLogger();
+  logMethodCall(logger, { method: "createAgent", module: MODULE_NAME, params: { configPath } });
+
+  try {
+    const builder = new AgentBuilder();
+    if (configPath) {
+      builder.withConfigPath(configPath);
+    }
+    const result = await builder.build();
+
+    logMethodReturn(logger, {
+      method: "createAgent",
+      module: MODULE_NAME,
+      result: { toolsCount: result.tools.list().length, skillsCount: result.skills.list().length },
+      duration: timer(),
+    });
+
+    return result;
+  } catch (err) {
+    const error = err as Error;
+    logMethodError(logger, {
+      method: "createAgent",
+      module: MODULE_NAME,
+      error: { name: error.name, message: error.message, ...(error.stack ? { stack: error.stack } : {}) },
+      params: { configPath },
+      duration: timer(),
+    });
+    throw error;
   }
-  return builder.build();
 }
 
 /**
@@ -650,7 +842,24 @@ export async function createAgent(configPath?: string): Promise<AgentBuildResult
  * 仅创建目录结构，不构建 Agent
  */
 export async function initRuntimeDirectories(): Promise<void> {
-  const builder = new AgentBuilder();
-  // @ts-expect-error 访问私有方法进行初始化
-  await builder.ensureDirectories();
+  const timer = createTimer();
+  const logger = builderLogger();
+  logMethodCall(logger, { method: "initRuntimeDirectories", module: MODULE_NAME });
+
+  try {
+    const builder = new AgentBuilder();
+    // @ts-expect-error 访问私有方法进行初始化
+    await builder.ensureDirectories();
+
+    logMethodReturn(logger, { method: "initRuntimeDirectories", module: MODULE_NAME, result: { success: true }, duration: timer() });
+  } catch (err) {
+    const error = err as Error;
+    logMethodError(logger, {
+      method: "initRuntimeDirectories",
+      module: MODULE_NAME,
+      error: { name: error.name, message: error.message, ...(error.stack ? { stack: error.stack } : {}) },
+      duration: timer(),
+    });
+    throw error;
+  }
 }

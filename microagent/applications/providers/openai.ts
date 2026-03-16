@@ -5,9 +5,25 @@
  */
 
 import { BaseProvider } from "../../runtime/provider/base.js";
+import { providersLogger, createTimer, sanitize, logMethodCall, logMethodReturn, logMethodError } from "../shared/logger.js";
 import type { IProviderExtended } from "../../runtime/provider/contract.js";
 import type { ProviderCapabilities, ProviderConfig, ProviderStatus } from "../../runtime/provider/types.js";
 import type { ChatRequest, ChatResponse, Message, StreamCallback, ToolCall } from "../../runtime/types.js";
+
+const logger = providersLogger();
+
+// ============================================================================
+// 辅助函数
+// ============================================================================
+
+/**
+ * 截断文本用于日志
+ * 避免日志过长影响可读性
+ */
+function truncateTextForLog(text: string, maxLen = 1000): string {
+  if (!text) return "";
+  return text.length > maxLen ? text.substring(0, maxLen) + "...(truncated)" : text;
+}
 
 // ============================================================================
 // 类型定义
@@ -129,58 +145,104 @@ export class OpenAIProvider extends BaseProvider implements IProviderExtended {
   }
 
   async chat(request: ChatRequest): Promise<ChatResponse> {
+    const timer = createTimer();
     const { model, messages, tools, temperature, maxTokens } = request;
 
-    // 解析模型名称：支持 "provider/model" 格式，提取 model 部分
-    const actualModel = this.parseModelName(model || this.defaultModel);
+    logMethodCall(logger, { method: "chat", module: "OpenAIProvider", params: { model, messageCount: messages.length, hasTools: !!tools?.length } });
 
-    const body: Record<string, unknown> = {
-      model: actualModel,
-      messages: this.convertMessages(messages),
-      temperature: temperature ?? 0.7,
-    };
+    try {
+      // 解析模型名称：支持 "provider/model" 格式，提取 model 部分
+      const actualModel = this.parseModelName(model || this.defaultModel);
 
-    if (maxTokens !== undefined) body.max_tokens = maxTokens;
-    if (tools?.length) {
-      body.tools = tools.map((tool) => ({
-        type: "function",
-        function: {
-          name: tool.name,
-          description: tool.description,
-          parameters: tool.parameters,
-        },
-      }));
+      const body: Record<string, unknown> = {
+        model: actualModel,
+        messages: this.convertMessages(messages),
+        temperature: temperature ?? 0.7,
+      };
+
+      if (maxTokens !== undefined) body.max_tokens = maxTokens;
+      if (tools?.length) {
+        body.tools = tools.map((tool) => ({
+          type: "function",
+          function: {
+            name: tool.name,
+            description: tool.description,
+            parameters: tool.parameters,
+          },
+        }));
+      }
+
+      logger.info("LLM调用", { provider: this.name, model: actualModel, endpoint: "chat/completions", stream: false });
+
+      const response = await this.requestWithRetry(`${this.config.baseUrl}/chat/completions`, body);
+      this.recordUsage();
+      const result = this.parseResponse(response);
+
+      // 记录 LLM 完整响应详情
+      const llmResponseLog: Record<string, unknown> = {
+        provider: this.name,
+        model: actualModel,
+        text: truncateTextForLog(result.text),
+      };
+      if (result.reasoning) {
+        llmResponseLog.reasoning = truncateTextForLog(result.reasoning);
+      }
+      if (result.toolCalls?.length) {
+        llmResponseLog.toolCalls = result.toolCalls.map((tc) => ({
+          name: tc.name,
+          arguments: tc.arguments,
+        }));
+      }
+      if (result.usage) {
+        llmResponseLog.usage = result.usage;
+      }
+      logger.info("LLM响应", llmResponseLog);
+
+      logMethodReturn(logger, { method: "chat", module: "OpenAIProvider", result: sanitize(result), duration: timer() });
+      return result;
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      logMethodError(logger, {
+        method: "chat",
+        module: "OpenAIProvider",
+        error: { name: error.name, message: error.message, ...(error.stack ? { stack: error.stack } : {}) },
+        params: { model, messageCount: messages.length },
+        duration: timer(),
+      });
+      throw error;
     }
-
-    const response = await this.requestWithRetry(`${this.config.baseUrl}/chat/completions`, body);
-    this.recordUsage();
-    return this.parseResponse(response);
   }
 
   async streamChat(request: ChatRequest, callback: StreamCallback): Promise<ChatResponse> {
+    const timer = createTimer();
     const { model, messages, tools, temperature, maxTokens } = request;
+
+    logMethodCall(logger, { method: "streamChat", module: "OpenAIProvider", params: { model, messageCount: messages.length, hasTools: !!tools?.length } });
+
     const actualModel = this.parseModelName(model || this.defaultModel);
 
     const body: Record<string, unknown> = {
-      model: actualModel,
-      messages: this.convertMessages(messages),
-      temperature: temperature ?? 0.7,
-      stream: true,
-    };
+        model: actualModel,
+        messages: this.convertMessages(messages),
+        temperature: temperature ?? 0.7,
+        stream: true,
+      };
 
-    if (maxTokens !== undefined) body.max_tokens = maxTokens;
-    if (tools?.length) {
-      body.tools = tools.map((tool) => ({
-        type: "function",
-        function: {
-          name: tool.name,
-          description: tool.description,
-          parameters: tool.parameters,
-        },
-      }));
-    }
+      if (maxTokens !== undefined) body.max_tokens = maxTokens;
+      if (tools?.length) {
+        body.tools = tools.map((tool) => ({
+          type: "function",
+          function: {
+            name: tool.name,
+            description: tool.description,
+            parameters: tool.parameters,
+          },
+        }));
+      }
 
-    const controller = new AbortController();
+      logger.info("LLM调用", { provider: this.name, model: actualModel, endpoint: "chat/completions", stream: true });
+
+      const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this.timeout);
 
     try {
@@ -330,7 +392,39 @@ export class OpenAIProvider extends BaseProvider implements IProviderExtended {
       }
 
       this.recordUsage();
+
+      // 记录 LLM 完整响应详情
+      const llmResponseLog: Record<string, unknown> = {
+        provider: this.name,
+        model: actualModel,
+        fullText: truncateTextForLog(fullText),
+      };
+      if (fullReasoning) {
+        llmResponseLog.fullReasoning = truncateTextForLog(fullReasoning);
+      }
+      if (result.toolCalls?.length) {
+        llmResponseLog.toolCalls = result.toolCalls.map((tc) => ({
+          name: tc.name,
+          arguments: tc.arguments,
+        }));
+      }
+      if (usage) {
+        llmResponseLog.usage = usage;
+      }
+      logger.info("LLM响应", llmResponseLog);
+
+      logMethodReturn(logger, { method: "streamChat", module: "OpenAIProvider", result: sanitize(result), duration: timer() });
       return result;
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      logMethodError(logger, {
+        method: "streamChat",
+        module: "OpenAIProvider",
+        error: { name: error.name, message: error.message, ...(error.stack ? { stack: error.stack } : {}) },
+        params: { model, messageCount: messages.length },
+        duration: timer(),
+      });
+      throw error;
     } finally {
       clearTimeout(timeoutId);
     }
@@ -435,7 +529,6 @@ export class OpenAIProvider extends BaseProvider implements IProviderExtended {
       });
 
       const json: unknown = await response.json();
-      console.log(`[${this.name}] API 响应:`, JSON.stringify(json).substring(0, 500));
 
       // 处理 HTTP 错误
       if (!response.ok) {
@@ -521,7 +614,6 @@ export class OpenAIProvider extends BaseProvider implements IProviderExtended {
   private parseResponse(response: OpenAIResponse): ChatResponse {
     // 检查响应格式
     if (!response.choices || !Array.isArray(response.choices)) {
-      console.error(`[${this.name}] 响应格式错误:`, JSON.stringify(response).substring(0, 500));
       throw new Error(`${this.config.name} API 返回非标准格式响应，请检查 baseUrl 是否正确`);
     }
 

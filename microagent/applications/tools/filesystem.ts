@@ -10,6 +10,10 @@ import { readFile, writeFile, mkdir, readdir, unlink, rename } from "node:fs/pro
 import { BaseTool } from "../../runtime/tool/base.js";
 import type { ToolParameterSchema, ToolResult } from "../../runtime/tool/types.js";
 import { WORKSPACE_DIR } from "../shared/constants.js";
+import { toolsLogger, createTimer, logMethodCall, logMethodReturn, logMethodError, sanitize } from "../shared/logger.js";
+
+const MODULE_NAME = "filesystem";
+const logger = toolsLogger();
 
 // ============================================================================
 // 类型定义
@@ -149,41 +153,60 @@ export class FilesystemTool extends BaseTool<Record<string, unknown>> {
   }
 
   async execute(params: Record<string, unknown>): Promise<ToolResult> {
+    const timer = createTimer();
+    logMethodCall(logger, { method: "execute", module: MODULE_NAME, params: sanitize(params) as Record<string, unknown> });
+
     try {
       const action = this.readStringParam(params, "action", { required: true });
       const path = this.readStringParam(params, "path", { required: true });
 
       if (!action || !path) {
-        return {
+        const result = {
           content: "缺少必需参数: action 或 path",
           isError: true,
         };
+        logMethodReturn(logger, { method: "execute", module: MODULE_NAME, result: sanitize(result), duration: timer() });
+        return result;
       }
+
+      logger.info("工具执行", { toolName: "filesystem", action, path });
 
       const safePath = getSafePath(path, this.workspaceDir);
 
+      let result: ToolResult;
       switch (action) {
         case "read":
-          return await this.handleRead(safePath);
+          result = await this.handleRead(safePath);
+          break;
         case "write":
-          return await this.handleWrite(safePath, params);
+          result = await this.handleWrite(safePath, params);
+          break;
         case "edit":
-          return await this.handleEdit(safePath, params);
+          result = await this.handleEdit(safePath, params);
+          break;
         case "list":
-          return await this.handleList(safePath, params);
+          result = await this.handleList(safePath, params);
+          break;
         case "delete":
-          return await this.handleDelete(safePath);
+          result = await this.handleDelete(safePath);
+          break;
         case "move":
-          return await this.handleMove(safePath, params);
+          result = await this.handleMove(safePath, params);
+          break;
         default:
-          return {
+          result = {
             content: `未知的操作类型: ${action}`,
             isError: true,
           };
       }
+
+      logMethodReturn(logger, { method: "execute", module: "filesystem", result: sanitize(result), duration: timer() });
+      return result;
     } catch (error) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      logMethodError(logger, { method: "execute", module: MODULE_NAME, error: { name: err.name, message: err.message, ...(err.stack ? { stack: err.stack } : {}) }, params: sanitize(params) as Record<string, unknown>, duration: timer() });
       return {
-        content: `文件系统操作失败: ${error instanceof Error ? error.message : String(error)}`,
+        content: `文件系统操作失败: ${err.message}`,
         isError: true,
       };
     }

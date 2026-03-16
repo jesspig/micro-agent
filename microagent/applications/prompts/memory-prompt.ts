@@ -4,6 +4,10 @@
  * 用于 LLM 提取摘要和更新长期记忆
  */
 
+import { promptsLogger, createTimer, logMethodCall, logMethodReturn, logMethodError } from "../shared/logger.js";
+
+const logger = promptsLogger();
+
 // ============================================================================
 // 类型定义
 // ============================================================================
@@ -208,22 +212,38 @@ export const MEMORY_SEARCH_USER_TEMPLATE = `请从以下长期记忆中检索与
 export function buildMemoryExtractionPrompt(
   params: MemoryExtractionParams,
 ): { system: string; user: string } {
-  let userPrompt = MEMORY_EXTRACTION_USER_TEMPLATE.replace(
-    "{{conversationHistory}}",
-    params.conversationHistory,
-  );
+  const timer = createTimer();
+  logMethodCall(logger, { method: "buildMemoryExtractionPrompt", module: "memory-prompt", params: { 
+    historyLength: params.conversationHistory.length,
+    hasExistingMemory: !!params.existingMemory,
+    timeRange: params.timeRange
+  } });
 
-  // 添加现有记忆部分
-  const memorySection = params.existingMemory
-    ? `## 现有长期记忆\n\n${params.existingMemory}\n\n请参考现有记忆，避免重复提取已记录的信息。`
-    : "## 现有长期记忆\n\n（暂无现有记忆）";
+  try {
+    let userPrompt = MEMORY_EXTRACTION_USER_TEMPLATE.replace(
+      "{{conversationHistory}}",
+      params.conversationHistory,
+    );
 
-  userPrompt = userPrompt.replace("{{existingMemorySection}}", memorySection);
+    // 添加现有记忆部分
+    const memorySection = params.existingMemory
+      ? `## 现有长期记忆\n\n${params.existingMemory}\n\n请参考现有记忆，避免重复提取已记录的信息。`
+      : "## 现有长期记忆\n\n（暂无现有记忆）";
 
-  return {
-    system: MEMORY_EXTRACTION_SYSTEM_PROMPT,
-    user: userPrompt,
-  };
+    userPrompt = userPrompt.replace("{{existingMemorySection}}", memorySection);
+
+    const result = {
+      system: MEMORY_EXTRACTION_SYSTEM_PROMPT,
+      user: userPrompt,
+    };
+
+    logMethodReturn(logger, { method: "buildMemoryExtractionPrompt", module: "memory-prompt", result: { systemLength: result.system.length, userLength: result.user.length }, duration: timer() });
+    return result;
+  } catch (err) {
+    const error = err as Error;
+    logMethodError(logger, { method: "buildMemoryExtractionPrompt", module: "memory-prompt", error: { name: error.name, message: error.message, ...(error.stack ? { stack: error.stack } : {}) }, params: {}, duration: timer() });
+    throw error;
+  }
 }
 
 /**
@@ -235,21 +255,37 @@ export function buildMemoryExtractionPrompt(
 export function buildMemoryUpdatePrompt(
   params: MemoryUpdateParams,
 ): { system: string; user: string } {
-  let userPrompt = MEMORY_UPDATE_USER_TEMPLATE
-    .replace("{{existingMemory}}", params.existingMemory)
-    .replace("{{newInformation}}", params.newInformation);
+  const timer = createTimer();
+  logMethodCall(logger, { method: "buildMemoryUpdatePrompt", module: "memory-prompt", params: { 
+    existingMemoryLength: params.existingMemory.length,
+    newInfoLength: params.newInformation.length,
+    hasReason: !!params.reason
+  } });
 
-  // 添加更新原因
-  const reasonSection = params.reason
-    ? `## 更新原因\n\n${params.reason}`
-    : "";
+  try {
+    let userPrompt = MEMORY_UPDATE_USER_TEMPLATE
+      .replace("{{existingMemory}}", params.existingMemory)
+      .replace("{{newInformation}}", params.newInformation);
 
-  userPrompt = userPrompt.replace("{{reasonSection}}", reasonSection);
+    // 添加更新原因
+    const reasonSection = params.reason
+      ? `## 更新原因\n\n${params.reason}`
+      : "";
 
-  return {
-    system: MEMORY_UPDATE_SYSTEM_PROMPT,
-    user: userPrompt,
-  };
+    userPrompt = userPrompt.replace("{{reasonSection}}", reasonSection);
+
+    const result = {
+      system: MEMORY_UPDATE_SYSTEM_PROMPT,
+      user: userPrompt,
+    };
+
+    logMethodReturn(logger, { method: "buildMemoryUpdatePrompt", module: "memory-prompt", result: { systemLength: result.system.length, userLength: result.user.length }, duration: timer() });
+    return result;
+  } catch (err) {
+    const error = err as Error;
+    logMethodError(logger, { method: "buildMemoryUpdatePrompt", module: "memory-prompt", error: { name: error.name, message: error.message, ...(error.stack ? { stack: error.stack } : {}) }, params: {}, duration: timer() });
+    throw error;
+  }
 }
 
 /**
@@ -261,14 +297,29 @@ export function buildMemoryUpdatePrompt(
 export function buildMemorySearchPrompt(
   params: MemorySearchParams,
 ): { system: string; user: string } {
-  const userPrompt = MEMORY_SEARCH_USER_TEMPLATE
-    .replace("{{query}}", params.query)
-    .replace("{{memoryContent}}", params.memoryContent);
+  const timer = createTimer();
+  logMethodCall(logger, { method: "buildMemorySearchPrompt", module: "memory-prompt", params: { 
+    queryLength: params.query.length,
+    memoryContentLength: params.memoryContent.length
+  } });
 
-  return {
-    system: MEMORY_SEARCH_SYSTEM_PROMPT,
-    user: userPrompt,
-  };
+  try {
+    const userPrompt = MEMORY_SEARCH_USER_TEMPLATE
+      .replace("{{query}}", params.query)
+      .replace("{{memoryContent}}", params.memoryContent);
+
+    const result = {
+      system: MEMORY_SEARCH_SYSTEM_PROMPT,
+      user: userPrompt,
+    };
+
+    logMethodReturn(logger, { method: "buildMemorySearchPrompt", module: "memory-prompt", result: { systemLength: result.system.length, userLength: result.user.length }, duration: timer() });
+    return result;
+  } catch (err) {
+    const error = err as Error;
+    logMethodError(logger, { method: "buildMemorySearchPrompt", module: "memory-prompt", error: { name: error.name, message: error.message, ...(error.stack ? { stack: error.stack } : {}) }, params: {}, duration: timer() });
+    throw error;
+  }
 }
 
 /**
@@ -280,15 +331,27 @@ export function buildMemorySearchPrompt(
 export function formatConversationHistory(
   messages: Array<{ role: string; content: string }>,
 ): string {
-  return messages
-    .map((msg) => {
-      const roleLabel = {
-        user: "用户",
-        assistant: "助手",
-        system: "系统",
-      }[msg.role] || msg.role;
+  const timer = createTimer();
+  logMethodCall(logger, { method: "formatConversationHistory", module: "memory-prompt", params: { messageCount: messages.length } });
 
-      return `**${roleLabel}**：${msg.content}`;
-    })
-    .join("\n\n");
+  try {
+    const result = messages
+      .map((msg) => {
+        const roleLabel = {
+          user: "用户",
+          assistant: "助手",
+          system: "系统",
+        }[msg.role] || msg.role;
+
+        return `**${roleLabel}**：${msg.content}`;
+      })
+      .join("\n\n");
+
+    logMethodReturn(logger, { method: "formatConversationHistory", module: "memory-prompt", result: { length: result.length }, duration: timer() });
+    return result;
+  } catch (err) {
+    const error = err as Error;
+    logMethodError(logger, { method: "formatConversationHistory", module: "memory-prompt", error: { name: error.name, message: error.message, ...(error.stack ? { stack: error.stack } : {}) }, params: { messageCount: messages.length }, duration: timer() });
+    throw error;
+  }
 }

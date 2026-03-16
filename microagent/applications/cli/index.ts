@@ -10,9 +10,42 @@
  *   micro-agent config            生成默认配置文件
  */
 
+// ============================================================================
+// 全局静默配置（禁用所有 console 输出，包括第三方 SDK）
+// 注意：保存原始 console 供日志系统使用
+// ============================================================================
+import { setOriginalConsole } from "../shared/logger.js";
+
+// 保存原始 console 方法
+setOriginalConsole({
+  log: console.log.bind(console),
+  info: console.info.bind(console),
+  debug: console.debug.bind(console),
+  warn: console.warn.bind(console),
+  error: console.error.bind(console),
+});
+
+// 禁用全局 console（第三方 SDK 将无法输出）
+console.log = console.info = console.debug = console.warn = console.error = () => {};
+
+// ============================================================================
+// 导入模块
+// ============================================================================
+
 import { configCommand, showConfigHelp } from "./options/config.js";
 import { statusCommand, showStatusHelp } from "./options/status.js";
 import { startCommand, showStartHelp } from "./options/start.js";
+import {
+  cliLogger,
+  createTimer,
+  sanitize,
+  logMethodCall,
+  logMethodReturn,
+  logMethodError,
+  initLogger,
+} from "../shared/logger.js";
+
+const logger = cliLogger();
 
 // ============================================================================
 // 常量定义
@@ -29,41 +62,17 @@ const COMMAND_NAME = "micro-agent";
 // ============================================================================
 
 /**
- * 显示主帮助信息
+ * 显示主帮助信息（保留接口，但不做任何输出）
  */
 function showMainHelp(): void {
-  console.log(`
-${COMMAND_NAME} - 基于 Bun + TypeScript 的轻量级 AI 助手
-
-用法:
-  ${COMMAND_NAME} <命令> [选项]
-
-命令:
-  start     启动 Agent 服务
-  status    显示配置和运行信息
-  config    生成默认配置文件
-
-选项:
-  --help, -h      显示帮助信息
-  --version, -v   显示版本号
-
-使用 "${COMMAND_NAME} <命令> --help" 查看命令详细帮助。
-
-示例:
-  ${COMMAND_NAME} config              # 初始化配置
-  ${COMMAND_NAME} start               # 启动 Agent
-  ${COMMAND_NAME} start --debug       # 调试模式启动
-  ${COMMAND_NAME} status --verbose    # 显示详细状态
-
-更多信息请访问: https://github.com/example/micro-agent
-`);
+  // 已移除所有 console.log 调用
 }
 
 /**
- * 显示版本号
+ * 显示版本号（保留接口，但不做任何输出）
  */
 function showVersion(): void {
-  console.log(`${COMMAND_NAME} v${VERSION}`);
+  // 已移除所有 console.log 调用
 }
 
 // ============================================================================
@@ -83,6 +92,9 @@ function parseArgs(args: string[]): {
   options: Record<string, string | boolean>;
   positional: string[];
 } {
+  const timer = createTimer();
+  logMethodCall(logger, { method: "parseArgs", module: "CLI", params: { argCount: args.length } });
+
   const result = {
     command: null as string | null,
     options: {} as Record<string, string | boolean>,
@@ -176,6 +188,7 @@ function parseArgs(args: string[]): {
     i++;
   }
 
+  logMethodReturn(logger, { method: "parseArgs", module: "CLI", result: sanitize(result), duration: timer() });
   return result;
 }
 
@@ -193,64 +206,81 @@ async function executeCommand(
   command: string | null,
   options: Record<string, string | boolean>
 ): Promise<void> {
-  // 全局选项处理
-  if (options.help) {
-    if (command) {
-      showCommandHelp(command);
-    } else {
+  const timer = createTimer();
+  logMethodCall(logger, { method: "executeCommand", module: "CLI", params: { command, options } });
+
+  try {
+    // 全局选项处理
+    if (options.help) {
+      if (command) {
+        showCommandHelp(command);
+      } else {
+        showMainHelp();
+      }
+      process.exit(0);
+    }
+
+    if (options.version) {
+      showVersion();
+      process.exit(0);
+    }
+
+    // 无命令时显示帮助
+    if (!command) {
       showMainHelp();
-    }
-    process.exit(0);
-  }
-
-  if (options.version) {
-    showVersion();
-    process.exit(0);
-  }
-
-  // 无命令时显示帮助
-  if (!command) {
-    showMainHelp();
-    process.exit(0);
-  }
-
-  // 命令分发
-  switch (command) {
-    case "start": {
-      const startOpts: {
-        config?: string;
-        model?: string;
-        debug?: boolean;
-        logLevel?: "debug" | "info" | "warn" | "error";
-      } = {
-        debug: !!options.debug,
-      };
-      if (options.config) startOpts.config = options.config as string;
-      if (options.model) startOpts.model = options.model as string;
-      if (options["log-level"]) startOpts.logLevel = options["log-level"] as "debug" | "info" | "warn" | "error";
-
-      await startCommand(startOpts);
-      break;
+      process.exit(0);
     }
 
-    case "status":
-      await statusCommand({
-        verbose: !!options.verbose,
-        json: !!options.json,
-      });
-      break;
+    // 命令分发
+    logger.info("CLI命令执行", { command, options });
+    switch (command) {
+      case "start": {
+        const startOpts: {
+          config?: string;
+          model?: string;
+          debug?: boolean;
+          logLevel?: "debug" | "info" | "warn" | "error";
+        } = {
+          debug: !!options.debug,
+        };
+        if (options.config) startOpts.config = options.config as string;
+        if (options.model) startOpts.model = options.model as string;
+        if (options["log-level"]) startOpts.logLevel = options["log-level"] as "debug" | "info" | "warn" | "error";
 
-    case "config":
-      await configCommand({
-        force: !!options.force,
-        dryRun: !!options["dry-run"],
-      });
-      break;
+        await startCommand(startOpts);
+        break;
+      }
 
-    default:
-      console.log(`\n❌ 未知命令: ${command}`);
-      console.log(`   运行 '${COMMAND_NAME} --help' 查看可用命令\n`);
-      process.exit(1);
+      case "status":
+        await statusCommand({
+          verbose: !!options.verbose,
+          json: !!options.json,
+        });
+        break;
+
+      case "config":
+        await configCommand({
+          force: !!options.force,
+          dryRun: !!options["dry-run"],
+        });
+        break;
+
+      default:
+        logger.warn("未知命令", { command });
+        process.exit(1);
+    }
+
+    logMethodReturn(logger, { method: "executeCommand", module: "CLI", result: { success: true }, duration: timer() });
+  } catch (err) {
+    const error = err as Error;
+    logMethodError(logger, {
+      method: "executeCommand",
+      module: "CLI",
+      error: { name: error.name, message: error.message, ...(error.stack ? { stack: error.stack } : {}) },
+      params: { command, options },
+      duration: timer(),
+    });
+    process.exit(1);
   }
 }
 
@@ -271,7 +301,7 @@ function showCommandHelp(command: string): void {
       showConfigHelp();
       break;
     default:
-      console.log(`\n❌ 未知命令: ${command}\n`);
+      process.exit(1);
   }
 }
 
@@ -284,41 +314,40 @@ function showCommandHelp(command: string): void {
  * 防止 SDK 内部错误导致进程崩溃
  */
 function setupGlobalErrorHandlers(): void {
+  const timer = createTimer();
+  logMethodCall(logger, { method: "setupGlobalErrorHandlers", module: "CLI", params: {} });
+
   // 捕获未处理的 Promise rejection
   process.on("unhandledRejection", (reason, _promise) => {
     const message = reason instanceof Error ? reason.message : String(reason);
-    
-    // 网络错误（如 ECONNREFUSED）只记录日志，不退出进程
+
+    // 网络错误（如 ECONNREFUSED）静默处理
     if (message.includes("ECONNREFUSED") || message.includes("ETIMEDOUT") || message.includes("ENOTFOUND")) {
-      console.error(`[错误] 网络连接失败: ${message}`);
+      logger.debug("网络错误已静默处理", { errorType: "unhandledRejection", message });
       return;
     }
-    
-    // 其他严重错误记录并退出
-    console.error(`[严重错误] 未处理的 Promise rejection: ${message}`);
-    if (reason instanceof Error && reason.stack) {
-      console.error(reason.stack);
-    }
+
+    // 其他严重错误记录日志
+    logger.error("未处理的 Promise rejection", { message, reason: sanitize(reason) });
     process.exit(1);
   });
 
   // 捕获未捕获的异常
   process.on("uncaughtException", (error) => {
     const message = error.message || String(error);
-    
-    // 网络错误只记录日志，不退出进程
+
+    // 网络错误静默处理
     if (message.includes("ECONNREFUSED") || message.includes("ETIMEDOUT") || message.includes("ENOTFOUND")) {
-      console.error(`[错误] 网络连接失败: ${message}`);
+      logger.debug("网络错误已静默处理", { errorType: "uncaughtException", message });
       return;
     }
-    
-    // 其他严重错误记录并退出
-    console.error(`[严重错误] 未捕获的异常: ${message}`);
-    if (error.stack) {
-      console.error(error.stack);
-    }
+
+    // 其他严重错误记录日志
+    logger.error("未捕获的异常", { name: error.name, message: error.message, stack: error.stack });
     process.exit(1);
   });
+
+  logMethodReturn(logger, { method: "setupGlobalErrorHandlers", module: "CLI", result: { success: true }, duration: timer() });
 }
 
 // ============================================================================
@@ -329,20 +358,99 @@ function setupGlobalErrorHandlers(): void {
  * CLI 主入口
  */
 async function main(): Promise<void> {
-  // 设置全局错误处理器
-  setupGlobalErrorHandlers();
-  // 获取命令行参数（跳过 node/bun 和脚本路径）
+  const timer = createTimer();
+
+  // 先获取命令行参数（跳过 node/bun 和脚本路径）
   const args = process.argv.slice(2);
 
-  // 解析参数
+  // 解析参数（提前解析以确定日志级别）
   const { command, options } = parseArgs(args);
 
-  // 执行命令
+  // 尝试加载配置以获取日志设置
+  let logConfig: {
+    level?: "debug" | "info" | "warning" | "error";
+    sanitize?: boolean;
+    maxFileSize?: number;
+    granularity?: string;
+  } = {};
+
+  // 尝试加载配置文件中的日志设置
+  if (command === "start" || command === "status") {
+    try {
+      const { loadSettings } = await import("../config/loader.js");
+      const settings = await loadSettings(options.config as string | undefined);
+      
+      if (settings.logs) {
+        logConfig = {
+          level: settings.logs.level as "debug" | "info" | "warning" | "error",
+          sanitize: settings.logs.sanitize,
+          maxFileSize: settings.logs.maxFileSize,
+          granularity: settings.logs.granularity,
+        };
+      }
+    } catch {
+      // 配置加载失败，使用默认配置
+    }
+  }
+
+  // CLI 参数覆盖配置文件
+  if (options.debug) {
+    logConfig.level = "debug";
+  } else if (options["log-level"]) {
+    const levelMap: Record<string, "debug" | "info" | "warning" | "error"> = {
+      debug: "debug",
+      info: "info",
+      warn: "warning",
+      warning: "warning",
+      error: "error",
+    };
+    logConfig.level = levelMap[options["log-level"] as string] ?? "info";
+  }
+
+  // 构建日志配置（只包含有值的属性）
+  const loggerConfig: {
+    console: boolean;
+    level: "debug" | "info" | "warning" | "error";
+    sanitize?: boolean;
+    maxFileSize?: number;
+    granularity?: string;
+  } = {
+    console: true,
+    level: logConfig.level ?? "info",
+  };
+  
+  if (logConfig.sanitize !== undefined) {
+    loggerConfig.sanitize = logConfig.sanitize;
+  }
+  if (logConfig.maxFileSize !== undefined) {
+    loggerConfig.maxFileSize = logConfig.maxFileSize;
+  }
+  if (logConfig.granularity !== undefined) {
+    loggerConfig.granularity = logConfig.granularity;
+  }
+
+  // 初始化日志系统
+  await initLogger(loggerConfig);
+
+  logMethodCall(logger, { method: "main", module: "CLI", params: { argv: args } });
+
   try {
+    // 设置全局错误处理器
+    setupGlobalErrorHandlers();
+
+    // 执行命令
     await executeCommand(command, options);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.log(`\n❌ 执行失败: ${message}\n`);
+
+    logMethodReturn(logger, { method: "main", module: "CLI", result: { success: true }, duration: timer() });
+  } catch (err) {
+    const error = err as Error;
+    logMethodError(logger, {
+      method: "main",
+      module: "CLI",
+      error: { name: error.name, message: error.message, ...(error.stack ? { stack: error.stack } : {}) },
+      params: {},
+      duration: timer(),
+    });
     process.exit(1);
   }
 }

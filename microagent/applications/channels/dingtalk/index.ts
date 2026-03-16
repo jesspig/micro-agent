@@ -13,7 +13,11 @@ import { convertMarkdown } from "./markdown.js";
 import {
   isSafeWebhookUrlForPlatform,
   truncateMessage,
+  truncateForLog,
 } from "../../shared/security.js";
+import { channelsLogger, createTimer, sanitize, logMethodCall, logMethodReturn, logMethodError } from "../../shared/logger.js";
+
+const logger = channelsLogger();
 
 // ============================================================================
 // 常量定义
@@ -94,6 +98,9 @@ interface DingTalkMessageData {
  * - 支持单聊和群聊
  */
 export class DingTalkChannel extends BaseChannel {
+  /** Channel 名称常量 */
+  private static readonly CHANNEL_NAME = "DingTalkChannel";
+
   readonly id: string;
   readonly type = "dingtalk" as const;
   readonly capabilities: ChannelCapabilities = {
@@ -126,16 +133,20 @@ export class DingTalkChannel extends BaseChannel {
     super(config);
     this.id = config.id;
     this.config = config;
+    logger.debug("创建 DingTalkChannel 实例", { clientId: config.clientId });
   }
 
   async start(_config: ChannelConfig): Promise<void> {
+    const timer = createTimer();
     const { clientId, clientSecret } = this.config;
 
-    if (!clientId || !clientSecret) {
-      throw new Error("钉钉 Channel 需要 clientId 和 clientSecret 配置");
-    }
+    logMethodCall(logger, { method: "start", module: DingTalkChannel.CHANNEL_NAME, params: { clientId } });
 
-    console.log("[钉钉] 正在初始化 Stream SDK...");
+    if (!clientId || !clientSecret) {
+      const error = new Error("钉钉 Channel 需要 clientId 和 clientSecret 配置");
+      logMethodError(logger, { method: "start", module: DingTalkChannel.CHANNEL_NAME, error: { name: error.name, message: error.message }, params: { clientId }, duration: timer() });
+      throw error;
+    }
 
     const self = this;
 
@@ -152,26 +163,31 @@ export class DingTalkChannel extends BaseChannel {
         .registerCallbackListener(
           "/v1.0/im/bot/messages/get",
           async (res: DWClientDownStream) => {
-            console.log("[钉钉] 收到回调消息");
             await self.handleBotMessage(res);
           }
         )
         .connect();
 
-      console.log("[钉钉] Stream SDK 已启动");
       this.setConnected(true);
+      logger.info("钉钉 Stream 连接成功", { clientId });
+      logger.info("钉钉 Channel 启动成功", { clientId });
 
       // 启动定时清理（每小时清理一次过期消息 ID）
       this.cleanupTimer = setInterval(() => this.cleanupProcessedIds(), 60 * 60 * 1000);
+      logMethodReturn(logger, { method: "start", module: DingTalkChannel.CHANNEL_NAME, result: { success: true }, duration: timer() });
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : String(error);
-      console.error(`[钉钉] Stream SDK 启动失败: ${errMsg}`);
       this.setConnected(false, errMsg);
+      logMethodError(logger, { method: "start", module: DingTalkChannel.CHANNEL_NAME, error: { name: "Error", message: errMsg }, params: { clientId }, duration: timer() });
       // 不抛出异常，允许其他 Channel 正常启动
     }
   }
 
   async stop(): Promise<void> {
+    const timer = createTimer();
+    const { clientId } = this.config;
+    logMethodCall(logger, { method: "stop", module: DingTalkChannel.CHANNEL_NAME, params: { clientId } });
+
     // 停止清理定时器
     if (this.cleanupTimer) {
       clearInterval(this.cleanupTimer);
@@ -187,10 +203,14 @@ export class DingTalkChannel extends BaseChannel {
     this.processedIds.clear();
 
     this.setConnected(false);
-    console.log("[钉钉] Bot 已停止");
+    logger.info("钉钉 Channel 已停止", { clientId });
+    logMethodReturn(logger, { method: "stop", module: DingTalkChannel.CHANNEL_NAME, result: { success: true }, duration: timer() });
   }
 
   async send(message: OutboundMessage): Promise<SendResult> {
+    const timer = createTimer();
+    logMethodCall(logger, { method: "send", module: DingTalkChannel.CHANNEL_NAME, params: { to: message.to, format: message.format } });
+
     const format = message.format || "text";
     const isMarkdown = format === "markdown";
 
@@ -202,13 +222,21 @@ export class DingTalkChannel extends BaseChannel {
     // 优先使用 sessionWebhook 回复（群聊会 @ 发送者）
     const sessionWebhook = message.metadata?.sessionWebhook as string | undefined;
     if (sessionWebhook) {
-      return this.sendViaSessionWebhook(sessionWebhook, text, isMarkdown);
+      logger.info("通过 sessionWebhook 发送钉钉消息", { isMarkdown, content: truncateForLog(text) });
+      const result = await this.sendViaSessionWebhook(sessionWebhook, text, isMarkdown);
+      if (result.success) {
+        logger.info("钉钉消息发送成功", { to: message.to });
+      }
+      logMethodReturn(logger, { method: "send", module: DingTalkChannel.CHANNEL_NAME, result: sanitize(result), duration: timer() });
+      return result;
     }
 
     // 回退到 API 方式
     const token = await this.getAccessToken();
     if (!token) {
-      return { success: false, error: "无法获取 Access Token" };
+      const result = { success: false, error: "无法获取 Access Token" };
+      logMethodReturn(logger, { method: "send", module: DingTalkChannel.CHANNEL_NAME, result, duration: timer() });
+      return result;
     }
 
     try {
@@ -238,6 +266,8 @@ export class DingTalkChannel extends BaseChannel {
             msgParam,
           };
 
+      logger.info("通过 API 发送钉钉消息", { isGroup, isMarkdown, content: truncateForLog(text) });
+
       const response = await fetch(url, {
         method: "POST",
         headers: {
@@ -250,13 +280,18 @@ export class DingTalkChannel extends BaseChannel {
       const result = (await response.json()) as DingTalkApiResponse;
 
       if (result.errcode && result.errcode !== 0) {
-        return { success: false, error: result.errmsg || "发送失败" };
+        const sendResult = { success: false, error: result.errmsg || "发送失败" };
+        logMethodReturn(logger, { method: "send", module: DingTalkChannel.CHANNEL_NAME, result: sendResult, duration: timer() });
+        return sendResult;
       }
 
+      logger.info("钉钉消息发送成功", { to: message.to });
+      logMethodReturn(logger, { method: "send", module: DingTalkChannel.CHANNEL_NAME, result: { success: true }, duration: timer() });
       return { success: true };
     } catch (error) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      return { success: false, error: errMsg };
+      const err = error instanceof Error ? error : new Error(String(error));
+      logMethodError(logger, { method: "send", module: DingTalkChannel.CHANNEL_NAME, error: { name: err.name, message: err.message, stack: err.stack }, params: { to: message.to }, duration: timer() });
+      return { success: false, error: err.message };
     }
   }
 
@@ -265,14 +300,21 @@ export class DingTalkChannel extends BaseChannel {
    * 钉钉 API: PUT /v1.0/robot/oToMessages/{messageId}
    */
   async updateMessage(messageId: string, text: string, format?: "text" | "markdown"): Promise<SendResult> {
+    const timer = createTimer();
+    logMethodCall(logger, { method: "updateMessage", module: DingTalkChannel.CHANNEL_NAME, params: { messageId, format } });
+
     const token = await this.getAccessToken();
     if (!token) {
-      return { success: false, error: "无法获取 Access Token" };
+      const result = { success: false, error: "无法获取 Access Token" };
+      logMethodReturn(logger, { method: "updateMessage", module: DingTalkChannel.CHANNEL_NAME, result, duration: timer() });
+      return result;
     }
 
     try {
       const url = `https://api.dingtalk.com/v1.0/robot/oToMessages/${messageId}`;
       const isMarkdown = format === "markdown";
+
+      logger.info("更新钉钉消息", { messageId, isMarkdown });
 
       const response = await fetch(url, {
         method: "PUT",
@@ -294,13 +336,18 @@ export class DingTalkChannel extends BaseChannel {
       const result = (await response.json()) as DingTalkApiResponse;
 
       if (result.errcode && result.errcode !== 0) {
-        return { success: false, error: result.errmsg || "更新失败" };
+        const sendResult = { success: false, error: result.errmsg || "更新失败" };
+        logMethodReturn(logger, { method: "updateMessage", module: DingTalkChannel.CHANNEL_NAME, result: sendResult, duration: timer() });
+        return sendResult;
       }
 
+      logger.info("钉钉消息更新成功", { messageId });
+      logMethodReturn(logger, { method: "updateMessage", module: DingTalkChannel.CHANNEL_NAME, result: { success: true, messageId }, duration: timer() });
       return { success: true, messageId };
     } catch (error) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      return { success: false, error: errMsg };
+      const err = error instanceof Error ? error : new Error(String(error));
+      logMethodError(logger, { method: "updateMessage", module: DingTalkChannel.CHANNEL_NAME, error: { name: err.name, message: err.message, stack: err.stack }, params: { messageId }, duration: timer() });
+      return { success: false, error: err.message };
     }
   }
 
@@ -312,9 +359,14 @@ export class DingTalkChannel extends BaseChannel {
     text: string,
     isMarkdown: boolean
   ): Promise<SendResult> {
+    const timer = createTimer();
+    logMethodCall(logger, { method: "sendViaSessionWebhook", module: DingTalkChannel.CHANNEL_NAME, params: { isMarkdown } });
+
     // URL 安全验证
     if (!isSafeWebhookUrlForPlatform(webhookUrl, "dingtalk")) {
-      return { success: false, error: "不安全的 Webhook URL" };
+      const result = { success: false, error: "不安全的 Webhook URL" };
+      logMethodReturn(logger, { method: "sendViaSessionWebhook", module: DingTalkChannel.CHANNEL_NAME, result, duration: timer() });
+      return result;
     }
 
     try {
@@ -337,13 +389,18 @@ export class DingTalkChannel extends BaseChannel {
       const result = (await response.json()) as DingTalkApiResponse;
 
       if (result.errcode && result.errcode !== 0) {
-        return { success: false, error: result.errmsg || "发送失败" };
+        const sendResult = { success: false, error: result.errmsg || "发送失败" };
+        logMethodReturn(logger, { method: "sendViaSessionWebhook", module: DingTalkChannel.CHANNEL_NAME, result: sendResult, duration: timer() });
+        return sendResult;
       }
 
+      logger.info("钉钉 sessionWebhook 消息发送成功");
+      logMethodReturn(logger, { method: "sendViaSessionWebhook", module: DingTalkChannel.CHANNEL_NAME, result: { success: true }, duration: timer() });
       return { success: true };
     } catch (error) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      return { success: false, error: errMsg };
+      const err = error instanceof Error ? error : new Error(String(error));
+      logMethodError(logger, { method: "sendViaSessionWebhook", module: DingTalkChannel.CHANNEL_NAME, error: { name: err.name, message: err.message, stack: err.stack }, params: {}, duration: timer() });
+      return { success: false, error: err.message };
     }
   }
 
@@ -351,7 +408,12 @@ export class DingTalkChannel extends BaseChannel {
    * 获取 Access Token
    */
   private async getAccessToken(): Promise<string | null> {
+    const timer = createTimer();
+    logMethodCall(logger, { method: "getAccessToken", module: DingTalkChannel.CHANNEL_NAME, params: {} });
+
     if (this.accessToken && Date.now() < this.tokenExpiry) {
+      logger.debug("使用缓存的 AccessToken");
+      logMethodReturn(logger, { method: "getAccessToken", module: DingTalkChannel.CHANNEL_NAME, result: { cached: true }, duration: timer() });
       return this.accessToken;
     }
 
@@ -371,12 +433,17 @@ export class DingTalkChannel extends BaseChannel {
         this.accessToken = result.accessToken;
         // 提前 60 秒过期
         this.tokenExpiry = Date.now() + (result.expireIn || 7200) * 1000 - 60000;
+        logger.info("AccessToken 获取成功", { expiresIn: result.expireIn });
+        logMethodReturn(logger, { method: "getAccessToken", module: DingTalkChannel.CHANNEL_NAME, result: { success: true }, duration: timer() });
         return this.accessToken;
       }
 
+      logger.warn("AccessToken 获取失败");
+      logMethodReturn(logger, { method: "getAccessToken", module: DingTalkChannel.CHANNEL_NAME, result: { success: false }, duration: timer() });
       return null;
     } catch (error) {
-      console.error("[钉钉] 获取 Access Token 失败:", error);
+      const err = error instanceof Error ? error : new Error(String(error));
+      logMethodError(logger, { method: "getAccessToken", module: DingTalkChannel.CHANNEL_NAME, error: { name: err.name, message: err.message }, params: {}, duration: timer() });
       return null;
     }
   }
@@ -404,6 +471,9 @@ export class DingTalkChannel extends BaseChannel {
    * 清理过期的已处理消息 ID
    */
   private cleanupProcessedIds(): void {
+    const timer = createTimer();
+    logMethodCall(logger, { method: "cleanupProcessedIds", module: DingTalkChannel.CHANNEL_NAME, params: {} });
+
     const now = Date.now();
     let cleaned = 0;
 
@@ -428,21 +498,25 @@ export class DingTalkChannel extends BaseChannel {
     }
 
     if (cleaned > 0) {
-      console.log(`[钉钉] 清理了 ${cleaned} 个过期消息 ID，当前数量: ${this.processedIds.size}`);
+      logger.info("清理过期消息 ID", { cleaned, remaining: this.processedIds.size });
     }
+    logMethodReturn(logger, { method: "cleanupProcessedIds", module: DingTalkChannel.CHANNEL_NAME, result: { cleaned, remaining: this.processedIds.size }, duration: timer() });
   }
 
   /**
    * 处理机器人消息
    */
   private async handleBotMessage(res: DWClientDownStream): Promise<void> {
+    const timer = createTimer();
+    logMethodCall(logger, { method: "handleBotMessage", module: DingTalkChannel.CHANNEL_NAME, params: {} });
+
     try {
       const data: DingTalkMessageData = JSON.parse(res.data);
 
       // 消息去重检查
       const msgId = data.msgId;
       if (msgId && this.isProcessed(msgId)) {
-        console.log(`[钉钉] 跳过已处理的消息: ${msgId}`);
+        logMethodReturn(logger, { method: "handleBotMessage", module: DingTalkChannel.CHANNEL_NAME, result: { skipped: true, reason: "duplicate" }, duration: timer() });
         return;
       }
 
@@ -455,22 +529,20 @@ export class DingTalkChannel extends BaseChannel {
       }
 
       if (!content) {
+        logMethodReturn(logger, { method: "handleBotMessage", module: DingTalkChannel.CHANNEL_NAME, result: { skipped: true, reason: "empty" }, duration: timer() });
         return;
       }
 
       const senderId = data.senderStaffId || data.senderId || "unknown";
-      const senderName = data.senderNick || "Unknown";
       const conversationType = data.conversationType;
       const conversationId = data.conversationId || data.openConversationId;
       const sessionWebhook = data.sessionWebhook;
 
-      // 安全日志：仅记录关键信息，不记录原始响应
-      console.log(`[钉钉] 收到消息: 发送者=${senderId}, 会话类型=${conversationType}`);
-
       // 权限检查
       const allowList = this.config.allowFrom || [];
       if (allowList.length > 0 && !allowList.includes("*") && !allowList.includes(senderId)) {
-        console.log(`[钉钉] 拒绝来自 ${senderId} 的消息（未在 allowFrom 列表中）`);
+        logger.debug("钉钉消息权限检查失败", { senderId });
+        logMethodReturn(logger, { method: "handleBotMessage", module: DingTalkChannel.CHANNEL_NAME, result: { skipped: true, reason: "permission" }, duration: timer() });
         return;
       }
 
@@ -490,10 +562,12 @@ export class DingTalkChannel extends BaseChannel {
         metadata: sessionWebhook ? { sessionWebhook } : undefined,
       };
 
+      logger.info("钉钉消息接收", { senderId, chatId, msgId, content: truncateForLog(content) });
       this.emitMessage(inboundMsg);
-      console.log(`[钉钉] 收到消息: ${senderName}(${senderId}): ${content}`);
+      logMethodReturn(logger, { method: "handleBotMessage", module: DingTalkChannel.CHANNEL_NAME, result: { success: true }, duration: timer() });
     } catch (error) {
-      console.error("[钉钉] 处理机器人消息错误:", error);
+      const err = error instanceof Error ? error : new Error(String(error));
+      logMethodError(logger, { method: "handleBotMessage", module: DingTalkChannel.CHANNEL_NAME, error: { name: err.name, message: err.message }, params: {}, duration: timer() });
     }
   }
 }
@@ -502,5 +576,6 @@ export class DingTalkChannel extends BaseChannel {
  * 创建钉钉 Channel 实例
  */
 export function createDingTalkChannel(config: DingTalkBotConfig): DingTalkChannel {
+  logger.info("创建钉钉 Channel 实例", { clientId: config.clientId });
   return new DingTalkChannel(config);
 }

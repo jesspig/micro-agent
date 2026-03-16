@@ -1,5 +1,19 @@
+/**
+ * 事件总线
+ */
+
 import type { EventHandler, IEventEmitter } from "../contracts.js";
 import type { Message } from "../types.js";
+import { 
+  busLogger, 
+  createTimer, 
+  sanitize, 
+  logMethodCall, 
+  logMethodReturn, 
+  logMethodError 
+} from "../../applications/shared/logger.js";
+
+const logger = busLogger();
 
 /**
  * 事件映射类型
@@ -34,42 +48,173 @@ export interface EventMap {
   [key: string]: unknown;
 }
 
-// 事件总线实现
+/**
+ * 事件总线实现
+ */
 class EventBus<T extends Record<string, unknown>> implements IEventEmitter<T> {
   private handlers = new Map<keyof T, Set<EventHandler>>();
 
+  /**
+   * 注册事件处理器
+   * @param event - 事件名
+   * @param handler - 处理器
+   */
   on<K extends keyof T>(event: K, handler: EventHandler<T[K]>): void {
+    const timer = createTimer();
+    logMethodCall(logger, { 
+      method: "on", 
+      module: "EventBus",
+      params: { event: String(event), handlerCount: this.handlers.get(event)?.size ?? 0 }
+    });
+    
     if (!this.handlers.has(event)) {
       this.handlers.set(event, new Set());
     }
     this.handlers.get(event)!.add(handler as EventHandler);
+    
+    logger.info("事件处理器已注册", { 
+      event: String(event),
+      totalHandlers: this.handlers.get(event)!.size
+    });
+    
+    logMethodReturn(logger, { 
+      method: "on", 
+      module: "EventBus",
+      duration: timer() 
+    });
   }
 
+  /**
+   * 移除事件处理器
+   * @param event - 事件名
+   * @param handler - 处理器
+   */
   off<K extends keyof T>(event: K, handler: EventHandler<T[K]>): void {
-    this.handlers.get(event)?.delete(handler as EventHandler);
+    const timer = createTimer();
+    logMethodCall(logger, { 
+      method: "off", 
+      module: "EventBus",
+      params: { event: String(event) }
+    });
+    
+    const handlers = this.handlers.get(event);
+    const beforeCount = handlers?.size ?? 0;
+    handlers?.delete(handler as EventHandler);
+    const afterCount = handlers?.size ?? 0;
+    
+    logger.info("事件处理器已移除", { 
+      event: String(event),
+      beforeCount,
+      afterCount
+    });
+    
+    logMethodReturn(logger, { 
+      method: "off", 
+      module: "EventBus",
+      duration: timer() 
+    });
   }
 
+  /**
+   * 触发事件
+   * @param event - 事件名
+   * @param payload - 事件载荷
+   */
   emit<K extends keyof T>(event: K, payload: T[K]): void {
+    const timer = createTimer();
+    logMethodCall(logger, { 
+      method: "emit", 
+      module: "EventBus",
+      params: { event: String(event) }
+    });
+    
     const handlers = this.handlers.get(event);
-    if (!handlers) return;
+    if (!handlers) {
+      logger.debug("事件无处理器", { event: String(event) });
+      return;
+    }
+    
+    logger.info("事件触发", { 
+      event: String(event),
+      handlerCount: handlers.size,
+      payload: sanitize(payload)
+    });
+    
+    let successCount = 0;
+    let errorCount = 0;
+    
     for (const handler of handlers) {
       try {
         handler(payload);
+        successCount++;
       } catch (error) {
-        console.error(`[EventBus] Handler error for "${String(event)}":`, error);
+        errorCount++;
+        const err = error instanceof Error ? error : new Error(String(error));
+        logMethodError(logger, { 
+          method: "emit", 
+          module: "EventBus",
+          error: { name: err.name, message: err.message, stack: err.stack },
+          params: { event: String(event) }
+        });
       }
     }
+    
+    logger.debug("事件处理完成", { 
+      event: String(event),
+      successCount,
+      errorCount,
+      duration: timer()
+    });
   }
 
-  // 清除所有处理器
+  /**
+   * 清除所有处理器
+   */
   clear(): void {
+    const timer = createTimer();
+    logMethodCall(logger, { 
+      method: "clear", 
+      module: "EventBus",
+      params: { eventCount: this.handlers.size }
+    });
+    
+    const clearedCount = this.handlers.size;
     this.handlers.clear();
+    
+    logger.info("事件总线已清空", { 
+      clearedEventTypes: clearedCount 
+    });
+    
+    logMethodReturn(logger, { 
+      method: "clear", 
+      module: "EventBus",
+      result: { clearedCount },
+      duration: timer() 
+    });
   }
 }
 
-// 创建全局事件总线
+/**
+ * 创建全局事件总线
+ */
 function createEventBus(): EventBus<EventMap> {
-  return new EventBus<EventMap>();
+  const timer = createTimer();
+  logMethodCall(logger, { 
+    method: "createEventBus", 
+    module: "EventBus"
+  });
+  
+  const bus = new EventBus<EventMap>();
+  
+  logger.info("事件总线已创建");
+  
+  logMethodReturn(logger, { 
+    method: "createEventBus", 
+    module: "EventBus",
+    duration: timer() 
+  });
+  
+  return bus;
 }
 
 export { EventBus, createEventBus };

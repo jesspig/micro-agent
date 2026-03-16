@@ -4,6 +4,10 @@
  * 提供 URL 验证、日志脱敏、消息长度限制等安全功能
  */
 
+import { sharedLogger, createTimer, logMethodCall, logMethodReturn, logMethodError } from "./logger.js";
+
+const logger = sharedLogger();
+
 // ============================================================================
 // 常量定义
 // ============================================================================
@@ -110,15 +114,53 @@ const DANGEROUS_PATTERNS = [
  * ```
  */
 export function getMessageLimit(platform: string, useMarkdown?: boolean): number {
-  const limits = PLATFORM_MESSAGE_LIMITS[platform];
-  if (!limits) {
-    return MAX_MESSAGE_LENGTH;
+  const timer = createTimer();
+  logMethodCall(logger, { method: "getMessageLimit", module: "security", params: { platform, useMarkdown } });
+
+  try {
+    const limits = PLATFORM_MESSAGE_LIMITS[platform];
+    let result: number;
+    
+    if (!limits) {
+      result = MAX_MESSAGE_LENGTH;
+    } else {
+      // 如果未指定 useMarkdown，返回文本限制
+      if (useMarkdown === undefined) {
+        result = limits.text;
+      } else {
+        result = useMarkdown ? limits.markdown : limits.text;
+      }
+    }
+
+    logMethodReturn(logger, { method: "getMessageLimit", module: "security", result, duration: timer() });
+    return result;
+  } catch (err) {
+    const error = err as Error;
+    logMethodError(logger, { method: "getMessageLimit", module: "security", error: { name: error.name, message: error.message, ...(error.stack ? { stack: error.stack } : {}) }, params: { platform, useMarkdown }, duration: timer() });
+    throw error;
   }
-  // 如果未指定 useMarkdown，返回文本限制
-  if (useMarkdown === undefined) {
-    return limits.text;
+}
+
+/** 日志消息最大长度 */
+const MAX_LOG_LENGTH = 1000;
+
+/**
+ * 截断日志消息到最大长度
+ * 
+ * 用于在日志中记录消息内容时截断过长的消息
+ * 
+ * @param message - 原始消息
+ * @param maxLength - 最大长度（默认 1000）
+ * @returns 截断后的消息
+ */
+export function truncateForLog(
+  message: string,
+  maxLength: number = MAX_LOG_LENGTH,
+): string {
+  if (!message || message.length <= maxLength) {
+    return message;
   }
-  return useMarkdown ? limits.markdown : limits.text;
+  return message.substring(0, maxLength) + "...";
 }
 
 /**
@@ -132,15 +174,28 @@ export function getMessageLimit(platform: string, useMarkdown?: boolean): number
 export function truncateMessage(
   message: string,
   maxLength: number = MAX_MESSAGE_LENGTH,
-  suffix = "\n\n...[消息过长已截断]"
+  suffix = "\n\n...[消息过长已截断]",
 ): string {
-  if (message.length <= maxLength) {
-    return message;
+  const timer = createTimer();
+  logMethodCall(logger, { method: "truncateMessage", module: "security", params: { messageLength: message.length, maxLength, hasSuffix: !!suffix } });
+
+  try {
+    let result: string;
+    
+    if (message.length <= maxLength) {
+      result = message;
+    } else {
+      const truncatedLength = maxLength - suffix.length;
+      result = message.substring(0, truncatedLength) + suffix;
+    }
+
+    logMethodReturn(logger, { method: "truncateMessage", module: "security", result: { length: result.length, wasTruncated: message.length > maxLength }, duration: timer() });
+    return result;
+  } catch (err) {
+    const error = err as Error;
+    logMethodError(logger, { method: "truncateMessage", module: "security", error: { name: error.name, message: error.message, ...(error.stack ? { stack: error.stack } : {}) }, params: { messageLength: message.length, maxLength }, duration: timer() });
+    throw error;
   }
-
-  const truncatedLength = maxLength - suffix.length;
-
-  return message.substring(0, truncatedLength) + suffix;
 }
 
 // ============================================================================
@@ -154,12 +209,27 @@ export function truncateMessage(
  * @returns 脱敏后的 token（只显示前后几位）
  */
 export function maskToken(token: string): string {
-  if (!token || token.length <= TOKEN_VISIBLE_LENGTH * 2) {
-    return "***";
+  const timer = createTimer();
+  logMethodCall(logger, { method: "maskToken", module: "security", params: { tokenLength: token?.length } });
+
+  try {
+    let result: string;
+    
+    if (!token || token.length <= TOKEN_VISIBLE_LENGTH * 2) {
+      result = "***";
+    } else {
+      const start = token.substring(0, TOKEN_VISIBLE_LENGTH);
+      const end = token.substring(token.length - TOKEN_VISIBLE_LENGTH);
+      result = `${start}...${end}`;
+    }
+
+    logMethodReturn(logger, { method: "maskToken", module: "security", result: { masked: true }, duration: timer() });
+    return result;
+  } catch (err) {
+    const error = err as Error;
+    logMethodError(logger, { method: "maskToken", module: "security", error: { name: error.name, message: error.message, ...(error.stack ? { stack: error.stack } : {}) }, params: {}, duration: timer() });
+    throw error;
   }
-  const start = token.substring(0, TOKEN_VISIBLE_LENGTH);
-  const end = token.substring(token.length - TOKEN_VISIBLE_LENGTH);
-  return `${start}...${end}`;
 }
 
 /**
@@ -169,33 +239,43 @@ export function maskToken(token: string): string {
  * @returns 脱敏后的消息
  */
 export function sanitizeLog(message: string): string {
-  let sanitized = message;
+  const timer = createTimer();
+  logMethodCall(logger, { method: "sanitizeLog", module: "security", params: { messageLength: message?.length } });
 
-  // 替换常见的 token 格式
-  // 匹配 Authorization: Bearer xxx 或 QQBot xxx 格式
-  sanitized = sanitized.replace(
-    /(Bearer\s+|QQBot\s+)([A-Za-z0-9_-]+)/gi,
-    (_, prefix) => `${prefix}***`
-  );
+  try {
+    let sanitized = message;
 
-  // 匹配 JSON 中的敏感字段
-  for (const field of SENSITIVE_FIELDS) {
-    // 匹配 "field": "value" 格式
-    const jsonPattern = new RegExp(
-      `("${field}"\\s*:\\s*")([^"]+)(")`,
-      "gi"
+    // 替换常见的 token 格式
+    // 匹配 Authorization: Bearer xxx 或 QQBot xxx 格式
+    sanitized = sanitized.replace(
+      /(Bearer\s+|QQBot\s+)([A-Za-z0-9_-]+)/gi,
+      (_, prefix) => `${prefix}***`
     );
-    sanitized = sanitized.replace(jsonPattern, `$1***$3`);
 
-    // 匹配 field=value 格式
-    const kvPattern = new RegExp(
-      `(${field}=)([^&\\s]+)`,
-      "gi"
-    );
-    sanitized = sanitized.replace(kvPattern, `$1***`);
+    // 匹配 JSON 中的敏感字段
+    for (const field of SENSITIVE_FIELDS) {
+      // 匹配 "field": "value" 格式
+      const jsonPattern = new RegExp(
+        `("${field}"\\s*:\\s*")([^"]+)(")`,
+        "gi"
+      );
+      sanitized = sanitized.replace(jsonPattern, `$1***$3`);
+
+      // 匹配 field=value 格式
+      const kvPattern = new RegExp(
+        `(${field}=)([^&\\s]+)`,
+        "gi"
+      );
+      sanitized = sanitized.replace(kvPattern, `$1***`);
+    }
+
+    logMethodReturn(logger, { method: "sanitizeLog", module: "security", result: { length: sanitized.length }, duration: timer() });
+    return sanitized;
+  } catch (err) {
+    const error = err as Error;
+    logMethodError(logger, { method: "sanitizeLog", module: "security", error: { name: error.name, message: error.message, ...(error.stack ? { stack: error.stack } : {}) }, params: {}, duration: timer() });
+    throw error;
   }
-
-  return sanitized;
 }
 
 /**
@@ -220,6 +300,24 @@ export function sanitizeLogMessage(message: string): string {
  * @returns 脱敏后的对象副本
  */
 export function sanitizeObject<T>(obj: T, depth: number = 0): T {
+  const timer = createTimer();
+  logMethodCall(logger, { method: "sanitizeObject", module: "security", params: { depth, objType: typeof obj } });
+
+  try {
+    const result = doSanitizeObject(obj, depth);
+    logMethodReturn(logger, { method: "sanitizeObject", module: "security", result: { sanitized: true }, duration: timer() });
+    return result;
+  } catch (err) {
+    const error = err as Error;
+    logMethodError(logger, { method: "sanitizeObject", module: "security", error: { name: error.name, message: error.message, ...(error.stack ? { stack: error.stack } : {}) }, params: { depth }, duration: timer() });
+    throw error;
+  }
+}
+
+/**
+ * 内部脱敏对象实现
+ */
+function doSanitizeObject<T>(obj: T, depth: number = 0): T {
   // 防止无限递归
   if (depth > 10) {
     return obj;
@@ -237,7 +335,7 @@ export function sanitizeObject<T>(obj: T, depth: number = 0): T {
 
   // 处理数组
   if (Array.isArray(obj)) {
-    return obj.map((item) => sanitizeObject(item, depth + 1)) as T;
+    return obj.map((item) => doSanitizeObject(item, depth + 1)) as T;
   }
 
   // 处理 Date 等特殊对象
@@ -257,7 +355,7 @@ export function sanitizeObject<T>(obj: T, depth: number = 0): T {
         result[key] = "[REDACTED]";
       }
     } else if (typeof value === "object" && value !== null) {
-      result[key] = sanitizeObject(value, depth + 1);
+      result[key] = doSanitizeObject(value, depth + 1);
     } else {
       result[key] = value;
     }
@@ -284,13 +382,26 @@ export interface SanitizeOptions {
  * @returns 脱敏后的数据
  */
 export function sanitizeResponse<T>(data: T, options?: SanitizeOptions): T {
-  const { redactSensitive = true } = options ?? {};
+  const timer = createTimer();
+  logMethodCall(logger, { method: "sanitizeResponse", module: "security", params: { hasOptions: !!options, redactSensitive: options?.redactSensitive } });
 
-  if (!redactSensitive) {
-    return data;
+  try {
+    const { redactSensitive = true } = options ?? {};
+
+    let result: T;
+    if (!redactSensitive) {
+      result = data;
+    } else {
+      result = sanitizeObject(data);
+    }
+
+    logMethodReturn(logger, { method: "sanitizeResponse", module: "security", result: { sanitized: redactSensitive }, duration: timer() });
+    return result;
+  } catch (err) {
+    const error = err as Error;
+    logMethodError(logger, { method: "sanitizeResponse", module: "security", error: { name: error.name, message: error.message, ...(error.stack ? { stack: error.stack } : {}) }, params: {}, duration: timer() });
+    throw error;
   }
-
-  return sanitizeObject(data);
 }
 
 /**
@@ -300,47 +411,35 @@ export function sanitizeResponse<T>(data: T, options?: SanitizeOptions): T {
  * @returns 脱敏后的错误信息
  */
 export function sanitizeError(error: unknown): string {
-  if (error === null || error === undefined) {
-    return "未知错误";
-  }
+  const timer = createTimer();
+  logMethodCall(logger, { method: "sanitizeError", module: "security", params: { errorType: typeof error } });
 
-  if (error instanceof Error) {
-    return sanitizeLog(error.message);
-  }
-
-  if (typeof error === "string") {
-    return sanitizeLog(error);
-  }
-
-  // 尝试序列化
   try {
-    const str = JSON.stringify(error);
-    return sanitizeLog(str);
-  } catch {
-    return String(error);
+    let result: string;
+
+    if (error === null || error === undefined) {
+      result = "未知错误";
+    } else if (error instanceof Error) {
+      result = sanitizeLog(error.message);
+    } else if (typeof error === "string") {
+      result = sanitizeLog(error);
+    } else {
+      // 尝试序列化
+      try {
+        const str = JSON.stringify(error);
+        result = sanitizeLog(str);
+      } catch {
+        result = String(error);
+      }
+    }
+
+    logMethodReturn(logger, { method: "sanitizeError", module: "security", result: { length: result.length }, duration: timer() });
+    return result;
+  } catch (err) {
+    const err2 = err as Error;
+    logMethodError(logger, { method: "sanitizeError", module: "security", error: { name: err2.name, message: err2.message, ...(err2.stack ? { stack: err2.stack } : {}) }, params: {}, duration: timer() });
+    throw err2;
   }
-}
-
-/**
- * 安全日志输出
- * 
- * @param label - 日志标签
- * @param data - 日志数据
- */
-export function safeLog(label: string, data: unknown): void {
-  const sanitized = sanitizeObject(data);
-  console.log(`[${label}]`, JSON.stringify(sanitized));
-}
-
-/**
- * 安全错误日志输出
- * 
- * @param label - 日志标签
- * @param error - 错误对象
- */
-export function safeErrorLog(label: string, error: unknown): void {
-  const message = sanitizeError(error);
-  console.error(`[${label}]`, message);
 }
 
 // ============================================================================
@@ -366,18 +465,31 @@ const MESSAGE_ID_PATTERNS = {
  * @returns 是否为有效格式
  */
 export function isValidMessageId(messageId: string): boolean {
-  if (!messageId || typeof messageId !== "string") {
-    return false;
-  }
+  const timer = createTimer();
+  logMethodCall(logger, { method: "isValidMessageId", module: "security", params: { messageId } });
 
-  // 检查所有支持的格式
-  for (const pattern of Object.values(MESSAGE_ID_PATTERNS)) {
-    if (pattern.test(messageId)) {
-      return true;
+  try {
+    let result = false;
+    
+    if (!messageId || typeof messageId !== "string") {
+      result = false;
+    } else {
+      // 检查所有支持的格式
+      for (const pattern of Object.values(MESSAGE_ID_PATTERNS)) {
+        if (pattern.test(messageId)) {
+          result = true;
+          break;
+        }
+      }
     }
-  }
 
-  return false;
+    logMethodReturn(logger, { method: "isValidMessageId", module: "security", result, duration: timer() });
+    return result;
+  } catch (err) {
+    const error = err as Error;
+    logMethodError(logger, { method: "isValidMessageId", module: "security", error: { name: error.name, message: error.message, ...(error.stack ? { stack: error.stack } : {}) }, params: { messageId }, duration: timer() });
+    throw error;
+  }
 }
 
 /**
@@ -389,37 +501,57 @@ export function isValidMessageId(messageId: string): boolean {
 export function parseMessageId(
   messageId: string
 ): { type: "channel" | "group" | "c2c" | "dms"; parts: string[] } | null {
-  if (!messageId) {
+  const timer = createTimer();
+  logMethodCall(logger, { method: "parseMessageId", module: "security", params: { messageId } });
+
+  try {
+    if (!messageId) {
+      logMethodReturn(logger, { method: "parseMessageId", module: "security", result: null, duration: timer() });
+      return null;
+    }
+
+    const parts = messageId.split(":");
+
+    // 频道消息: {channel_id}:{message_id}
+    if (parts.length === 2 && MESSAGE_ID_PATTERNS.channel.test(messageId)) {
+      const result = { type: "channel" as const, parts };
+      logMethodReturn(logger, { method: "parseMessageId", module: "security", result, duration: timer() });
+      return result;
+    }
+
+    // 其他格式需要 3 部分
+    if (parts.length !== 3) {
+      logMethodReturn(logger, { method: "parseMessageId", module: "security", result: null, duration: timer() });
+      return null;
+    }
+
+    const [prefix, id1, id2] = parts;
+
+    if (prefix === "group" && MESSAGE_ID_PATTERNS.group.test(messageId)) {
+      const result = { type: "group" as const, parts: [id1!, id2!] };
+      logMethodReturn(logger, { method: "parseMessageId", module: "security", result, duration: timer() });
+      return result;
+    }
+
+    if (prefix === "c2c" && MESSAGE_ID_PATTERNS.c2c.test(messageId)) {
+      const result = { type: "c2c" as const, parts: [id1!, id2!] };
+      logMethodReturn(logger, { method: "parseMessageId", module: "security", result, duration: timer() });
+      return result;
+    }
+
+    if (prefix === "dms" && MESSAGE_ID_PATTERNS.dms.test(messageId)) {
+      const result = { type: "dms" as const, parts: [id1!, id2!] };
+      logMethodReturn(logger, { method: "parseMessageId", module: "security", result, duration: timer() });
+      return result;
+    }
+
+    logMethodReturn(logger, { method: "parseMessageId", module: "security", result: null, duration: timer() });
     return null;
+  } catch (err) {
+    const error = err as Error;
+    logMethodError(logger, { method: "parseMessageId", module: "security", error: { name: error.name, message: error.message, ...(error.stack ? { stack: error.stack } : {}) }, params: { messageId }, duration: timer() });
+    throw error;
   }
-
-  const parts = messageId.split(":");
-
-  // 频道消息: {channel_id}:{message_id}
-  if (parts.length === 2 && MESSAGE_ID_PATTERNS.channel.test(messageId)) {
-    return { type: "channel", parts };
-  }
-
-  // 其他格式需要 3 部分
-  if (parts.length !== 3) {
-    return null;
-  }
-
-  const [prefix, id1, id2] = parts;
-
-  if (prefix === "group" && MESSAGE_ID_PATTERNS.group.test(messageId)) {
-    return { type: "group", parts: [id1!, id2!] };
-  }
-
-  if (prefix === "c2c" && MESSAGE_ID_PATTERNS.c2c.test(messageId)) {
-    return { type: "c2c", parts: [id1!, id2!] };
-  }
-
-  if (prefix === "dms" && MESSAGE_ID_PATTERNS.dms.test(messageId)) {
-    return { type: "dms", parts: [id1!, id2!] };
-  }
-
-  return null;
 }
 
 // ============================================================================
@@ -437,15 +569,29 @@ export function isAllowedDomain(
   url: string,
   allowedDomains: string[]
 ): boolean {
+  const timer = createTimer();
+  logMethodCall(logger, { method: "isAllowedDomain", module: "security", params: { url, domainCount: allowedDomains.length } });
+
   try {
-    const parsedUrl = new URL(url);
-    return allowedDomains.some(
-      (domain) =>
-        parsedUrl.hostname === domain ||
-        parsedUrl.hostname.endsWith(`.${domain}`)
-    );
-  } catch {
-    return false;
+    let result = false;
+    
+    try {
+      const parsedUrl = new URL(url);
+      result = allowedDomains.some(
+        (domain) =>
+          parsedUrl.hostname === domain ||
+          parsedUrl.hostname.endsWith(`.${domain}`)
+      );
+    } catch {
+      result = false;
+    }
+
+    logMethodReturn(logger, { method: "isAllowedDomain", module: "security", result, duration: timer() });
+    return result;
+  } catch (err) {
+    const error = err as Error;
+    logMethodError(logger, { method: "isAllowedDomain", module: "security", error: { name: error.name, message: error.message, ...(error.stack ? { stack: error.stack } : {}) }, params: { url }, duration: timer() });
+    throw error;
   }
 }
 
@@ -477,28 +623,42 @@ export function isUrlDomainAllowed(url: string, allowedDomains: string[]): boole
  * @returns 是否为安全的 Webhook URL
  */
 export function isSafeWebhookUrl(url: string): boolean {
-  try {
-    const parsed = new URL(url);
+  const timer = createTimer();
+  logMethodCall(logger, { method: "isSafeWebhookUrl", module: "security", params: { url } });
 
-    // 检查协议
-    if (!ALLOWED_WEBHOOK_PROTOCOLS.includes(parsed.protocol)) {
-      return false;
+  try {
+    let result = false;
+    
+    try {
+      const parsed = new URL(url);
+
+      // 检查协议
+      if (!ALLOWED_WEBHOOK_PROTOCOLS.includes(parsed.protocol)) {
+        result = false;
+      } else {
+        // 检查域名
+        const allDomains = [
+          ...ALLOWED_DINGTALK_DOMAINS,
+          ...ALLOWED_FEISHU_DOMAINS,
+          ...ALLOWED_WECHAT_DOMAINS,
+        ];
+
+        result = allDomains.some(
+          (domain) =>
+            parsed.hostname === domain ||
+            parsed.hostname.endsWith(`.${domain}`)
+        );
+      }
+    } catch {
+      result = false;
     }
 
-    // 检查域名
-    const allDomains = [
-      ...ALLOWED_DINGTALK_DOMAINS,
-      ...ALLOWED_FEISHU_DOMAINS,
-      ...ALLOWED_WECHAT_DOMAINS,
-    ];
-
-    return allDomains.some(
-      (domain) =>
-        parsed.hostname === domain ||
-        parsed.hostname.endsWith(`.${domain}`)
-    );
-  } catch {
-    return false;
+    logMethodReturn(logger, { method: "isSafeWebhookUrl", module: "security", result, duration: timer() });
+    return result;
+  } catch (err) {
+    const error = err as Error;
+    logMethodError(logger, { method: "isSafeWebhookUrl", module: "security", error: { name: error.name, message: error.message, ...(error.stack ? { stack: error.stack } : {}) }, params: { url }, duration: timer() });
+    throw error;
   }
 }
 
@@ -513,38 +673,54 @@ export function isSafeWebhookUrlForPlatform(
   url: string,
   platform: "dingtalk" | "feishu" | "wechat" | "qq"
 ): boolean {
+  const timer = createTimer();
+  logMethodCall(logger, { method: "isSafeWebhookUrlForPlatform", module: "security", params: { url, platform } });
+
   try {
-    const parsed = new URL(url);
+    let result = false;
+    
+    try {
+      const parsed = new URL(url);
 
-    // 检查协议
-    if (!ALLOWED_WEBHOOK_PROTOCOLS.includes(parsed.protocol)) {
-      return false;
+      // 检查协议
+      if (!ALLOWED_WEBHOOK_PROTOCOLS.includes(parsed.protocol)) {
+        result = false;
+      } else {
+        let allowedDomains: string[];
+
+        switch (platform) {
+          case "dingtalk":
+            allowedDomains = ALLOWED_DINGTALK_DOMAINS;
+            break;
+          case "feishu":
+            allowedDomains = ALLOWED_FEISHU_DOMAINS;
+            break;
+          case "wechat":
+            allowedDomains = ALLOWED_WECHAT_DOMAINS;
+            break;
+          case "qq":
+            // QQ 暂无官方 Webhook
+            result = false;
+            logMethodReturn(logger, { method: "isSafeWebhookUrlForPlatform", module: "security", result, duration: timer() });
+            return result;
+        }
+
+        result = allowedDomains.some(
+          (domain) =>
+            parsed.hostname === domain ||
+            parsed.hostname.endsWith(`.${domain}`)
+        );
+      }
+    } catch {
+      result = false;
     }
 
-    let allowedDomains: string[];
-
-    switch (platform) {
-      case "dingtalk":
-        allowedDomains = ALLOWED_DINGTALK_DOMAINS;
-        break;
-      case "feishu":
-        allowedDomains = ALLOWED_FEISHU_DOMAINS;
-        break;
-      case "wechat":
-        allowedDomains = ALLOWED_WECHAT_DOMAINS;
-        break;
-      case "qq":
-        // QQ 暂无官方 Webhook
-        return false;
-    }
-
-    return allowedDomains.some(
-      (domain) =>
-        parsed.hostname === domain ||
-        parsed.hostname.endsWith(`.${domain}`)
-    );
-  } catch {
-    return false;
+    logMethodReturn(logger, { method: "isSafeWebhookUrlForPlatform", module: "security", result, duration: timer() });
+    return result;
+  } catch (err) {
+    const error = err as Error;
+    logMethodError(logger, { method: "isSafeWebhookUrlForPlatform", module: "security", error: { name: error.name, message: error.message, ...(error.stack ? { stack: error.stack } : {}) }, params: { url, platform }, duration: timer() });
+    throw error;
   }
 }
 
@@ -567,36 +743,48 @@ export function isSafeWebhookUrlForPlatform(
  * ```
  */
 export function sanitizeMarkdown(content: string): string {
-  if (!content || typeof content !== "string") {
-    return content ?? "";
-  }
+  const timer = createTimer();
+  logMethodCall(logger, { method: "sanitizeMarkdown", module: "security", params: { contentLength: content?.length } });
 
-  let sanitized = content;
-
-  // 移除危险的 HTML 标签和属性
-  for (const pattern of DANGEROUS_PATTERNS) {
-    sanitized = sanitized.replace(pattern, "");
-  }
-
-  // 移除所有 HTML 标签（保留安全的）
-  for (const tag of DANGEROUS_TAGS) {
-    const openTagPattern = new RegExp(`<${tag}\\b[^>]*>`, "gi");
-    const closeTagPattern = new RegExp(`</${tag}>`, "gi");
-    sanitized = sanitized.replace(openTagPattern, "");
-    sanitized = sanitized.replace(closeTagPattern, "");
-  }
-
-  // 移除可能导致问题的 Markdown 链接
-  // 保留正常链接，移除 javascript: 协议
-  sanitized = sanitized.replace(
-    /\[([^\]]*)\]\(([^)]+)\)/g,
-    (match, text, url) => {
-      if (/^(javascript|data|vbscript):/i.test(url.trim())) {
-        return `[${text}]()`; // 移除危险 URL
-      }
-      return match;
+  try {
+    if (!content || typeof content !== "string") {
+      const result = content ?? "";
+      logMethodReturn(logger, { method: "sanitizeMarkdown", module: "security", result: { length: result.length }, duration: timer() });
+      return result;
     }
-  );
 
-  return sanitized;
+    let sanitized = content;
+
+    // 移除危险的 HTML 标签和属性
+    for (const pattern of DANGEROUS_PATTERNS) {
+      sanitized = sanitized.replace(pattern, "");
+    }
+
+    // 移除所有 HTML 标签（保留安全的）
+    for (const tag of DANGEROUS_TAGS) {
+      const openTagPattern = new RegExp(`<${tag}\\b[^>]*>`, "gi");
+      const closeTagPattern = new RegExp(`</${tag}>`, "gi");
+      sanitized = sanitized.replace(openTagPattern, "");
+      sanitized = sanitized.replace(closeTagPattern, "");
+    }
+
+    // 移除可能导致问题的 Markdown 链接
+    // 保留正常链接，移除 javascript: 协议
+    sanitized = sanitized.replace(
+      /\[([^\]]*)\]\(([^)]+)\)/g,
+      (match, text, url) => {
+        if (/^(javascript|data|vbscript):/i.test(url.trim())) {
+          return `[${text}]()`; // 移除危险 URL
+        }
+        return match;
+      }
+    );
+
+    logMethodReturn(logger, { method: "sanitizeMarkdown", module: "security", result: { length: sanitized.length }, duration: timer() });
+    return sanitized;
+  } catch (err) {
+    const error = err as Error;
+    logMethodError(logger, { method: "sanitizeMarkdown", module: "security", error: { name: error.name, message: error.message, ...(error.stack ? { stack: error.stack } : {}) }, params: { contentLength: content?.length }, duration: timer() });
+    throw error;
+  }
 }

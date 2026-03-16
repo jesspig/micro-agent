@@ -6,9 +6,12 @@
  */
 
 import { BaseProvider } from "../../runtime/provider/base.js";
+import { providersLogger, createTimer, sanitize, logMethodCall, logMethodReturn, logMethodError } from "../shared/logger.js";
 import type { IProviderExtended } from "../../runtime/provider/contract.js";
 import type { ProviderCapabilities, ProviderConfig, ProviderStatus } from "../../runtime/provider/types.js";
 import type { ChatRequest, ChatResponse, Message, StreamCallback, StreamChunk, ToolCall } from "../../runtime/types.js";
+
+const logger = providersLogger();
 
 // ============================================================================
 // 类型定义
@@ -147,6 +150,9 @@ export class OllamaProvider extends BaseProvider implements IProviderExtended {
   }
 
   async refreshModels(): Promise<string[]> {
+    const timer = createTimer();
+    logMethodCall(logger, { method: "refreshModels", module: "OllamaProvider", params: {} });
+
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), this.timeout);
@@ -163,60 +169,92 @@ export class OllamaProvider extends BaseProvider implements IProviderExtended {
 
         const data = (await response.json()) as OllamaModelsResponse;
         this.cachedModels = data.models.map((m) => m.name);
+
+        logger.info("模型列表刷新", { provider: this.name, modelCount: this.cachedModels.length, duration: timer() });
+        logMethodReturn(logger, { method: "refreshModels", module: "OllamaProvider", result: { modelCount: this.cachedModels.length }, duration: timer() });
         return [...this.cachedModels!];
       } finally {
         clearTimeout(timeoutId);
       }
-    } catch (error) {
-      console.warn("获取 Ollama 模型列表失败，使用默认模型:", error);
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      logMethodError(logger, {
+        method: "refreshModels",
+        module: "OllamaProvider",
+        error: { name: error.name, message: error.message, ...(error.stack ? { stack: error.stack } : {}) },
+        duration: timer(),
+      });
       return [this.defaultModel];
     }
   }
 
   async chat(request: ChatRequest): Promise<ChatResponse> {
+    const timer = createTimer();
     const { model, messages, tools, temperature, maxTokens } = request;
 
-    if (!this.cachedModels) {
-      await this.refreshModels();
+    logMethodCall(logger, { method: "chat", module: "OllamaProvider", params: { model, messageCount: messages.length, hasTools: !!tools?.length } });
+
+    try {
+      if (!this.cachedModels) {
+        await this.refreshModels();
+      }
+
+      // 解析模型名称：支持 "provider/model" 格式，提取 model 部分
+      const actualModel = this.parseModelName(model || this.defaultModel);
+
+      // 构建原生 Ollama API 请求体
+      const body: Record<string, unknown> = {
+        model: actualModel,
+        messages: this.convertMessages(messages),
+        stream: false,
+        think: this.think,
+      };
+
+      if (temperature !== undefined) {
+        body.options = { temperature };
+      }
+
+      if (maxTokens !== undefined) {
+        body.options = { ...(body.options as Record<string, unknown>), num_predict: maxTokens };
+      }
+
+      if (tools?.length) {
+        body.tools = tools.map((tool) => ({
+          type: "function",
+          function: {
+            name: tool.name,
+            description: tool.description,
+            parameters: tool.parameters,
+          },
+        }));
+      }
+
+      logger.info("LLM调用", { provider: this.name, model: actualModel, endpoint: "api/chat", stream: false });
+
+      const response = await this.requestWithRetry(`${this.config.baseUrl}/api/chat`, body);
+      this.recordUsage();
+      const result = this.parseResponse(response);
+
+      logMethodReturn(logger, { method: "chat", module: "OllamaProvider", result: sanitize(result), duration: timer() });
+      return result;
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      logMethodError(logger, {
+        method: "chat",
+        module: "OllamaProvider",
+        error: { name: error.name, message: error.message, ...(error.stack ? { stack: error.stack } : {}) },
+        params: { model, messageCount: messages.length },
+        duration: timer(),
+      });
+      throw error;
     }
-
-    // 解析模型名称：支持 "provider/model" 格式，提取 model 部分
-    const actualModel = this.parseModelName(model || this.defaultModel);
-
-    // 构建原生 Ollama API 请求体
-    const body: Record<string, unknown> = {
-      model: actualModel,
-      messages: this.convertMessages(messages),
-      stream: false,
-      think: this.think,
-    };
-
-    if (temperature !== undefined) {
-      body.options = { temperature };
-    }
-
-    if (maxTokens !== undefined) {
-      body.options = { ...(body.options as Record<string, unknown>), num_predict: maxTokens };
-    }
-
-    if (tools?.length) {
-      body.tools = tools.map((tool) => ({
-        type: "function",
-        function: {
-          name: tool.name,
-          description: tool.description,
-          parameters: tool.parameters,
-        },
-      }));
-    }
-
-    const response = await this.requestWithRetry(`${this.config.baseUrl}/api/chat`, body);
-    this.recordUsage();
-    return this.parseResponse(response);
   }
 
   async streamChat(request: ChatRequest, callback: StreamCallback): Promise<ChatResponse> {
+    const timer = createTimer();
     const { model, messages, tools, temperature, maxTokens } = request;
+
+    logMethodCall(logger, { method: "streamChat", module: "OllamaProvider", params: { model, messageCount: messages.length, hasTools: !!tools?.length } });
 
     if (!this.cachedModels) {
       await this.refreshModels();
@@ -226,32 +264,34 @@ export class OllamaProvider extends BaseProvider implements IProviderExtended {
 
     // 构建流式请求体
     const body: Record<string, unknown> = {
-      model: actualModel,
-      messages: this.convertMessages(messages),
-      stream: true,
-      think: this.think,
-    };
+        model: actualModel,
+        messages: this.convertMessages(messages),
+        stream: true,
+        think: this.think,
+      };
 
-    if (temperature !== undefined) {
-      body.options = { temperature };
-    }
+      if (temperature !== undefined) {
+        body.options = { temperature };
+      }
 
-    if (maxTokens !== undefined) {
-      body.options = { ...(body.options as Record<string, unknown>), num_predict: maxTokens };
-    }
+      if (maxTokens !== undefined) {
+        body.options = { ...(body.options as Record<string, unknown>), num_predict: maxTokens };
+      }
 
-    if (tools?.length) {
-      body.tools = tools.map((tool) => ({
-        type: "function",
-        function: {
-          name: tool.name,
-          description: tool.description,
-          parameters: tool.parameters,
-        },
-      }));
-    }
+      if (tools?.length) {
+        body.tools = tools.map((tool) => ({
+          type: "function",
+          function: {
+            name: tool.name,
+            description: tool.description,
+            parameters: tool.parameters,
+          },
+        }));
+      }
 
-    const controller = new AbortController();
+      logger.info("LLM调用", { provider: this.name, model: actualModel, endpoint: "api/chat", stream: true });
+
+      const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this.timeout);
 
     try {
@@ -371,7 +411,19 @@ export class OllamaProvider extends BaseProvider implements IProviderExtended {
       if (usage !== undefined) {
         chatResponse.usage = usage;
       }
+
+      logMethodReturn(logger, { method: "streamChat", module: "OllamaProvider", result: sanitize(chatResponse), duration: timer() });
       return chatResponse;
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      logMethodError(logger, {
+        method: "streamChat",
+        module: "OllamaProvider",
+        error: { name: error.name, message: error.message, ...(error.stack ? { stack: error.stack } : {}) },
+        params: { model, messageCount: messages.length },
+        duration: timer(),
+      });
+      throw error;
     } finally {
       clearTimeout(timeoutId);
     }

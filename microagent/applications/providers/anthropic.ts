@@ -5,6 +5,9 @@
  */
 
 import { BaseProvider } from "../../runtime/provider/base.js";
+import { providersLogger, createTimer, sanitize, logMethodCall, logMethodReturn, logMethodError } from "../shared/logger.js";
+
+const logger = providersLogger();
 import type { IProviderExtended } from "../../runtime/provider/contract.js";
 import type { ProviderCapabilities, ProviderConfig, ProviderStatus } from "../../runtime/provider/types.js";
 import type { ChatRequest, ChatResponse, Message, StreamCallback, StreamChunk, ToolCall } from "../../runtime/types.js";
@@ -116,52 +119,79 @@ export class AnthropicProvider extends BaseProvider implements IProviderExtended
   }
 
   async chat(request: ChatRequest): Promise<ChatResponse> {
+    const timer = createTimer();
     const { model, messages, tools, temperature, maxTokens } = request;
 
-    // 解析模型名称：支持 "provider/model" 格式，提取 model 部分
-    const actualModel = this.parseModelName(model || this.defaultModel);
+    logMethodCall(logger, { method: "chat", module: "AnthropicProvider", params: { model, messageCount: messages.length, hasTools: !!tools?.length } });
 
-    const body: AnthropicRequest = {
-      model: actualModel,
-      messages: this.convertMessages(messages),
-      max_tokens: maxTokens ?? 4096,
-    };
+    try {
+      // 解析模型名称：支持 "provider/model" 格式，提取 model 部分
+      const actualModel = this.parseModelName(model || this.defaultModel);
 
-    if (temperature !== undefined) body.temperature = temperature;
-    if (tools?.length) {
-      body.tools = tools.map((tool) => ({
-        name: tool.name,
-        description: tool.description,
-        input_schema: tool.parameters,
-      }));
+      const body: AnthropicRequest = {
+        model: actualModel,
+        messages: this.convertMessages(messages),
+        max_tokens: maxTokens ?? 4096,
+      };
+
+      if (temperature !== undefined) body.temperature = temperature;
+      if (tools?.length) {
+        body.tools = tools.map((tool) => ({
+          name: tool.name,
+          description: tool.description,
+          input_schema: tool.parameters,
+        }));
+      }
+
+      logger.info("LLM调用", { provider: this.name, model: actualModel, endpoint: "messages", stream: false });
+
+      const response = await this.requestWithRetry(`${this.config.baseUrl}/messages`, body);
+      this.recordUsage();
+      const result = this.parseResponse(response);
+
+      logMethodReturn(logger, { method: "chat", module: "AnthropicProvider", result: sanitize(result), duration: timer() });
+      return result;
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      logMethodError(logger, {
+        method: "chat",
+        module: "AnthropicProvider",
+        error: { name: error.name, message: error.message, ...(error.stack ? { stack: error.stack } : {}) },
+        params: { model, messageCount: messages.length },
+        duration: timer(),
+      });
+      throw error;
     }
-
-    const response = await this.requestWithRetry(`${this.config.baseUrl}/messages`, body);
-    this.recordUsage();
-    return this.parseResponse(response);
   }
 
   async streamChat(request: ChatRequest, callback: StreamCallback): Promise<ChatResponse> {
+    const timer = createTimer();
     const { model, messages, tools, temperature, maxTokens } = request;
-    const actualModel = this.parseModelName(model || this.defaultModel);
 
-    const body: Record<string, unknown> = {
-      model: actualModel,
-      messages: this.convertMessages(messages),
-      max_tokens: maxTokens ?? 4096,
-      stream: true,
-    };
+    logMethodCall(logger, { method: "streamChat", module: "AnthropicProvider", params: { model, messageCount: messages.length, hasTools: !!tools?.length } });
 
-    if (temperature !== undefined) body.temperature = temperature;
-    if (tools?.length) {
-      body.tools = tools.map((tool) => ({
-        name: tool.name,
-        description: tool.description,
-        input_schema: tool.parameters,
-      }));
-    }
+    try {
+      const actualModel = this.parseModelName(model || this.defaultModel);
 
-    const httpResponse = await fetch(`${this.config.baseUrl}/messages`, {
+      const body: Record<string, unknown> = {
+        model: actualModel,
+        messages: this.convertMessages(messages),
+        max_tokens: maxTokens ?? 4096,
+        stream: true,
+      };
+
+      if (temperature !== undefined) body.temperature = temperature;
+      if (tools?.length) {
+        body.tools = tools.map((tool) => ({
+          name: tool.name,
+          description: tool.description,
+          input_schema: tool.parameters,
+        }));
+      }
+
+      logger.info("LLM调用", { provider: this.name, model: actualModel, endpoint: "messages", stream: true });
+
+      const httpResponse = await fetch(`${this.config.baseUrl}/messages`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -272,7 +302,20 @@ export class AnthropicProvider extends BaseProvider implements IProviderExtended
     };
     if (toolCalls.length > 0) chatResponse.toolCalls = toolCalls;
     if (usage) chatResponse.usage = usage;
+
+    logMethodReturn(logger, { method: "streamChat", module: "AnthropicProvider", result: sanitize(chatResponse), duration: timer() });
     return chatResponse;
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      logMethodError(logger, {
+        method: "streamChat",
+        module: "AnthropicProvider",
+        error: { name: error.name, message: error.message, ...(error.stack ? { stack: error.stack } : {}) },
+        params: { model, messageCount: messages.length },
+        duration: timer(),
+      });
+      throw error;
+    }
   }
 
   /**

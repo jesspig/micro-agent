@@ -9,6 +9,10 @@ import { join } from "node:path";
 import { BaseTool } from "../../runtime/tool/base.js";
 import type { ToolParameterSchema, ToolResult } from "../../runtime/tool/types.js";
 import { WORKSPACE_DIR, TOOL_EXECUTION_TIMEOUT } from "../shared/constants.js";
+import { toolsLogger, createTimer, logMethodCall, logMethodReturn, logMethodError, sanitize } from "../shared/logger.js";
+
+const MODULE_NAME = "shell";
+const logger = toolsLogger();
 
 // ============================================================================
 // 类型定义
@@ -181,22 +185,30 @@ export class ShellTool extends BaseTool<Record<string, unknown>> {
   };
 
   async execute(params: Record<string, unknown>): Promise<ToolResult> {
+    const timer = createTimer();
+    logMethodCall(logger, { method: "execute", module: MODULE_NAME, params: sanitize(params) as Record<string, unknown> });
+
     try {
       const command = this.readStringParam(params, "command", { required: true });
 
       if (!command) {
-        return {
+        const result = {
           content: "缺少必需参数: command",
           isError: true,
         };
+        logMethodReturn(logger, { method: "execute", module: MODULE_NAME, result: sanitize(result), duration: timer() });
+        return result;
       }
 
       // 安全检查
       if (!isCommandSafe(command)) {
-        return {
+        logger.warn("命令被禁止执行", { command });
+        const result = {
           content: `命令被禁止执行（安全限制）: ${command}`,
           isError: true,
         };
+        logMethodReturn(logger, { method: "execute", module: MODULE_NAME, result: sanitize(result), duration: timer() });
+        return result;
       }
 
       // 解析命令
@@ -207,10 +219,12 @@ export class ShellTool extends BaseTool<Record<string, unknown>> {
 
       // 验证命令
       if (!cmd) {
-        return {
+        const result = {
           content: "无效的命令",
           isError: true,
         };
+        logMethodReturn(logger, { method: "execute", module: MODULE_NAME, result: sanitize(result), duration: timer() });
+        return result;
       }
 
       // 设置工作目录
@@ -221,18 +235,24 @@ export class ShellTool extends BaseTool<Record<string, unknown>> {
       const timeout = this.readNumberParam(params, "timeout") ?? TOOL_EXECUTION_TIMEOUT;
       const env = this.readObjectParam<Record<string, string>>(params, "env") ?? {};
 
+      logger.info("工具执行", { toolName: "shell", command, args: cmdArgs.length > 0 ? cmdArgs.slice(0, 5).join(" ").slice(0, 100) + (cmdArgs.length > 5 ? "..." : "") : undefined, cwd: workingDir, timeout });
+
       // 执行命令
-      const result = await this.executeCommand(cmd, cmdArgs, {
+      const execResult = await this.executeCommand(cmd, cmdArgs, {
         cwd: workingDir,
         timeout: timeout,
         env: env,
       });
 
       // 格式化输出
-      return this.formatResult(result, command);
+      const result = this.formatResult(execResult, command);
+      logMethodReturn(logger, { method: "execute", module: MODULE_NAME, result: sanitize(result), duration: timer() });
+      return result;
     } catch (error) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      logMethodError(logger, { method: "execute", module: MODULE_NAME, error: { name: err.name, message: err.message, ...(err.stack ? { stack: err.stack } : {}) }, params: sanitize(params) as Record<string, unknown>, duration: timer() });
       return {
-        content: `命令执行失败: ${error instanceof Error ? error.message : String(error)}`,
+        content: `命令执行失败: ${err.message}`,
         isError: true,
       };
     }

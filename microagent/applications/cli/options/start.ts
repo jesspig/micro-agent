@@ -29,9 +29,7 @@ import {
   MEMORY_FILE,
   MCP_CONFIG_FILE,
 } from "../../shared/constants.js";
-import { HistoryLogger } from "../../shared/history-logger.js";
 import { loadSettings, type Settings } from "../../config/loader.js";
-import { getLogger, Logger, type LogLevel } from "../../shared/logger.js";
 import {
   createOpenAIProvider,
   createAnthropicProvider,
@@ -53,6 +51,15 @@ import type { AgentConfig } from "../../../runtime/kernel/types.js";
 import type { SingleProviderConfig } from "../../config/schema.js";
 import type { IChannelExtended } from "../../../runtime/channel/contract.js";
 import type { InboundMessage } from "../../../runtime/channel/types.js";
+import {
+  cliLogger,
+  createTimer,
+  logMethodCall,
+  logMethodReturn,
+  logMethodError,
+} from "../../shared/logger.js";
+
+const logger = cliLogger();
 
 // ============================================================================
 // 类型定义
@@ -68,8 +75,6 @@ export interface StartOptions {
   model?: string;
   /** 启用调试模式 */
   debug?: boolean;
-  /** 日志级别 */
-  logLevel?: LogLevel;
 }
 
 /**
@@ -90,6 +95,9 @@ export interface StartResult {
  * 初始化运行时目录结构
  */
 function initializeRuntimeDirectories(): void {
+  const timer = createTimer();
+  logMethodCall(logger, { method: "initializeRuntimeDirectories", module: "CLI", params: {} });
+
   const dirs = [
     MICRO_AGENT_DIR,
     WORKSPACE_DIR,
@@ -103,12 +111,18 @@ function initializeRuntimeDirectories(): void {
   for (const dir of dirs) {
     mkdirSync(dir, { recursive: true });
   }
+
+  logger.debug("运行时目录初始化完成", { directories: dirs });
+  logMethodReturn(logger, { method: "initializeRuntimeDirectories", module: "CLI", result: { success: true, count: dirs.length }, duration: timer() });
 }
 
 /**
  * 初始化配置文件（从模板复制）
  */
 async function initializeConfigFiles(): Promise<void> {
+  const timer = createTimer();
+  logMethodCall(logger, { method: "initializeConfigFiles", module: "CLI", params: {} });
+
   const templateDir = import.meta.dir + "/../../templates";
   const configFiles = [
     { src: "AGENTS.md", dest: AGENTS_FILE },
@@ -120,6 +134,8 @@ async function initializeConfigFiles(): Promise<void> {
     { src: "mcp.json", dest: MCP_CONFIG_FILE },
   ];
 
+  const createdFiles: string[] = [];
+
   for (const { src, dest } of configFiles) {
     const destFile = Bun.file(dest);
     if (!(await destFile.exists())) {
@@ -127,6 +143,7 @@ async function initializeConfigFiles(): Promise<void> {
       if (await srcFile.exists()) {
         const content = await srcFile.text();
         await Bun.write(dest, content);
+        createdFiles.push(dest);
       }
     }
   }
@@ -138,8 +155,14 @@ async function initializeConfigFiles(): Promise<void> {
     if (await exampleFile.exists()) {
       const content = await exampleFile.text();
       await Bun.write(SETTINGS_FILE, content);
+      createdFiles.push(SETTINGS_FILE);
     }
   }
+
+  if (createdFiles.length > 0) {
+    logger.debug("配置文件初始化完成", { createdFiles });
+  }
+  logMethodReturn(logger, { method: "initializeConfigFiles", module: "CLI", result: { success: true, createdCount: createdFiles.length }, duration: timer() });
 }
 
 // ============================================================================
@@ -150,7 +173,8 @@ async function initializeConfigFiles(): Promise<void> {
  * 创建 Provider 实例
  */
 function createProvider(settings: Settings): IProviderExtended | null {
-  const logger = getLogger();
+  const timer = createTimer();
+  logMethodCall(logger, { method: "createProvider", module: "CLI", params: {} });
 
   const providers = settings.providers ?? {};
   const enabledProvider = Object.entries(providers).find(
@@ -158,55 +182,72 @@ function createProvider(settings: Settings): IProviderExtended | null {
   );
 
   if (!enabledProvider) {
+    logger.warn("未找到启用的 Provider");
+    logMethodReturn(logger, { method: "createProvider", module: "CLI", result: null, duration: timer() });
     return null;
   }
 
   const [providerName, providerConfig] = enabledProvider;
 
   if (!providerConfig) {
-    logger.warn(`Provider "${providerName}" 配置不存在`);
+    logger.warn("Provider 配置为空", { providerName });
+    logMethodReturn(logger, { method: "createProvider", module: "CLI", result: null, duration: timer() });
     return null;
   }
 
   const validation = validateProviderConfig(providerName, providerConfig);
   if (!validation.valid) {
-    logger.warn(`Provider "${providerName}" 配置不完整: ${validation.errors.join(", ")}`);
+    logger.warn("Provider 配置验证失败", { providerName, errors: validation.errors });
+    logMethodReturn(logger, { method: "createProvider", module: "CLI", result: null, duration: timer() });
     return null;
   }
 
   try {
+    let provider: IProviderExtended;
     switch (providerName) {
       case "openai": {
-        return createOpenAIProvider({
+        provider = createOpenAIProvider({
           name: providerName,
           apiKey: providerConfig.apiKey!,
           baseUrl: providerConfig.baseUrl!,
           models: providerConfig.models!,
         });
+        break;
       }
 
       case "anthropic": {
-        return createAnthropicProvider({
+        provider = createAnthropicProvider({
           name: providerName,
           apiKey: providerConfig.apiKey!,
           baseUrl: providerConfig.baseUrl!,
           models: providerConfig.models!,
         });
+        break;
       }
 
       default: {
-        logger.info(`使用 OpenAI 兼容模式创建 Provider: ${providerName}`);
-        return createOpenAIProvider({
+        provider = createOpenAIProvider({
           name: providerName,
           apiKey: providerConfig.apiKey!,
           baseUrl: providerConfig.baseUrl!,
           models: providerConfig.models!,
         });
+        break;
       }
     }
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    logger.warn(`创建 Provider "${providerName}" 失败: ${message}`);
+
+    logger.info("Provider 创建成功", { providerName, baseUrl: providerConfig.baseUrl });
+    logMethodReturn(logger, { method: "createProvider", module: "CLI", result: { providerName }, duration: timer() });
+    return provider;
+  } catch (err) {
+    const error = err as Error;
+    logMethodError(logger, {
+      method: "createProvider",
+      module: "CLI",
+      error: { name: error.name, message: error.message },
+      params: { providerName },
+      duration: timer(),
+    });
     return null;
   }
 }
@@ -218,6 +259,9 @@ function validateProviderConfig(
   _name: string,
   config: SingleProviderConfig
 ): { valid: boolean; errors: string[] } {
+  const timer = createTimer();
+  logMethodCall(logger, { method: "validateProviderConfig", module: "CLI", params: {} });
+
   const errors: string[] = [];
 
   if (!config.baseUrl) {
@@ -228,7 +272,9 @@ function validateProviderConfig(
     errors.push("models 未配置");
   }
 
-  return { valid: errors.length === 0, errors };
+  const result = { valid: errors.length === 0, errors };
+  logMethodReturn(logger, { method: "validateProviderConfig", module: "CLI", result: { valid: result.valid, errorCount: errors.length }, duration: timer() });
+  return result;
 }
 
 // ============================================================================
@@ -239,7 +285,9 @@ function validateProviderConfig(
  * 创建 Channel 实例
  */
 function createChannels(settings: Settings): IChannelExtended[] {
-  const logger = getLogger();
+  const timer = createTimer();
+  logMethodCall(logger, { method: "createChannels", module: "CLI", params: {} });
+
   const channels: IChannelExtended[] = [];
   const channelConfigs = settings.channels ?? {};
 
@@ -259,12 +307,11 @@ function createChannels(settings: Settings): IChannelExtended[] {
         };
         const channel = createQQChannel(config as Parameters<typeof createQQChannel>[0]);
         channels.push(channel);
-        logger.info(`创建 QQ Channel: ${qqConfig.appId} (沙箱模式)`);
-      } catch (error) {
-        logger.error(`创建 QQ Channel 失败: ${error}`);
+        logger.info("QQ Channel 创建成功");
+      } catch (err) {
+        const error = err as Error;
+        logger.error("QQ Channel 创建失败", { error: error.message });
       }
-    } else {
-      logger.warn("QQ Channel 已启用但配置不完整（需要 appId 和 clientSecret）");
     }
   }
 
@@ -283,12 +330,11 @@ function createChannels(settings: Settings): IChannelExtended[] {
         };
         const channel = createFeishuChannel(config as Parameters<typeof createFeishuChannel>[0]);
         channels.push(channel);
-        logger.info(`创建飞书 Channel: ${feishuConfig.appId}`);
-      } catch (error) {
-        logger.error(`创建飞书 Channel 失败: ${error}`);
+        logger.info("飞书 Channel 创建成功");
+      } catch (err) {
+        const error = err as Error;
+        logger.error("飞书 Channel 创建失败", { error: error.message });
       }
-    } else {
-      logger.warn("飞书 Channel 已启用但配置不完整");
     }
   }
 
@@ -310,12 +356,11 @@ function createChannels(settings: Settings): IChannelExtended[] {
         };
         const channel = createWechatWorkChannel(config as Parameters<typeof createWechatWorkChannel>[0]);
         channels.push(channel);
-        logger.info(`创建企业微信 Channel`);
-      } catch (error) {
-        logger.error(`创建企业微信 Channel 失败: ${error}`);
+        logger.info("企业微信 Channel 创建成功");
+      } catch (err) {
+        const error = err as Error;
+        logger.error("企业微信 Channel 创建失败", { error: error.message });
       }
-    } else {
-      logger.warn("企业微信 Channel 已启用但配置不完整");
     }
   }
 
@@ -334,15 +379,16 @@ function createChannels(settings: Settings): IChannelExtended[] {
         };
         const channel = createDingTalkChannel(config as Parameters<typeof createDingTalkChannel>[0]);
         channels.push(channel);
-        logger.info(`创建钉钉 Channel: ${dingtalkConfig.clientId}`);
-      } catch (error) {
-        logger.error(`创建钉钉 Channel 失败: ${error}`);
+        logger.info("钉钉 Channel 创建成功");
+      } catch (err) {
+        const error = err as Error;
+        logger.error("钉钉 Channel 创建失败", { error: error.message });
       }
-    } else {
-      logger.warn("钉钉 Channel 已启用但配置不完整");
     }
   }
 
+  logger.debug("Channel 创建完成", { channelCount: channels.length, channelIds: channels.map(c => c.id) });
+  logMethodReturn(logger, { method: "createChannels", module: "CLI", result: { channelCount: channels.length }, duration: timer() });
   return channels;
 }
 
@@ -359,7 +405,8 @@ function createMessageHandler(
   channels: IChannelExtended[],
   settings: Settings
 ): (message: InboundMessage) => Promise<void> {
-  const logger = getLogger();
+  const handlerTimer = createTimer();
+  logMethodCall(logger, { method: "createMessageHandler", module: "CLI", params: { channelCount: channels.length } });
 
   // 单用户模式：使用全局统一的 session key
   const GLOBAL_SESSION_KEY = "global";
@@ -368,14 +415,25 @@ function createMessageHandler(
   const contextWindowTokens = settings.sessions?.contextWindowTokens ?? 65535;
   const compressionTokenThreshold = settings.sessions?.compressionTokenThreshold ?? 0.7;
 
-  // 获取工作目录
-  const workspaceDir = settings.agents.defaults.workspace || "~/.micro-agent/workspace";
-  const historyLogger = new HistoryLogger(workspaceDir);
+  logMethodReturn(logger, { method: "createMessageHandler", module: "CLI", result: { success: true }, duration: handlerTimer() });
 
   return async (message: InboundMessage) => {
-    try {
-      logger.info(`收到消息 [${message.channelId}] ${message.from}: ${message.text}`);
+    const messageTimer = createTimer();
+    
+    // 截断文本用于日志
+    const truncateForLog = (text: string, maxLen = 1000): string => {
+      if (!text) return "";
+      return text.length > maxLen ? text.substring(0, maxLen) + "...(truncated)" : text;
+    };
+    
+    logger.info("收到用户消息", { 
+      channelId: message.channelId, 
+      from: message.from, 
+      to: message.to,
+      content: truncateForLog(message.text)
+    });
 
+    try {
       // 使用全局 session（跨平台共享上下文）
       const session = sessionManager.getOrCreate(GLOBAL_SESSION_KEY);
 
@@ -399,38 +457,36 @@ function createMessageHandler(
 
       let result: Awaited<ReturnType<typeof agent.run>>;
 
+      logger.info("开始运行 Agent", { 
+        messageCount: allMessages.length, 
+        totalTokens,
+        compressionThreshold 
+      });
+
       if (totalTokens > compressionThreshold) {
         // 超过压缩阈值，选择最近的消息
+        logger.info("Token 超过阈值，压缩消息", { totalTokens, threshold: compressionThreshold });
         const selectedMessages = selectMessagesByTokens(allMessages, contextWindowTokens);
-        
-        // 找出未选择的消息（需要归档的消息）
-        const archivedMessages = allMessages.slice(0, allMessages.length - selectedMessages.length);
-        
-        if (archivedMessages.length > 0) {
-          // 归档到历史日志
-          const archived = await historyLogger.appendToHistory(archivedMessages);
-          if (archived) {
-            logger.info(`归档历史: ${archivedMessages.length} 条消息到历史日志`);
-          }
-        }
-
-        logger.debug(`上下文压缩: ${allMessages.length} 条消息 (${totalTokens} tokens) → ${selectedMessages.length} 条消息`);
-
-        // 运行 Agent
         result = await agent.run(selectedMessages);
       } else {
         // 运行 Agent
         result = await agent.run(allMessages);
       }
 
-      // 日志输出
-      logger.debug(`Agent 结果: content=${result.content ? '有内容' : '无内容'}, error=${result.error || '无错误'}`);
+      // 记录 Agent 运行结果
+      logger.info("Agent 运行完成", {
+        hasContent: !!result.content,
+        contentLength: result.content?.length ?? 0,
+        hasError: !!result.error,
+        errorMessage: result.error,
+        messageCount: result.messages?.length ?? 0
+      });
 
       // 更新 session 并持久化新消息
       if (result.messages) {
         const previousCount = session.getState().messageCount;
         session.clear();
-        
+
         let index = 0;
         for (const msg of result.messages) {
           // 只持久化新增的消息（索引 >= previousCount 的消息）
@@ -449,27 +505,33 @@ function createMessageHandler(
         if (channel) {
           // 回复目标：群聊回复到群，私聊回复给发送者
           const replyTo = message.to || message.from;
-          const sendResult = await channel.send({
+          
+          logger.info("发送回复给用户", {
+            channelId: message.channelId,
+            to: replyTo,
+            content: truncateForLog(result.content)
+          });
+          
+          await channel.send({
             to: replyTo,
             text: result.content,
             format: "markdown", // 使用 Markdown 格式
             metadata: message.metadata, // 传递 Channel 特定元数据
           });
-          if (sendResult.success) {
-            logger.info(`发送回复 [${message.channelId}] ${replyTo}: ${result.content.substring(0, 100)}...`);
-          } else {
-            logger.error(`发送回复失败 [${message.channelId}]: ${sendResult.error}`);
-          }
-        } else {
-          logger.error(`找不到 Channel: ${message.channelId}`);
+          logger.info("消息回复发送成功", { channelId: message.channelId, to: replyTo });
         }
       } else if (result.error) {
-        logger.error(`Agent 执行错误: ${result.error}`);
-      } else {
-        logger.warn(`Agent 返回空内容`);
+        logger.error("Agent 返回错误，无回复内容", { error: result.error });
       }
-    } catch (error) {
-      logger.error(`处理消息失败: ${error}`);
+
+      logger.info("消息处理完成", { duration: messageTimer() });
+    } catch (err) {
+      const error = err as Error;
+      logger.error("消息处理失败", {
+        channelId: message.channelId,
+        error: { name: error.name, message: error.message, stack: error.stack },
+        duration: messageTimer(),
+      });
     }
   };
 }
@@ -488,18 +550,20 @@ async function runAgentService(
   channelManager: ChannelManager,
   channels: IChannelExtended[],
   settings: Settings,
-  options: StartOptions
+  _options: StartOptions
 ): Promise<void> {
-  const logger = getLogger();
+  const timer = createTimer();
+  logMethodCall(logger, { method: "runAgentService", module: "CLI", params: { channelCount: channels.length } });
 
   // 创建 AgentLoop
   const agentConfig: AgentConfig = {
     model: settings.agents.defaults.model ?? "default",
     maxIterations: settings.agents.defaults.maxToolIterations ?? 50,
     defaultTimeout: 60000,
-    enableLogging: options.debug ?? false,
+    enableLogging: false,
   };
   const agent = new AgentLoop(provider, toolRegistry, agentConfig);
+  logger.info("AgentLoop 创建完成", { model: agentConfig.model, maxIterations: agentConfig.maxIterations });
 
   // 创建消息处理器
   const messageHandler = createMessageHandler(agent, sessionManager, channels, settings);
@@ -510,29 +574,28 @@ async function runAgentService(
   }
 
   // 启动所有 Channel
-  logger.info("启动 Channel...");
   await channelManager.startAll();
+  logger.info("Agent 服务启动完成", { channels: channels.map(c => c.id) });
 
-  logger.info("Agent 服务已启动，等待消息...");
-  logger.info(`已启用 ${channels.length} 个 Channel`);
+  logMethodReturn(logger, { method: "runAgentService", module: "CLI", result: { success: true }, duration: timer() });
 
   // 保持运行
   return new Promise((resolve) => {
     const cleanup = async () => {
-      logger.info("正在停止服务...");
-
+      logger.info("Agent 服务正在关闭...");
       // 关闭 MCP 连接
       try {
         const { mcpManager } = await import("../../tools/mcp/index.js");
         await mcpManager.closeAll();
-        logger.info("MCP 连接已关闭");
-      } catch (error) {
-        logger.warn(`关闭 MCP 连接时出错: ${error}`);
+        logger.debug("MCP 连接已关闭");
+      } catch (err) {
+        const error = err as Error;
+        logger.error("关闭 MCP 连接失败", { error: error.message });
       }
 
       // 停止 Channel
       await channelManager.stopAll();
-      logger.info("Agent 服务已停止");
+      logger.info("Agent 服务已关闭");
       resolve();
     };
 
@@ -551,164 +614,142 @@ async function runAgentService(
 export async function startCommand(
   options: StartOptions = {}
 ): Promise<StartResult> {
-  const logger = getLogger();
+  const timer = createTimer();
+  logMethodCall(logger, { method: "startCommand", module: "CLI", params: { config: options.config, model: options.model, debug: options.debug } });
 
   // 全局错误处理：捕获 Channel SDK 的异步错误
   const handleUncaughtError = (error: Error & { code?: string }) => {
     // 网络连接错误（SDK 内部错误）
     if (error.code === "ECONNREFUSED" || error.code === "ENOTFOUND") {
-      logger.error(`网络连接错误: ${error.message}`);
-      // 不退出进程，只记录错误
+      logger.debug("网络错误已静默处理", { code: error.code });
       return;
     }
 
     // 其他未捕获的错误
-    logger.error(`未捕获的错误: ${error.message}`);
-    console.error(error);
+    logger.error("未捕获的错误", { name: error.name, message: error.message, code: error.code });
   };
 
   process.on("uncaughtException", handleUncaughtError);
 
   try {
-    // 1. 设置日志级别
-    if (options.debug || options.logLevel) {
-      const level = options.logLevel ?? "debug";
-      new Logger({ level });
-    }
-
-    logger.info("启动 MicroAgent...");
-
-    // 2. 初始化运行时目录
-    logger.info("初始化运行时目录...");
+    // 1. 初始化运行时目录
+    logger.debug("步骤 1: 初始化运行时目录");
     initializeRuntimeDirectories();
     await initializeConfigFiles();
 
-    // 3. 加载配置
+    // 2. 加载配置
+    logger.debug("步骤 2: 加载配置");
     const configPath = options.config ?? SETTINGS_FILE;
-    logger.info(`加载配置: ${configPath}`);
 
     let settings: Settings;
     try {
       settings = await loadSettings(configPath);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      logger.error(`配置加载失败: ${message}`);
-      logger.error("运行 'micro-agent config' 初始化配置");
-      return { success: false, error: message };
+      logger.info("配置加载成功", { configPath });
+    } catch (err) {
+      const error = err as Error;
+      logMethodError(logger, {
+        method: "startCommand",
+        module: "CLI",
+        error: { name: error.name, message: error.message },
+        params: { configPath },
+        duration: timer(),
+      });
+      return { success: false, error: error.message };
     }
 
-    // 4. 覆盖模型
+    // 3. 覆盖模型
     if (options.model) {
+      logger.debug("覆盖模型", { model: options.model });
       settings.agents.defaults.model = options.model;
-      logger.info(`覆盖模型: ${options.model}`);
     }
 
-    // 5. 注册工具
-    logger.info("注册工具...");
+    // 4. 注册工具
+    logger.debug("步骤 4: 注册工具");
     const toolRegistry = new ToolRegistry();
     const tools = getAllTools();
     for (const tool of tools) {
       toolRegistry.register(tool);
-      logger.debug(`注册工具: ${tool.name}`);
     }
+    logger.info("内置工具注册完成", { toolCount: tools.length });
 
-    // 5.1 异步加载 MCP 工具（不阻塞启动）
+    // 4.1 异步加载 MCP 工具（不阻塞启动）
     const loadMCPTools = async () => {
       try {
         const mcpConfig = await mcpManager.loadConfig();
         const serverCount = Object.keys(mcpConfig.mcpServers).length;
 
         if (serverCount === 0) {
-          logger.info("未配置 MCP 服务器");
           return;
         }
 
-        logger.info(`正在连接 ${serverCount} 个 MCP 服务器...`);
-
-        const results = await mcpManager.connectAll((tool, serverName) => {
+        logger.debug("开始加载 MCP 工具", { serverCount });
+        const results = await mcpManager.connectAll((tool, _serverName) => {
           toolRegistry.register(tool);
-          logger.debug(`注册 MCP 工具: ${tool.name} (来自 ${serverName})`);
         });
 
-        const connected = results.filter((r) => r.status === "connected");
-        const failed = results.filter((r) => r.status === "error");
-        const skipped = results.filter((r) => r.status === "disconnected");
-
-        if (connected.length > 0) {
-          const totalTools = connected.reduce((sum, r) => sum + r.toolCount, 0);
-          logger.info(`MCP: 已连接 ${connected.length} 个服务器，共 ${totalTools} 个工具`);
-        }
-
-        if (skipped.length > 0) {
-          logger.info(`MCP: 跳过 ${skipped.length} 个禁用的服务器`);
-        }
-
-        if (failed.length > 0) {
-          for (const r of failed) {
-            logger.warn(`MCP 服务器 "${r.name}" 连接失败: ${r.error}`);
-          }
-        }
-      } catch (error) {
-        logger.error(`加载 MCP 工具失败: ${error instanceof Error ? error.message : String(error)}`);
+        const connectedCount = results.filter((r) => r.status === "connected").length;
+        logger.info("MCP 工具加载完成", { serverCount, connectedCount });
+      } catch (err) {
+        const error = err as Error;
+        logger.error("加载 MCP 工具失败", { error: error.message });
       }
     };
 
     // 后台异步加载 MCP，不阻塞启动
     loadMCPTools();
 
-    // 6. 加载技能
-    logger.info("加载技能...");
+    // 5. 加载技能
+    logger.debug("步骤 5: 加载技能");
     const skillLoader = new FilesystemSkillLoader();
     const skills = await skillLoader.listSkills();
-    if (skills.length > 0) {
-      for (const skill of skills) {
-        logger.info(`加载技能: ${skill.meta.name}`);
-      }
-    }
+    logger.info("技能加载完成", { skillCount: skills.length });
 
-    // 7. 创建 Provider
+    // 6. 创建 Provider
+    logger.debug("步骤 6: 创建 Provider");
     const provider = createProvider(settings);
     if (!provider) {
-      logger.error("未找到可用的 Provider，请检查 settings.yaml 配置");
+      logMethodError(logger, {
+        method: "startCommand",
+        module: "CLI",
+        error: { name: "ProviderError", message: "未找到可用的 Provider" },
+        params: {},
+        duration: timer(),
+      });
       return { success: false, error: "未找到可用的 Provider" };
     }
-    logger.info(`Provider 已初始化`);
 
-    // 8. 创建 Channel
+    // 7. 创建 Channel
+    logger.debug("步骤 7: 创建 Channel");
     const channels = createChannels(settings);
-    if (channels.length === 0) {
-      logger.warn("未启用任何 Channel，Agent 将无法接收消息");
-      logger.info("请在 settings.yaml 中启用至少一个 Channel");
-    }
 
-    // 9. 创建 Session 管理器并加载历史会话
+    // 8. 创建 Session 管理器并加载历史会话
+    logger.debug("步骤 8: 创建 Session 管理器");
     const sessionManager = new SessionManager();
     const GLOBAL_SESSION_KEY = "global";
 
     // 读取会话配置
-    const contextWindowTokens = settings.sessions?.contextWindowTokens ?? 65535;
-    const compressionTokenThreshold = settings.sessions?.compressionTokenThreshold ?? 0.7;
     const persistEnabled = settings.sessions?.persist ?? true;
 
     // 仅在持久化启用时加载历史
     if (persistEnabled) {
       try {
         await sessionManager.loadHistory(GLOBAL_SESSION_KEY);
-        const session = sessionManager.get(GLOBAL_SESSION_KEY);
-        const messageCount = session?.getState().messageCount ?? 0;
-        logger.info(`已加载历史会话（共 ${messageCount} 条消息）`);
-      } catch (error) {
-        logger.warn(`加载历史会话失败: ${error}`);
+        logger.debug("历史会话加载成功");
+      } catch (err) {
+        const error = err as Error;
+        logger.debug("历史会话加载跳过", { reason: error.message });
       }
     }
 
-    // 10. 创建 Channel 管理器
+    // 9. 创建 Channel 管理器
+    logger.debug("步骤 9: 创建 Channel 管理器");
     const channelManager = new ChannelManager();
     for (const channel of channels) {
       channelManager.register(channel);
     }
 
-    // 11. 启动 Agent 服务
+    // 10. 启动 Agent 服务
+    logger.info("启动 Agent 服务");
     await runAgentService(
       provider,
       toolRegistry,
@@ -719,45 +760,24 @@ export async function startCommand(
       options
     );
 
+    logMethodReturn(logger, { method: "startCommand", module: "CLI", result: { success: true }, duration: timer() });
     return { success: true };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    logger.error("启动失败", error);
-    return { success: false, error: message };
+  } catch (err) {
+    const error = err as Error;
+    logMethodError(logger, {
+      method: "startCommand",
+      module: "CLI",
+      error: { name: error.name, message: error.message, ...(error.stack ? { stack: error.stack } : {}) },
+      params: { config: options.config, model: options.model, debug: options.debug },
+      duration: timer(),
+    });
+    return { success: false, error: error.message };
   }
 }
 
 /**
- * 显示 start 命令帮助信息
+ * 显示 start 命令帮助信息（保留接口，但不做任何输出）
  */
 export function showStartHelp(): void {
-  console.log(`
-micro-agent start - 启动 Agent 服务
-
-用法:
-  micro-agent start [选项]
-
-选项:
-  --config, -c <path>   配置文件路径
-  --model, -m <model>   覆盖配置中的模型
-  --debug, -d           启用调试模式
-  --log-level <level>   日志级别 (debug, info, warn, error)
-  --help, -h            显示帮助信息
-
-示例:
-  micro-agent start                    # 使用默认配置启动
-  micro-agent start --debug            # 启用调试模式
-  micro-agent start -m gpt-4o          # 使用指定模型
-  micro-agent start -c ./my-config.yaml # 使用自定义配置
-
-Channel 配置:
-  在 settings.yaml 中启用 Channel 以接收消息:
-  
-  channels:
-    qq:
-      enabled: true
-      appId: "your_app_id"
-      secret: "your_secret"
-      allowFrom: ["*"]  # 允许所有用户
-`);
+  // 已移除所有 console.log 调用
 }

@@ -10,6 +10,9 @@
  */
 
 import { BaseProvider } from "../../runtime/provider/base.js";
+import { providersLogger, createTimer, sanitize, logMethodCall, logMethodReturn, logMethodError } from "../shared/logger.js";
+
+const logger = providersLogger();
 import type { IProviderExtended } from "../../runtime/provider/contract.js";
 import type { ProviderCapabilities, ProviderConfig, ProviderStatus } from "../../runtime/provider/types.js";
 import type { ChatRequest, ChatResponse, Message, ToolCall } from "../../runtime/types.js";
@@ -107,30 +110,50 @@ export class OpenAIResponseProvider extends BaseProvider implements IProviderExt
   }
 
   async chat(request: ChatRequest): Promise<ChatResponse> {
+    const timer = createTimer();
     const { model, messages, tools, temperature, maxTokens } = request;
 
-    // 解析模型名称：支持 "provider/model" 格式，提取 model 部分
-    const actualModel = this.parseModelName(model || this.defaultModel);
+    logMethodCall(logger, { method: "chat", module: "OpenAIResponseProvider", params: { model, messageCount: messages.length, hasTools: !!tools?.length } });
 
-    const body: Record<string, unknown> = {
-      model: actualModel,
-      input: this.convertMessages(messages),
-      temperature: temperature ?? 0.7,
-    };
+    try {
+      // 解析模型名称：支持 "provider/model" 格式，提取 model 部分
+      const actualModel = this.parseModelName(model || this.defaultModel);
 
-    if (maxTokens !== undefined) body.max_tokens = maxTokens;
-    if (tools?.length) {
-      body.tools = tools.map((tool) => ({
-        type: "function",
-        name: tool.name,
-        description: tool.description,
-        parameters: tool.parameters,
-      }));
+      const body: Record<string, unknown> = {
+        model: actualModel,
+        input: this.convertMessages(messages),
+        temperature: temperature ?? 0.7,
+      };
+
+      if (maxTokens !== undefined) body.max_tokens = maxTokens;
+      if (tools?.length) {
+        body.tools = tools.map((tool) => ({
+          type: "function",
+          name: tool.name,
+          description: tool.description,
+          parameters: tool.parameters,
+        }));
+      }
+
+      logger.info("LLM调用", { provider: this.name, model: actualModel, endpoint: "responses", stream: false });
+
+      const response = await this.requestWithRetry(`${this.config.baseUrl}/responses`, body);
+      this.recordUsage();
+      const result = this.parseResponse(response);
+
+      logMethodReturn(logger, { method: "chat", module: "OpenAIResponseProvider", result: sanitize(result), duration: timer() });
+      return result;
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      logMethodError(logger, {
+        method: "chat",
+        module: "OpenAIResponseProvider",
+        error: { name: error.name, message: error.message, ...(error.stack ? { stack: error.stack } : {}) },
+        params: { model, messageCount: messages.length },
+        duration: timer(),
+      });
+      throw error;
     }
-
-    const response = await this.requestWithRetry(`${this.config.baseUrl}/responses`, body);
-    this.recordUsage();
-    return this.parseResponse(response);
   }
 
   /**

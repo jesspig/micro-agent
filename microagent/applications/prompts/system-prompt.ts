@@ -4,6 +4,10 @@
  * 构建 Agent 系统提示词，整合各类配置文件内容
  */
 
+import { promptsLogger, createTimer, logMethodCall, logMethodReturn, logMethodError } from "../shared/logger.js";
+
+const logger = promptsLogger();
+
 // ============================================================================
 // 类型定义
 // ============================================================================
@@ -81,43 +85,62 @@ const DATE_PROMPT_TEMPLATE = `
  * @returns 构建后的系统提示词
  */
 export function buildSystemPrompt(params: SystemPromptParams): BuiltSystemPrompt {
-  const sections: string[] = [];
+  const timer = createTimer();
+  logMethodCall(logger, { method: "buildSystemPrompt", module: "system-prompt", params: { 
+    hasAgentsContent: !!params.agentsContent,
+    hasSoulContent: !!params.soulContent,
+    hasUserContent: !!params.userContent,
+    hasToolsContent: !!params.toolsContent,
+    toolCount: params.availableTools?.length ?? 0,
+    hasCurrentDate: !!params.currentDate
+  } });
 
-  // 1. 添加 Agent 角色定义（核心）
-  sections.push(params.agentsContent);
+  try {
+    const sections: string[] = [];
 
-  // 2. 添加个性/价值观（可选）
-  if (params.soulContent?.trim()) {
-    sections.push(formatSection("个性与价值观", params.soulContent));
+    // 1. 添加 Agent 角色定义（核心）
+    sections.push(params.agentsContent);
+
+    // 2. 添加个性/价值观（可选）
+    if (params.soulContent?.trim()) {
+      sections.push(formatSection("个性与价值观", params.soulContent));
+    }
+
+    // 3. 添加用户偏好（可选）
+    if (params.userContent?.trim()) {
+      sections.push(formatSection("用户偏好", params.userContent));
+    }
+
+    // 4. 添加工具使用指南（可选）
+    if (params.toolsContent?.trim()) {
+      sections.push(formatSection("工具使用指南", params.toolsContent));
+    }
+
+    // 5. 添加可用工具列表（可选）
+    if (params.availableTools && params.availableTools.length > 0) {
+      sections.push(buildToolsPrompt(params.availableTools));
+    }
+
+    // 6. 添加当前日期时间（可选）
+    if (params.currentDate) {
+      sections.push(buildDatePrompt(params.currentDate));
+    }
+
+    const prompt = sections.join("\n\n");
+
+    const result = {
+      prompt,
+      length: prompt.length,
+      sections: sections.map((_, i) => `Section ${i + 1}`),
+    };
+
+    logMethodReturn(logger, { method: "buildSystemPrompt", module: "system-prompt", result: { length: result.length, sectionCount: result.sections.length }, duration: timer() });
+    return result;
+  } catch (err) {
+    const error = err as Error;
+    logMethodError(logger, { method: "buildSystemPrompt", module: "system-prompt", error: { name: error.name, message: error.message, ...(error.stack ? { stack: error.stack } : {}) }, params: {}, duration: timer() });
+    throw error;
   }
-
-  // 3. 添加用户偏好（可选）
-  if (params.userContent?.trim()) {
-    sections.push(formatSection("用户偏好", params.userContent));
-  }
-
-  // 4. 添加工具使用指南（可选）
-  if (params.toolsContent?.trim()) {
-    sections.push(formatSection("工具使用指南", params.toolsContent));
-  }
-
-  // 5. 添加可用工具列表（可选）
-  if (params.availableTools && params.availableTools.length > 0) {
-    sections.push(buildToolsPrompt(params.availableTools));
-  }
-
-  // 6. 添加当前日期时间（可选）
-  if (params.currentDate) {
-    sections.push(buildDatePrompt(params.currentDate));
-  }
-
-  const prompt = sections.join("\n\n");
-
-  return {
-    prompt,
-    length: prompt.length,
-    sections: sections.map((_, i) => `Section ${i + 1}`),
-  };
 }
 
 /**
@@ -129,7 +152,18 @@ export function buildSystemPrompt(params: SystemPromptParams): BuiltSystemPrompt
  * @returns 系统提示词
  */
 export function buildSimpleSystemPrompt(agentsContent: string): string {
-  return agentsContent;
+  const timer = createTimer();
+  logMethodCall(logger, { method: "buildSimpleSystemPrompt", module: "system-prompt", params: { contentLength: agentsContent.length } });
+
+  try {
+    const result = agentsContent;
+    logMethodReturn(logger, { method: "buildSimpleSystemPrompt", module: "system-prompt", result: { length: result.length }, duration: timer() });
+    return result;
+  } catch (err) {
+    const error = err as Error;
+    logMethodError(logger, { method: "buildSimpleSystemPrompt", module: "system-prompt", error: { name: error.name, message: error.message, ...(error.stack ? { stack: error.stack } : {}) }, params: { contentLength: agentsContent.length }, duration: timer() });
+    throw error;
+  }
 }
 
 /**
@@ -143,13 +177,24 @@ export function buildSystemPromptWithTools(
   agentsContent: string,
   tools: string[],
 ): string {
-  const sections = [agentsContent];
+  const timer = createTimer();
+  logMethodCall(logger, { method: "buildSystemPromptWithTools", module: "system-prompt", params: { contentLength: agentsContent.length, toolCount: tools.length } });
 
-  if (tools.length > 0) {
-    sections.push(buildToolsPrompt(tools));
+  try {
+    const sections = [agentsContent];
+
+    if (tools.length > 0) {
+      sections.push(buildToolsPrompt(tools));
+    }
+
+    const result = sections.join("\n\n");
+    logMethodReturn(logger, { method: "buildSystemPromptWithTools", module: "system-prompt", result: { length: result.length }, duration: timer() });
+    return result;
+  } catch (err) {
+    const error = err as Error;
+    logMethodError(logger, { method: "buildSystemPromptWithTools", module: "system-prompt", error: { name: error.name, message: error.message, ...(error.stack ? { stack: error.stack } : {}) }, params: { contentLength: agentsContent.length, toolCount: tools.length }, duration: timer() });
+    throw error;
   }
-
-  return sections.join("\n\n");
 }
 
 // ============================================================================
@@ -194,17 +239,28 @@ function buildDatePrompt(currentDate: string): string {
  * @returns 格式化的日期时间字符串
  */
 export function getCurrentDateString(): string {
-  const now = new Date();
-  const options: Intl.DateTimeFormatOptions = {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-    weekday: "long",
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZoneName: "short",
-  };
-  return now.toLocaleDateString("zh-CN", options);
+  const timer = createTimer();
+  logMethodCall(logger, { method: "getCurrentDateString", module: "system-prompt", params: {} });
+
+  try {
+    const now = new Date();
+    const options: Intl.DateTimeFormatOptions = {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      weekday: "long",
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZoneName: "short",
+    };
+    const result = now.toLocaleDateString("zh-CN", options);
+    logMethodReturn(logger, { method: "getCurrentDateString", module: "system-prompt", result, duration: timer() });
+    return result;
+  } catch (err) {
+    const error = err as Error;
+    logMethodError(logger, { method: "getCurrentDateString", module: "system-prompt", error: { name: error.name, message: error.message, ...(error.stack ? { stack: error.stack } : {}) }, params: {}, duration: timer() });
+    throw error;
+  }
 }
 
 /**
@@ -216,9 +272,20 @@ export function getCurrentDateString(): string {
  * @returns 估算的 token 数量
  */
 export function estimateTokenCount(text: string): number {
-  // 简单估算：中文字符约 1.5 字符/token，英文约 4 字符/token
-  const chineseChars = (text.match(/[\u4e00-\u9fff]/g) || []).length;
-  const otherChars = text.length - chineseChars;
+  const timer = createTimer();
+  logMethodCall(logger, { method: "estimateTokenCount", module: "system-prompt", params: { textLength: text.length } });
 
-  return Math.ceil(chineseChars / 1.5 + otherChars / 4);
+  try {
+    // 简单估算：中文字符约 1.5 字符/token，英文约 4 字符/token
+    const chineseChars = (text.match(/[\u4e00-\u9fff]/g) || []).length;
+    const otherChars = text.length - chineseChars;
+
+    const result = Math.ceil(chineseChars / 1.5 + otherChars / 4);
+    logMethodReturn(logger, { method: "estimateTokenCount", module: "system-prompt", result: { tokenCount: result, chineseChars, otherChars }, duration: timer() });
+    return result;
+  } catch (err) {
+    const error = err as Error;
+    logMethodError(logger, { method: "estimateTokenCount", module: "system-prompt", error: { name: error.name, message: error.message, ...(error.stack ? { stack: error.stack } : {}) }, params: { textLength: text.length }, duration: timer() });
+    throw error;
+  }
 }

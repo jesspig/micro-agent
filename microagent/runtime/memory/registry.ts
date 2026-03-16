@@ -5,6 +5,21 @@
  */
 
 import type { IMemoryExtended } from "./contract.js";
+import {
+  memoryLogger,
+  createTimer,
+  logMethodCall,
+  logMethodReturn,
+} from "../../applications/shared/logger.js";
+
+const logger = memoryLogger();
+
+// ============================================================================
+// 常量定义
+// ============================================================================
+
+/** 模块名称 */
+const MODULE_NAME = "MemoryRegistry";
 
 // ============================================================================
 // MemoryRegistry 类
@@ -31,9 +46,27 @@ export class MemoryRegistry {
    * @returns MemoryRegistry 实例
    */
   static getInstance(): MemoryRegistry {
+    const timer = createTimer();
+    logMethodCall(logger, {
+      method: "getInstance",
+      module: MODULE_NAME,
+      params: {},
+    });
+
+    const isNewInstance = !MemoryRegistry.instance;
+
     if (!MemoryRegistry.instance) {
       MemoryRegistry.instance = new MemoryRegistry();
+      logger.info("记忆操作", { action: "registry_created" });
     }
+
+    logMethodReturn(logger, {
+      method: "getInstance",
+      module: MODULE_NAME,
+      result: { isNewInstance },
+      duration: timer(),
+    });
+
     return MemoryRegistry.instance;
   }
 
@@ -42,7 +75,23 @@ export class MemoryRegistry {
    * @param memory - Memory 实例
    */
   set(memory: IMemoryExtended): void {
+    const timer = createTimer();
+    logMethodCall(logger, {
+      method: "set",
+      module: MODULE_NAME,
+      params: { hasMemory: !!memory },
+    });
+
     this.memory = memory;
+
+    logger.info("记忆操作", { action: "memory_set" });
+
+    logMethodReturn(logger, {
+      method: "set",
+      module: MODULE_NAME,
+      result: {},
+      duration: timer(),
+    });
   }
 
   /**
@@ -50,7 +99,23 @@ export class MemoryRegistry {
    * @returns Memory 实例，未设置时返回 undefined
    */
   get(): IMemoryExtended | undefined {
-    return this.memory ?? undefined;
+    const timer = createTimer();
+    logMethodCall(logger, {
+      method: "get",
+      module: MODULE_NAME,
+      params: {},
+    });
+
+    const result = this.memory ?? undefined;
+
+    logMethodReturn(logger, {
+      method: "get",
+      module: MODULE_NAME,
+      result: { hasMemory: !!result },
+      duration: timer(),
+    });
+
+    return result;
   }
 
   /**
@@ -58,7 +123,23 @@ export class MemoryRegistry {
    * @returns 是否已设置
    */
   has(): boolean {
-    return this.memory !== null;
+    const timer = createTimer();
+    logMethodCall(logger, {
+      method: "has",
+      module: MODULE_NAME,
+      params: {},
+    });
+
+    const result = this.memory !== null;
+
+    logMethodReturn(logger, {
+      method: "has",
+      module: MODULE_NAME,
+      result: { hasMemory: result },
+      duration: timer(),
+    });
+
+    return result;
   }
 
   /**
@@ -66,6 +147,22 @@ export class MemoryRegistry {
    * 用于测试或重置场景
    */
   clear(): void {
+    const timer = createTimer();
+    logMethodCall(logger, {
+      method: "clear",
+      module: MODULE_NAME,
+      params: {},
+    });
+
     this.memory = null;
+
+    logger.info("记忆操作", { action: "memory_cleared" });
+
+    logMethodReturn(logger, {
+      method: "clear",
+      module: MODULE_NAME,
+      result: {},
+      duration: timer(),
+    });
   }
 }

@@ -12,6 +12,9 @@ import { BaseChannel } from "../../../runtime/channel/base.js";
 import type { ChannelCapabilities } from "../../../runtime/types.js";
 import { convertToFeishuElements } from "./markdown.js";
 import { truncateMessage, sanitizeError } from "../../shared/security.js";
+import { channelsLogger, createTimer, sanitize, logMethodCall, logMethodReturn, logMethodError } from "../../shared/logger.js";
+
+const logger = channelsLogger();
 
 // ============================================================================
 // 类型定义
@@ -103,6 +106,9 @@ interface FeishuWSClient {
  * - 自动重连
  */
 export class FeishuChannel extends BaseChannel {
+  /** Channel 名称常量 */
+  private static readonly CHANNEL_NAME = "FeishuChannel";
+
   readonly id: string;
   readonly type = "feishu" as const;
   readonly capabilities: ChannelCapabilities = {
@@ -128,13 +134,19 @@ export class FeishuChannel extends BaseChannel {
     super(config);
     this.id = config.id;
     this.config = config;
+    logger.debug("创建 FeishuChannel 实例", { appId: config.appId });
   }
 
   async start(_config: ChannelConfig): Promise<void> {
+    const timer = createTimer();
     const { appId, appSecret, encryptKey } = this.config;
 
+    logMethodCall(logger, { method: "start", module: FeishuChannel.CHANNEL_NAME, params: { appId } });
+
     if (!appId || !appSecret) {
-      throw new Error("飞书 Channel 需要 appId 和 appSecret 配置");
+      const error = new Error("飞书 Channel 需要 appId 和 appSecret 配置");
+      logMethodError(logger, { method: "start", module: FeishuChannel.CHANNEL_NAME, error: { name: error.name, message: error.message }, params: { appId }, duration: timer() });
+      throw error;
     }
 
     try {
@@ -143,7 +155,9 @@ export class FeishuChannel extends BaseChannel {
       const lark = await import("@larksuiteoapi/node-sdk").catch(() => null) as Record<string, unknown> | null;
 
       if (!lark) {
-        throw new Error("@larksuiteoapi/node-sdk 未安装，请运行: bun add @larksuiteoapi/node-sdk");
+        const error = new Error("@larksuiteoapi/node-sdk 未安装，请运行: bun add @larksuiteoapi/node-sdk");
+        logMethodError(logger, { method: "start", module: FeishuChannel.CHANNEL_NAME, error: { name: error.name, message: error.message }, params: { appId }, duration: timer() });
+        throw error;
       }
 
       // 类型断言 SDK 构造函数
@@ -184,23 +198,31 @@ export class FeishuChannel extends BaseChannel {
         loggerLevel: LoggerLevel.info,
       });
 
-      console.log("[飞书] 正在连接...");
-
       // 启动 WebSocket 连接
+      logger.info("飞书 WebSocket 连接中...", { appId });
       await this.wsClient.start({
         eventDispatcher: eventDispatcher,
       });
 
       this.setConnected(true);
-      console.log("[飞书] 连接就绪");
+      logger.info("飞书 WebSocket 连接成功", { appId, appType: "SelfBuild", domain: "Feishu" });
+      logger.info("飞书 Channel 启动成功", { appId });
+      logMethodReturn(logger, { method: "start", module: FeishuChannel.CHANNEL_NAME, result: { success: true }, duration: timer() });
     } catch (error) {
       const sanitizedError = sanitizeError(error);
+      const err = error instanceof Error ? error : new Error(sanitizedError);
       this.setConnected(false, sanitizedError);
+      logger.error("飞书 WebSocket 连接失败", { appId, error: err.message, stack: err.stack });
+      logMethodError(logger, { method: "start", module: FeishuChannel.CHANNEL_NAME, error: { name: err.name, message: err.message, stack: err.stack }, params: { appId }, duration: timer() });
       throw error;
     }
   }
 
   async stop(): Promise<void> {
+    const timer = createTimer();
+    const { appId } = this.config;
+    logMethodCall(logger, { method: "stop", module: FeishuChannel.CHANNEL_NAME, params: { appId } });
+
     this.setConnected(false);
     
     if (this.wsClient) {
@@ -212,12 +234,18 @@ export class FeishuChannel extends BaseChannel {
       this.wsClient = null;
     }
     this.client = null;
-    console.log("[飞书] Bot 已停止");
+    logger.info("飞书 Channel 已停止", { appId });
+    logMethodReturn(logger, { method: "stop", module: FeishuChannel.CHANNEL_NAME, result: { success: true }, duration: timer() });
   }
 
   async send(message: OutboundMessage): Promise<SendResult> {
+    const timer = createTimer();
+    logMethodCall(logger, { method: "send", module: FeishuChannel.CHANNEL_NAME, params: { to: message.to, format: message.format } });
+
     if (!this.client) {
-      return { success: false, error: "飞书客户端未初始化" };
+      const result = { success: false, error: "飞书客户端未初始化" };
+      logMethodReturn(logger, { method: "send", module: FeishuChannel.CHANNEL_NAME, result, duration: timer() });
+      return result;
     }
 
     try {
@@ -227,6 +255,15 @@ export class FeishuChannel extends BaseChannel {
       // 截断消息以符合长度限制
       const truncatedText = truncateMessage(message.text);
       const truncatedMessage = { ...message, text: truncatedText };
+
+      // 截断日志内容到 1000 字符
+      const logText = truncateMessage(message.text, 1000, "...");
+      logger.info("发送飞书消息", {
+        to: message.to,
+        format: message.format,
+        isMarkdown,
+        text: logText,
+      });
 
       // 使用飞书 SDK 发送消息
       const response = await this.client.im.message.create({
@@ -241,10 +278,13 @@ export class FeishuChannel extends BaseChannel {
       const result: SendResult = { success: true };
       if (response.data?.message_id) {
         result.messageId = response.data.message_id;
+        logger.info("飞书消息发送成功", { messageId: result.messageId });
       }
+      logMethodReturn(logger, { method: "send", module: FeishuChannel.CHANNEL_NAME, result: sanitize(result), duration: timer() });
       return result;
     } catch (error) {
       const errMsg = sanitizeError(error);
+      logMethodError(logger, { method: "send", module: FeishuChannel.CHANNEL_NAME, error: { name: "Error", message: errMsg }, params: { to: message.to }, duration: timer() });
       return { success: false, error: errMsg };
     }
   }
@@ -258,14 +298,21 @@ export class FeishuChannel extends BaseChannel {
    * @returns 发送结果
    */
   async updateMessage(messageId: string, text: string, format?: "text" | "markdown"): Promise<SendResult> {
+    const timer = createTimer();
+    logMethodCall(logger, { method: "updateMessage", module: FeishuChannel.CHANNEL_NAME, params: { messageId, format } });
+
     if (!this.client) {
-      return { success: false, error: "飞书客户端未初始化" };
+      const result = { success: false, error: "飞书客户端未初始化" };
+      logMethodReturn(logger, { method: "updateMessage", module: FeishuChannel.CHANNEL_NAME, result, duration: timer() });
+      return result;
     }
 
     try {
       // 截断消息
       const truncatedText = truncateMessage(text);
       const isMarkdown = format === "markdown";
+
+      logger.info("更新飞书消息", { messageId, isMarkdown });
 
       // 飞书消息更新 API
       const response = await this.client.im.message.update({
@@ -289,12 +336,17 @@ export class FeishuChannel extends BaseChannel {
       });
 
       if (response.code !== 0) {
-        return { success: false, error: response.msg || "更新失败" };
+        const result = { success: false, error: response.msg || "更新失败" };
+        logMethodReturn(logger, { method: "updateMessage", module: FeishuChannel.CHANNEL_NAME, result, duration: timer() });
+        return result;
       }
 
+      logger.info("飞书消息更新成功", { messageId });
+      logMethodReturn(logger, { method: "updateMessage", module: FeishuChannel.CHANNEL_NAME, result: { success: true, messageId }, duration: timer() });
       return { success: true, messageId };
     } catch (error) {
       const errMsg = sanitizeError(error);
+      logMethodError(logger, { method: "updateMessage", module: FeishuChannel.CHANNEL_NAME, error: { name: "Error", message: errMsg }, params: { messageId }, duration: timer() });
       return { success: false, error: errMsg };
     }
   }
@@ -355,6 +407,9 @@ export class FeishuChannel extends BaseChannel {
    * 处理收到的消息
    */
   private handleMessage(event: FeishuMessageEvent): void {
+    const timer = createTimer();
+    logMethodCall(logger, { method: "handleMessage", module: FeishuChannel.CHANNEL_NAME, params: { messageId: event.message?.message_id } });
+
     try {
       const message = event.message;
       const senderId = message.sender?.sender_id?.open_id || "unknown";
@@ -362,6 +417,7 @@ export class FeishuChannel extends BaseChannel {
 
       // 忽略自己发送的消息
       if (message.sender?.sender_type === "app") {
+        logMethodReturn(logger, { method: "handleMessage", module: FeishuChannel.CHANNEL_NAME, result: { skipped: true, reason: "self" }, duration: timer() });
         return;
       }
 
@@ -386,13 +442,15 @@ export class FeishuChannel extends BaseChannel {
       }
 
       if (!content) {
+        logMethodReturn(logger, { method: "handleMessage", module: FeishuChannel.CHANNEL_NAME, result: { skipped: true, reason: "empty" }, duration: timer() });
         return;
       }
 
       // 权限检查
       const allowList = this.config.allowFrom || [];
       if (allowList.length > 0 && !allowList.includes("*") && !allowList.includes(senderId)) {
-        console.log(`[飞书] 拒绝来自 ${senderId} 的消息（未在 allowFrom 列表中）`);
+        logger.debug("飞书消息权限检查失败", { senderId });
+        logMethodReturn(logger, { method: "handleMessage", module: FeishuChannel.CHANNEL_NAME, result: { skipped: true, reason: "permission" }, duration: timer() });
         return;
       }
 
@@ -404,10 +462,19 @@ export class FeishuChannel extends BaseChannel {
         channelId: this.id,
       };
 
+      // 截断日志内容到 1000 字符
+      const logContent = truncateMessage(content, 1000, "...");
+      logger.info("飞书消息接收", {
+        senderId,
+        chatId,
+        messageId: message.message_id,
+        content: logContent,
+      });
       this.emitMessage(inboundMsg);
-      console.log(`[飞书] 收到消息: ${senderId}@${chatId}: ${content}`);
+      logMethodReturn(logger, { method: "handleMessage", module: FeishuChannel.CHANNEL_NAME, result: { success: true }, duration: timer() });
     } catch (error) {
-      console.error("[飞书] 处理消息错误:", error);
+      const err = error instanceof Error ? error : new Error(String(error));
+      logMethodError(logger, { method: "handleMessage", module: FeishuChannel.CHANNEL_NAME, error: { name: err.name, message: err.message }, params: {}, duration: timer() });
     }
   }
 }
@@ -416,5 +483,6 @@ export class FeishuChannel extends BaseChannel {
  * 创建飞书 Channel 实例
  */
 export function createFeishuChannel(config: FeishuBotConfig): FeishuChannel {
+  logger.info("创建飞书 Channel 实例", { appId: config.appId });
   return new FeishuChannel(config);
 }

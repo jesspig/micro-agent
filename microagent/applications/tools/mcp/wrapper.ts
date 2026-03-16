@@ -9,6 +9,17 @@ import type { ITool } from "../../../runtime/contracts.js";
 import type { ToolDefinition } from "../../../runtime/types.js";
 import type { MCPToolDefinition, MCPToolResult } from "./types.js";
 import { callMCPTool } from "./client.js";
+import {
+  mcpLogger,
+  createTimer,
+  sanitize,
+  logMethodCall,
+  logMethodReturn,
+  logMethodError,
+} from "../../shared/logger.js";
+
+const logger = mcpLogger();
+const MODULE_NAME = "MCPToolWrapper";
 
 // ============================================================================
 // MCPToolWrapper 类
@@ -53,45 +64,120 @@ export class MCPToolWrapper implements ITool {
     this.client = client;
     this.originalName = toolDef.name;
     this.timeout = timeout;
+
+    logger.info("MCP工具包装器创建", {
+      toolName: this.name,
+      serverName,
+      originalName: toolDef.name,
+      timeout,
+    });
   }
 
   /**
    * 获取工具定义
    */
   getDefinition(): ToolDefinition {
-    return {
+    const timer = createTimer();
+    logMethodCall(logger, {
+      method: "getDefinition",
+      module: MODULE_NAME,
+      params: { toolName: this.name },
+    });
+
+    const definition: ToolDefinition = {
       name: this.name,
       description: this.description,
       parameters: this.parameters as ToolDefinition["parameters"],
     };
+
+    logMethodReturn(logger, {
+      method: "getDefinition",
+      module: MODULE_NAME,
+      result: sanitize({ name: this.name }),
+      duration: timer(),
+    });
+
+    return definition;
   }
 
   /**
    * 执行工具
    */
   async execute(params: Record<string, unknown>): Promise<string> {
-    const result = await callMCPTool(
-      this.client,
-      this.originalName,
-      params,
-      this.timeout
-    );
+    const timer = createTimer();
+    logMethodCall(logger, {
+      method: "execute",
+      module: MODULE_NAME,
+      params: { toolName: this.name, originalName: this.originalName, arguments: params },
+    });
 
-    return this.formatResult(result);
+    try {
+      logger.info("执行MCP工具", {
+        toolName: this.name,
+        originalName: this.originalName,
+        timeout: this.timeout,
+      });
+
+      const result = await callMCPTool(
+        this.client,
+        this.originalName,
+        params,
+        this.timeout
+      );
+
+      const formatted = this.formatResult(result);
+
+      logMethodReturn(logger, {
+        method: "execute",
+        module: MODULE_NAME,
+        result: sanitize({ isError: result.isError, outputLength: formatted.length }),
+        duration: timer(),
+      });
+
+      return formatted;
+    } catch (error) {
+      const err = error as Error;
+      logMethodError(logger, {
+        method: "execute",
+        module: MODULE_NAME,
+        error: { name: err.name, message: err.message, stack: err.stack },
+        params: { toolName: this.name },
+        duration: timer(),
+      });
+      throw error;
+    }
   }
 
   /**
    * 格式化执行结果
    */
   private formatResult(result: MCPToolResult): string {
+    const timer = createTimer();
+    logMethodCall(logger, {
+      method: "formatResult",
+      module: MODULE_NAME,
+      params: { isError: result.isError, contentCount: result.content.length },
+    });
+
+    let output: string;
+
     if (result.isError) {
       const errorText = result.content
         .map((c) => c.text)
         .join("\n");
-      return `MCP 工具错误: ${errorText}`;
+      output = `MCP 工具错误: ${errorText}`;
+    } else {
+      const parts = result.content.map((c) => c.text);
+      output = parts.join("\n") || "(无输出)";
     }
 
-    const parts = result.content.map((c) => c.text);
-    return parts.join("\n") || "(无输出)";
+    logMethodReturn(logger, {
+      method: "formatResult",
+      module: MODULE_NAME,
+      result: sanitize({ outputLength: output.length }),
+      duration: timer(),
+    });
+
+    return output;
   }
 }

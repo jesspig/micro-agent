@@ -7,6 +7,10 @@
 import { BaseTool } from "../../runtime/tool/base.js";
 import type { ToolParameterSchema, ToolResult } from "../../runtime/tool/types.js";
 import { TOOL_EXECUTION_TIMEOUT } from "../shared/constants.js";
+import { toolsLogger, createTimer, logMethodCall, logMethodReturn, logMethodError, sanitize } from "../shared/logger.js";
+
+const MODULE_NAME = "web";
+const logger = toolsLogger();
 
 // ============================================================================
 // 类型定义
@@ -97,31 +101,46 @@ export class WebTool extends BaseTool<Record<string, unknown>> {
   };
 
   async execute(params: Record<string, unknown>): Promise<ToolResult> {
+    const timer = createTimer();
+    logMethodCall(logger, { method: "execute", module: MODULE_NAME, params: sanitize(params) as Record<string, unknown> });
+
     try {
       const action = this.readStringParam(params, "action", { required: true });
       const query = this.readStringParam(params, "query", { required: true });
 
       if (!action || !query) {
-        return {
+        const result = {
           content: "缺少必需参数: action 或 query",
           isError: true,
         };
+        logMethodReturn(logger, { method: "execute", module: MODULE_NAME, result: sanitize(result), duration: timer() });
+        return result;
       }
 
+      logger.info("工具执行", { toolName: "web", action, query });
+
+      let result: ToolResult;
       switch (action) {
         case "search":
-          return await this.handleSearch(params);
+          result = await this.handleSearch(params);
+          break;
         case "fetch":
-          return await this.handleFetch(params);
+          result = await this.handleFetch(params);
+          break;
         default:
-          return {
+          result = {
             content: `未知的操作类型: ${action}`,
             isError: true,
           };
       }
+
+      logMethodReturn(logger, { method: "execute", module: MODULE_NAME, result: sanitize(result), duration: timer() });
+      return result;
     } catch (error) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      logMethodError(logger, { method: "execute", module: MODULE_NAME, error: { name: err.name, message: err.message, ...(err.stack ? { stack: err.stack } : {}) }, params: sanitize(params) as Record<string, unknown>, duration: timer() });
       return {
-        content: `Web 操作失败: ${error instanceof Error ? error.message : String(error)}`,
+        content: `Web 操作失败: ${err.message}`,
         isError: true,
       };
     }
@@ -135,6 +154,7 @@ export class WebTool extends BaseTool<Record<string, unknown>> {
    * 执行搜索
    */
   private async handleSearch(params: Record<string, unknown>): Promise<ToolResult> {
+    const timer = createTimer();
     const query = this.readStringParam(params, "query", { required: true });
     const limitInput = this.readNumberParam(params, "limit");
     const timeoutInput = this.readNumberParam(params, "timeout");
@@ -150,11 +170,14 @@ export class WebTool extends BaseTool<Record<string, unknown>> {
     const limit = Math.min(limitInput ?? 5, 10);
     const timeout = timeoutInput ?? TOOL_EXECUTION_TIMEOUT;
 
+    logger.debug("搜索开始", { method: "handleSearch", module: MODULE_NAME, query, limit, timeout });
+
     try {
       // 使用 DuckDuckGo Instant Answer API
       const results = await this.searchDuckDuckGo(query, limit, timeout);
 
       if (results.length === 0) {
+        logger.debug("搜索无结果", { method: "handleSearch", module: MODULE_NAME, query, duration: timer() });
         return {
           content: `未找到相关结果: "${query}"`,
           isError: false,
@@ -168,6 +191,7 @@ export class WebTool extends BaseTool<Record<string, unknown>> {
       // 格式化输出
       const output = this.formatSearchResults(results, query);
 
+      logger.info("搜索完成", { method: "handleSearch", module: MODULE_NAME, query, resultCount: results.length, duration: timer() });
       return {
         content: output,
         isError: false,
@@ -177,12 +201,15 @@ export class WebTool extends BaseTool<Record<string, unknown>> {
         },
       };
     } catch (error) {
+      logger.warn("API 搜索失败，尝试备用方案", { method: "handleSearch", module: MODULE_NAME, error: error instanceof Error ? error.message : String(error) });
+
       // 如果 API 失败，尝试备用方案
       try {
         const results = await this.searchDuckDuckGoHtml(query, limit, timeout);
 
         if (results.length > 0) {
           const output = this.formatSearchResults(results, query);
+          logger.info("搜索完成（备用方案）", { method: "handleSearch", module: MODULE_NAME, query, resultCount: results.length, searchMethod: "html", duration: timer() });
           return {
             content: output,
             isError: false,
@@ -193,8 +220,8 @@ export class WebTool extends BaseTool<Record<string, unknown>> {
             },
           };
         }
-      } catch {
-        // 备用方案也失败
+      } catch (fallbackError) {
+        logger.error("备用方案也失败", { method: "handleSearch", module: MODULE_NAME, error: fallbackError instanceof Error ? fallbackError.message : String(fallbackError) });
       }
 
       return {
@@ -389,6 +416,7 @@ export class WebTool extends BaseTool<Record<string, unknown>> {
    * 获取网页内容
    */
   private async handleFetch(params: Record<string, unknown>): Promise<ToolResult> {
+    const timer = createTimer();
     const url = this.readStringParam(params, "query", { required: true });
     const timeoutInput = this.readNumberParam(params, "timeout");
     const headersInput = this.readObjectParam<Record<string, string>>(params, "headers");
@@ -402,6 +430,7 @@ export class WebTool extends BaseTool<Record<string, unknown>> {
 
     // 验证 URL
     if (!this.isValidUrl(url)) {
+      logger.warn("无效的 URL", { method: "handleFetch", module: MODULE_NAME, url });
       return {
         content: `无效的 URL: ${url}`,
         isError: true,
@@ -410,6 +439,8 @@ export class WebTool extends BaseTool<Record<string, unknown>> {
 
     const timeout = timeoutInput ?? TOOL_EXECUTION_TIMEOUT;
     const headers = headersInput ?? {};
+
+    logger.debug("开始获取网页", { method: "handleFetch", module: MODULE_NAME, url, timeout, hasHeaders: Object.keys(headers).length > 0 });
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);
@@ -427,6 +458,7 @@ export class WebTool extends BaseTool<Record<string, unknown>> {
       clearTimeout(timeoutId);
 
       if (!response.ok) {
+        logger.warn("HTTP 错误", { method: "handleFetch", module: MODULE_NAME, url, status: response.status });
         return {
           content: `HTTP 错误: ${response.status} ${response.statusText}`,
           isError: true,
@@ -453,6 +485,7 @@ export class WebTool extends BaseTool<Record<string, unknown>> {
         contentType,
       };
 
+      logger.info("网页获取成功", { method: "handleFetch", module: MODULE_NAME, url, title, contentLength: text.length, duration: timer() });
       return {
         content: this.formatWebContent(webContent),
         isError: false,
@@ -465,12 +498,14 @@ export class WebTool extends BaseTool<Record<string, unknown>> {
       };
     } catch (error) {
       if ((error as Error).name === "AbortError") {
+        logger.warn("请求超时", { method: "handleFetch", module: MODULE_NAME, url, timeout });
         return {
           content: `请求超时: ${url}`,
           isError: true,
         };
       }
 
+      logger.error("获取网页失败", { method: "handleFetch", module: MODULE_NAME, url, error: error instanceof Error ? error.message : String(error), duration: timer() });
       return {
         content: `获取网页失败: ${error instanceof Error ? error.message : String(error)}`,
         isError: true,

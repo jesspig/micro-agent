@@ -11,6 +11,9 @@
 
 import { z } from "zod";
 
+const MODULE_NAME = "ConfigSchema";
+import { configLogger, createTimer, sanitize, logMethodCall, logMethodReturn, logMethodError } from "../shared/logger.js";
+
 // ============================================================================
 // Agent Config Schema
 // ============================================================================
@@ -328,6 +331,96 @@ export const SessionsConfigSchema = z.strictObject({
 export type SessionsConfig = z.infer<typeof SessionsConfigSchema>;
 
 // ============================================================================
+// Logs Schema
+// ============================================================================
+
+/**
+ * 日志级别 Schema
+ */
+export const LogLevelSchema = z.enum(["debug", "info", "warning", "error"]);
+
+/**
+ * 日志颗粒度 Schema
+ * 
+ * 格式：数值 + 单位（D=天, H=小时, M=分钟）
+ * 单位决定文件名精度，数值决定时间间隔
+ * 范围：最小 30 分钟（30M），最大 7 天（7D）
+ * 示例：
+ *   7D     - 每 7 天一个文件，文件名 YYYY-MM-DD.jsonl
+ *   168H   - 每 168 小时（7天）一个文件，文件名 YYYY-MM-DD-HH.jsonl
+ *   10080M - 每 10080 分钟（7天）一个文件，文件名 YYYY-MM-DD-HH-MM.jsonl
+ */
+export const LogGranularitySchema = z.string()
+  .regex(/^(\d+)([DHM])$/, "日志颗粒度格式错误，正确格式如：1D, 6H, 30M")
+  .transform((val) => {
+    const match = val.match(/^(\d+)([DHM])$/);
+    if (!match) return val;
+    
+    const num = parseInt(match[1]!, 10);
+    const unit = match[2] as "D" | "H" | "M";
+    
+    // 转换为分钟
+    let minutes: number;
+    switch (unit) {
+      case "D":
+        minutes = num * 24 * 60;
+        break;
+      case "H":
+        minutes = num * 60;
+        break;
+      case "M":
+        minutes = num;
+        break;
+      default:
+        minutes = 60;
+    }
+    
+    // 范围校验并 clamp：最小 30 分钟，最大 7 天
+    const MIN_MINUTES = 30;
+    const MAX_MINUTES = 7 * 24 * 60;
+    const clampedMinutes = Math.max(MIN_MINUTES, Math.min(MAX_MINUTES, minutes));
+    
+    // 保持原单位返回 clamped 值
+    switch (unit) {
+      case "D":
+        return `${Math.round(clampedMinutes / (24 * 60))}D`;
+      case "H":
+        return `${Math.round(clampedMinutes / 60)}H`;
+      case "M":
+        return `${clampedMinutes}M`;
+      default:
+        return val;
+    }
+  });
+
+/**
+ * 日志配置 Schema
+ */
+export const LogsConfigSchema = z.strictObject({
+  /** 是否开启敏感信息脱敏，默认 true */
+  sanitize: z.boolean().default(true),
+
+  /** 单个日志文件最大大小（MB），默认 10，范围 1-200 */
+  maxFileSize: z.number()
+    .int()
+    .min(1)
+    .max(200)
+    .default(10)
+    .transform((val) => Math.max(1, Math.min(200, val))),
+
+  /** 控制台日志级别，默认 info，文件日志始终记录所有级别 */
+  level: LogLevelSchema.default("info"),
+
+  /** 日志文件颗粒度，默认 1H，格式如 1D/6H/30M，单位决定文件名精度，范围 30M~7D */
+  granularity: LogGranularitySchema.default("1H"),
+});
+
+/**
+ * 日志配置类型
+ */
+export type LogsConfig = z.infer<typeof LogsConfigSchema>;
+
+// ============================================================================
 // Settings Schema
 // ============================================================================
 
@@ -351,6 +444,9 @@ export const SettingsSchema = z.strictObject({
 
   /** 会话配置 */
   sessions: SessionsConfigSchema.optional(),
+
+  /** 日志配置 */
+  logs: LogsConfigSchema.optional(),
 });
 
 /**
@@ -369,7 +465,25 @@ export type Settings = z.infer<typeof SettingsSchema>;
  * @returns 验证结果
  */
 export function validateAgentsConfig(data: unknown): AgentsConfig {
-  return AgentsConfigSchema.parse(data);
+  const timer = createTimer();
+  const logger = configLogger();
+  
+  logMethodCall(logger, { method: "validateAgentsConfig", module: MODULE_NAME, params: {} });
+  
+  try {
+    const result = AgentsConfigSchema.parse(data);
+    logMethodReturn(logger, { method: "validateAgentsConfig", module: MODULE_NAME, result: sanitize(result), duration: timer() });
+    return result;
+  } catch (error) {
+    const err = error instanceof Error ? error : new Error(String(error));
+    logMethodError(logger, { 
+      method: "validateAgentsConfig", 
+      module: MODULE_NAME, 
+      error: { name: err.name, message: err.message, ...(err.stack ? { stack: err.stack } : {}) },
+      duration: timer() 
+    });
+    throw error;
+  }
 }
 
 /**
@@ -379,7 +493,25 @@ export function validateAgentsConfig(data: unknown): AgentsConfig {
  * @returns 验证结果
  */
 export function validateProvidersConfig(data: unknown): ProvidersConfig {
-  return ProvidersConfigSchema.parse(data);
+  const timer = createTimer();
+  const logger = configLogger();
+  
+  logMethodCall(logger, { method: "validateProvidersConfig", module: MODULE_NAME, params: {} });
+  
+  try {
+    const result = ProvidersConfigSchema.parse(data);
+    logMethodReturn(logger, { method: "validateProvidersConfig", module: MODULE_NAME, result: sanitize(result), duration: timer() });
+    return result;
+  } catch (error) {
+    const err = error instanceof Error ? error : new Error(String(error));
+    logMethodError(logger, { 
+      method: "validateProvidersConfig", 
+      module: MODULE_NAME, 
+      error: { name: err.name, message: err.message, ...(err.stack ? { stack: err.stack } : {}) },
+      duration: timer() 
+    });
+    throw error;
+  }
 }
 
 /**
@@ -389,7 +521,25 @@ export function validateProvidersConfig(data: unknown): ProvidersConfig {
  * @returns 验证结果
  */
 export function validateToolsConfig(data: unknown): ToolsConfig {
-  return ToolsConfigSchema.parse(data);
+  const timer = createTimer();
+  const logger = configLogger();
+  
+  logMethodCall(logger, { method: "validateToolsConfig", module: MODULE_NAME, params: {} });
+  
+  try {
+    const result = ToolsConfigSchema.parse(data);
+    logMethodReturn(logger, { method: "validateToolsConfig", module: MODULE_NAME, result: sanitize(result), duration: timer() });
+    return result;
+  } catch (error) {
+    const err = error instanceof Error ? error : new Error(String(error));
+    logMethodError(logger, { 
+      method: "validateToolsConfig", 
+      module: MODULE_NAME, 
+      error: { name: err.name, message: err.message, ...(err.stack ? { stack: err.stack } : {}) },
+      duration: timer() 
+    });
+    throw error;
+  }
 }
 
 /**
@@ -399,7 +549,25 @@ export function validateToolsConfig(data: unknown): ToolsConfig {
  * @returns 验证结果
  */
 export function validateChannelsConfig(data: unknown): ChannelsConfig {
-  return ChannelsConfigSchema.parse(data);
+  const timer = createTimer();
+  const logger = configLogger();
+  
+  logMethodCall(logger, { method: "validateChannelsConfig", module: MODULE_NAME, params: {} });
+  
+  try {
+    const result = ChannelsConfigSchema.parse(data);
+    logMethodReturn(logger, { method: "validateChannelsConfig", module: MODULE_NAME, result: sanitize(result), duration: timer() });
+    return result;
+  } catch (error) {
+    const err = error instanceof Error ? error : new Error(String(error));
+    logMethodError(logger, { 
+      method: "validateChannelsConfig", 
+      module: MODULE_NAME, 
+      error: { name: err.name, message: err.message, ...(err.stack ? { stack: err.stack } : {}) },
+      duration: timer() 
+    });
+    throw error;
+  }
 }
 
 /**
@@ -409,7 +577,25 @@ export function validateChannelsConfig(data: unknown): ChannelsConfig {
  * @returns 验证结果
  */
 export function validateSettings(data: unknown): Settings {
-  return SettingsSchema.parse(data);
+  const timer = createTimer();
+  const logger = configLogger();
+  
+  logMethodCall(logger, { method: "validateSettings", module: MODULE_NAME, params: {} });
+  
+  try {
+    const result = SettingsSchema.parse(data);
+    logMethodReturn(logger, { method: "validateSettings", module: MODULE_NAME, result: sanitize(result), duration: timer() });
+    return result;
+  } catch (error) {
+    const err = error instanceof Error ? error : new Error(String(error));
+    logMethodError(logger, { 
+      method: "validateSettings", 
+      module: MODULE_NAME, 
+      error: { name: err.name, message: err.message, ...(err.stack ? { stack: err.stack } : {}) },
+      duration: timer() 
+    });
+    throw error;
+  }
 }
 
 /**
@@ -421,5 +607,21 @@ export function validateSettings(data: unknown): Settings {
 export function safeValidateSettings(
   data: unknown,
 ): z.SafeParseReturnType<unknown, Settings> {
-  return SettingsSchema.safeParse(data);
+  const timer = createTimer();
+  const logger = configLogger();
+  
+  logMethodCall(logger, { method: "safeValidateSettings", module: MODULE_NAME, params: {} });
+  
+  const result = SettingsSchema.safeParse(data);
+  
+  if (result.success) {
+    logger.debug("配置验证成功", { duration: timer() });
+    logMethodReturn(logger, { method: "safeValidateSettings", module: MODULE_NAME, result: sanitize(result.data), duration: timer() });
+  } else {
+    const issues = result.error.issues.map(i => `${i.path.join(".")}: ${i.message}`).join("; ");
+    logger.warn("配置验证失败", { issues, duration: timer() });
+    logMethodReturn(logger, { method: "safeValidateSettings", module: MODULE_NAME, result: { success: false, issueCount: result.error.issues.length }, duration: timer() });
+  }
+  
+  return result;
 }

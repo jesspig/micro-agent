@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "filesystem": {
-      "disabled": false,
+      "disabled": true,
       "command": "npx",
       "args": [
         "-y",
@@ -10,21 +10,21 @@
       ]
     },
     "git": {
-      "disabled": false,
+      "disabled": true,
       "command": "uvx",
       "args": [
         "mcp-server-git"
       ]
     },
     "fetch": {
-      "disabled": false,
+      "disabled": true,
       "command": "uvx",
       "args": [
         "mcp-server-fetch"
       ]
     },
     "memory": {
-      "disabled": false,
+      "disabled": true,
       "command": "npx",
       "args": [
         "-y",
@@ -32,7 +32,7 @@
       ]
     },
     "sequential-thinking": {
-      "disabled": false,
+      "disabled": true,
       "command": "npx",
       "args": [
         "-y",
@@ -40,14 +40,14 @@
       ]
     },
     "time": {
-      "disabled": false,
+      "disabled": true,
       "command": "uvx",
       "args": [
         "mcp-server-time"
       ]
     },
     "everything": {
-      "disabled": false,
+      "disabled": true,
       "command": "npx",
       "args": [
         "-y",
