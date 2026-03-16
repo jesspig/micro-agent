@@ -259,7 +259,7 @@ export async function loadSessionFile(date?: Date): Promise<SessionEntry[]> {
     const filePath = getSessionFilePath(date);
 
     if (!existsSync(filePath)) {
-      logger.info("会话文件不存在", { filePath, date: dateStr });
+      logger.debug("会话文件不存在", { filePath, date: dateStr });
       logMethodReturn(logger, {
         method,
         module,
@@ -316,13 +316,13 @@ export async function loadSessionFile(date?: Date): Promise<SessionEntry[]> {
 }
 
 /**
- * 加载最近的 Session（按消息数量限制）
- * @param contextWindow - 上下文窗口大小（消息条数），默认 20
+ * 加载最近的 Session（按 token 数量限制）
+ * @param contextWindowTokens - 上下文窗口大小（token 数量），默认 65535
  * @param maxDays - 最大加载天数，默认 30 天
- * @returns 会话条目数组（按时间正序排列，最多 contextWindow 条）
+ * @returns 会话条目数组（按时间正序排列，token 总数不超过 contextWindowTokens）
  */
 export async function loadRecentSessions(
-  contextWindow: number = 20,
+  contextWindowTokens: number = 65535,
   maxDays: number = 30,
 ): Promise<SessionEntry[]> {
   const timer = createTimer();
@@ -331,38 +331,93 @@ export async function loadRecentSessions(
   logMethodCall(logger, {
     method,
     module,
-    params: { contextWindow, maxDays },
+    params: { contextWindowTokens, maxDays },
   });
 
   try {
+    // 如果 sessions 目录不存在，直接返回空数组
+    if (!existsSync(SESSIONS_DIR)) {
+      logger.debug("会话目录不存在，跳过历史加载", { path: SESSIONS_DIR });
+      logMethodReturn(logger, {
+        method,
+        module,
+        result: sanitize({ entryCount: 0, reason: "dir_not_found" }),
+        duration: timer(),
+      });
+      return [];
+    }
+
     const entries: SessionEntry[] = [];
 
-    // 按天加载，直到达到目标数量或超过最大天数
-    for (let i = 0; i < maxDays && entries.length < contextWindow; i++) {
+    // 按天加载历史记录
+    for (let i = 0; i < maxDays; i++) {
       const date = new Date();
       date.setDate(date.getDate() - i);
       const dayEntries = await loadSessionFile(date);
       entries.unshift(...dayEntries); // 按时间正序排列
     }
 
-    // 只保留最近 contextWindow 条消息
-    const result =
-      entries.length > contextWindow ? entries.slice(-contextWindow) : entries;
+    // 按 token 数量筛选消息（从末尾开始选择）
+    const result: SessionEntry[] = [];
+    let currentTokens = 0;
 
-    logger.info("最近会话已加载", {
+    for (let i = entries.length - 1; i >= 0; i--) {
+      const entry = entries[i]!;
+      const entryTokens = estimateEntryTokens(entry);
+
+      // 检查添加此条目是否会超过限制
+      if (currentTokens + entryTokens > contextWindowTokens) {
+        // 如果是用户消息且已选择了一些消息，强制包含此用户消息
+        if (entry.role === "user" && result.length > 0) {
+          result.length = 0;
+          currentTokens = 0;
+          result.unshift(entry);
+          currentTokens += entryTokens;
+        }
+        break;
+      }
+
+      result.unshift(entry);
+      currentTokens += entryTokens;
+    }
+
+    // 确保从用户消息开始（避免孤立的 tool_result）
+    for (let i = 0; i < result.length; i++) {
+      if (result[i]!.role === "user") {
+        const finalResult = result.slice(i);
+        logger.info("最近会话已加载", {
+          totalEntries: entries.length,
+          returnedEntries: finalResult.length,
+          contextWindowTokens,
+          totalTokens: currentTokens,
+          maxDays,
+        });
+
+        logMethodReturn(logger, {
+          method,
+          module,
+          result: sanitize({ entryCount: finalResult.length, totalTokens: currentTokens }),
+          duration: timer(),
+        });
+        return finalResult;
+      }
+    }
+
+    // 如果没有用户消息，返回空列表
+    logger.info("最近会话已加载（无用户消息）", {
       totalEntries: entries.length,
-      returnedEntries: result.length,
-      contextWindow,
+      returnedEntries: 0,
+      contextWindowTokens,
       maxDays,
     });
 
     logMethodReturn(logger, {
       method,
       module,
-      result: sanitize({ entryCount: result.length }),
+      result: sanitize({ entryCount: 0 }),
       duration: timer(),
     });
-    return result;
+    return [];
   } catch (err: unknown) {
     const error = err as Error;
     logMethodError(logger, {
@@ -373,11 +428,45 @@ export async function loadRecentSessions(
         message: error.message,
         ...(error.stack ? { stack: error.stack } : {}),
       },
-      params: { contextWindow, maxDays },
+      params: { contextWindowTokens, maxDays },
       duration: timer(),
     });
     throw err;
   }
+}
+
+/**
+ * 估算会话条目的 token 数量
+ * @param entry - 会话条目
+ * @returns 估算的 token 数量
+ */
+function estimateEntryTokens(entry: SessionEntry): number {
+  let tokens = 0;
+
+  // 内容 token
+  if (entry.content) {
+    // 中文字符约 1.5 字符/token，英文字符约 4 字符/token
+    const chineseChars = (entry.content.match(/[\u4e00-\u9fff]/g) || []).length;
+    const otherChars = entry.content.length - chineseChars;
+    tokens += Math.ceil(chineseChars / 1.5) + Math.ceil(otherChars / 4);
+  }
+
+  // 工具调用固定估算 15 tokens/tool
+  if (entry.toolCalls?.length) {
+    tokens += entry.toolCalls.length * 15;
+  }
+
+  // 工具调用 ID
+  if (entry.toolCallId) {
+    tokens += Math.ceil(entry.toolCallId.length / 4);
+  }
+
+  // 名称
+  if (entry.name) {
+    tokens += Math.ceil(entry.name.length / 4);
+  }
+
+  return Math.max(1, tokens);
 }
 
 /**

@@ -762,16 +762,17 @@ export class SessionManager {
   /**
    * 加载历史会话到指定 Session
    * @param sessionKey - Session 标识
+   * @param contextWindowTokens - 上下文窗口大小（token 数量），默认 65535
    */
-  async loadHistory(sessionKey: string): Promise<void> {
+  async loadHistory(sessionKey: string, contextWindowTokens: number = 65535): Promise<void> {
     const timer = createTimer();
     const module = MODULE_NAME;
     const method = "loadHistory";
-    logMethodCall(logger, { method, module, params: { sessionKey } });
+    logMethodCall(logger, { method, module, params: { sessionKey, contextWindowTokens } });
 
     try {
       const session = this.getOrCreate(sessionKey);
-      const entries = await loadRecentSessions(0); // 0 表示加载所有消息
+      const entries = await loadRecentSessions(contextWindowTokens);
 
       for (const entry of entries) {
         session.addMessage(entryToMessage(entry));
@@ -788,6 +789,7 @@ export class SessionManager {
       logger.info("历史会话已加载", {
         sessionKey,
         loadedEntries: entries.length,
+        contextWindowTokens,
       });
 
       logMethodReturn(logger, {
@@ -806,7 +808,7 @@ export class SessionManager {
           message: error.message,
           ...(error.stack ? { stack: error.stack } : {}),
         },
-        params: { sessionKey },
+        params: { sessionKey, contextWindowTokens },
         duration: timer(),
       });
       throw err;
