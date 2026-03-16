@@ -2,6 +2,13 @@
  * 上下文构建器
  *
  * 负责将 Session、Memory、Skill 等信息整合为 LLM 可用的消息上下文
+ *
+ * 分层架构：
+ * 1. 系统提示词（角色定义、约束、平台策略）
+ * 2. 记忆上下文（MEMORY.md）
+ * 3. 技能摘要（XML 格式，支持按需加载）
+ * 4. 对话历史
+ * 5. 运行时上下文（注入用户消息，提高缓存命中率）
  */
 
 import type { Message } from "../types.js";
@@ -20,7 +27,7 @@ import {
 const logger = sessionLogger();
 
 // ============================================================================
-// 常量定义
+// 类型定义
 // ============================================================================
 
 /** 模块名称 */
@@ -38,7 +45,29 @@ export interface ContextBuildOptions {
   maxMessages?: number;
   /** 系统提示词 */
   systemPrompt?: string;
+  /** 运行时上下文（注入最后一条用户消息） */
+  runtimeContext?: string;
 }
+
+/**
+ * Skill 摘要项
+ */
+export interface SkillSummaryItem {
+  /** 技能名称 */
+  name: string;
+  /** 技能描述 */
+  description: string;
+  /** 技能路径（用于按需加载） */
+  location: string;
+  /** 是否可用 */
+  available: boolean;
+  /** 依赖项（可选） */
+  requires?: string | undefined;
+}
+
+// ============================================================================
+// 上下文构建器
+// ============================================================================
 
 /**
  * 上下文构建器
@@ -102,6 +131,7 @@ export class ContextBuilder {
         maxMessages: options.maxMessages,
         hasSystemPrompt: options.systemPrompt !== undefined,
         systemPromptLength,
+        hasRuntimeContext: options.runtimeContext !== undefined,
       },
     });
 
@@ -126,9 +156,9 @@ export class ContextBuilder {
         }
       }
 
-      // 3. 技能摘要
+      // 3. 技能摘要（XML 格式）
       if (options.includeSkills && this.skills?.length) {
-        const skillsSummary = this.buildSkillsSummary();
+        const skillsSummary = this.buildSkillsSummaryXml();
         if (skillsSummary) {
           messages.push({ role: "system", content: skillsSummary });
           logger.info("技能摘要已添加", {
@@ -143,6 +173,27 @@ export class ContextBuilder {
       const maxHistory = options.maxMessages ?? history.length;
       const truncatedCount = Math.max(0, history.length - maxHistory);
       const recentHistory = history.slice(-maxHistory);
+
+      // 5. 如果有运行时上下文，注入到最后一条用户消息前
+      if (options.runtimeContext && recentHistory.length > 0) {
+        // 找到最后一条用户消息
+        const lastUserIndex = recentHistory.findLastIndex((m) => m.role === "user");
+        if (lastUserIndex !== -1) {
+          // 在用户消息前注入运行时上下文
+          const lastUserMsg = recentHistory[lastUserIndex];
+          if (lastUserMsg && typeof lastUserMsg.content === "string") {
+            recentHistory[lastUserIndex] = {
+              ...lastUserMsg,
+              content: `${options.runtimeContext}\n\n${lastUserMsg.content}`,
+            };
+            logger.info("运行时上下文已注入用户消息", {
+              messageIndex: lastUserIndex,
+              runtimeContextLength: options.runtimeContext.length,
+            });
+          }
+        }
+      }
+
       messages.push(...recentHistory);
 
       logger.info("上下文已构建", {
@@ -153,6 +204,7 @@ export class ContextBuilder {
         systemPromptLength,
         includedMemory: options.includeMemory && this.memory !== undefined,
         includedSkills: options.includeSkills && (this.skills?.length ?? 0) > 0,
+        injectedRuntimeContext: options.runtimeContext !== undefined,
       });
 
       logMethodReturn(logger, {
@@ -180,13 +232,19 @@ export class ContextBuilder {
   }
 
   /**
-   * 构建技能摘要
-   * @returns 格式化的技能摘要文本
+   * 构建技能摘要（XML 格式）
+   *
+   * XML 格式优势：
+   * - 结构清晰，易于解析
+   * - 支持属性和嵌套
+   * - 便于按需加载完整内容
+   *
+   * @returns XML 格式的技能摘要
    */
-  private buildSkillsSummary(): string {
+  private buildSkillsSummaryXml(): string {
     const timer = createTimer();
     const module = MODULE_NAME;
-    const method = "buildSkillsSummary";
+    const method = "buildSkillsSummaryXml";
     logMethodCall(logger, {
       method,
       module,
@@ -204,17 +262,38 @@ export class ContextBuilder {
         return "";
       }
 
-      const summaries = this.skills.map((s) => {
+      const skillItems: SkillSummaryItem[] = this.skills.map((s) => {
         const meta = s.meta;
-        return `- ${meta.name}: ${meta.description}`;
+        const config = s.config;
+        return {
+          name: meta.name,
+          description: meta.description,
+          location: config.path,
+          available: true,
+          requires: meta.dependencies?.join(", "),
+        };
       });
 
-      const result = `<skills>\n${summaries.join("\n")}\n</skills>`;
+      const lines: string[] = ["<skills>"];
+
+      for (const skill of skillItems) {
+        lines.push(`  <skill available="${skill.available}">`);
+        lines.push(`    <name>${this.escapeXml(skill.name)}</name>`);
+        lines.push(`    <description>${this.escapeXml(skill.description)}</description>`);
+        lines.push(`    <location>${this.escapeXml(skill.location)}</location>`);
+        if (skill.requires) {
+          lines.push(`    <requires>${this.escapeXml(skill.requires)}</requires>`);
+        }
+        lines.push("  </skill>");
+      }
+
+      lines.push("</skills>");
+      const result = lines.join("\n");
 
       logMethodReturn(logger, {
         method,
         module,
-        result: sanitize({ skillsCount: summaries.length, length: result.length }),
+        result: sanitize({ skillsCount: skillItems.length, length: result.length }),
         duration: timer(),
       });
       return result;
@@ -233,5 +312,36 @@ export class ContextBuilder {
       });
       throw err;
     }
+  }
+
+  /**
+   * 转义 XML 特殊字符
+   */
+  private escapeXml(text: string): string {
+    return text
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&apos;");
+  }
+
+  /**
+   * 获取技能列表（用于按需加载）
+   *
+   * @returns 技能摘要列表
+   */
+  getSkillSummaries(): SkillSummaryItem[] {
+    if (!this.skills?.length) {
+      return [];
+    }
+
+    return this.skills.map((s) => ({
+      name: s.meta.name,
+      description: s.meta.description,
+      location: s.config.path,
+      available: true,
+      requires: s.meta.dependencies?.join(", "),
+    }));
   }
 }

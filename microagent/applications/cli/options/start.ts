@@ -178,17 +178,46 @@ function createProvider(settings: Settings): IProviderExtended | null {
   logMethodCall(logger, { method: "createProvider", module: "CLI", params: {} });
 
   const providers = settings.providers ?? {};
-  const enabledProvider = Object.entries(providers).find(
-    ([_, config]) => config?.enabled === true
-  );
+  const model = settings.agents?.defaults?.model ?? "";
 
-  if (!enabledProvider) {
-    logger.warn("未找到启用的 Provider");
-    logMethodReturn(logger, { method: "createProvider", module: "CLI", result: null, duration: timer() });
-    return null;
+  // 解析模型名中的 provider 前缀
+  const slashIndex = model.indexOf("/");
+  let targetProviderName: string | null = null;
+
+  if (slashIndex >= 0) {
+    targetProviderName = model.substring(0, slashIndex);
   }
 
-  const [providerName, providerConfig] = enabledProvider;
+  let selectedProvider: [string, SingleProviderConfig] | null = null;
+
+  if (targetProviderName) {
+    // 模型名包含 provider 前缀，直接查找该 provider
+    const config = providers[targetProviderName];
+    if (!config) {
+      logger.error("Provider 未找到", { targetProviderName, model });
+      logMethodReturn(logger, { method: "createProvider", module: "CLI", result: null, duration: timer() });
+      return null;
+    }
+    if (!config.enabled) {
+      logger.error("Provider 未启用", { targetProviderName, model });
+      logMethodReturn(logger, { method: "createProvider", module: "CLI", result: null, duration: timer() });
+      return null;
+    }
+    selectedProvider = [targetProviderName, config];
+  } else {
+    // 模型名不含 provider 前缀，选择第一个启用的 provider
+    const enabledProvider = Object.entries(providers).find(
+      ([_, config]) => config?.enabled === true
+    );
+    if (!enabledProvider) {
+      logger.warn("未找到启用的 Provider");
+      logMethodReturn(logger, { method: "createProvider", module: "CLI", result: null, duration: timer() });
+      return null;
+    }
+    selectedProvider = enabledProvider;
+  }
+
+  const [providerName, providerConfig] = selectedProvider;
 
   if (!providerConfig) {
     logger.warn("Provider 配置为空", { providerName });
@@ -575,8 +604,17 @@ async function runAgentService(
   logMethodCall(logger, { method: "runAgentService", module: "CLI", params: { channelCount: channels.length } });
 
   // 创建 AgentLoop
+  // 处理模型名：剥离 provider 前缀
+  let model = settings.agents.defaults.model ?? "default";
+  const slashIndex = model.indexOf("/");
+  if (slashIndex >= 0) {
+    const originalModel = model;
+    model = model.substring(slashIndex + 1);
+    logger.debug("剥离模型 provider 前缀", { originalModel, strippedModel: model });
+  }
+
   const agentConfig: AgentConfig = {
-    model: settings.agents.defaults.model ?? "default",
+    model,
     maxIterations: settings.agents.defaults.maxToolIterations ?? 50,
     defaultTimeout: 60000,
     enableLogging: false,
