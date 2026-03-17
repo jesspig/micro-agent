@@ -23,11 +23,11 @@ const logger = channelsLogger();
 // 常量定义
 // ============================================================================
 
-/** 已处理消息 ID 最大容量 */
-const MAX_PROCESSED_IDS = 1000;
+/** 已处理消息 ID 最大缓存数量 */
+const MAX_PROCESSED_IDS = 10000;
 
-/** 已处理消息 ID 过期时间（毫秒）- 24小时 */
-const PROCESSED_IDS_MAX_AGE = 24 * 60 * 60 * 1000;
+/** 已处理消息 ID 过期时间（毫秒），默认 1 小时 */
+const PROCESSED_IDS_MAX_AGE = 60 * 60 * 1000;
 
 // ============================================================================
 // 类型定义
@@ -484,17 +484,15 @@ export class DingTalkChannel extends BaseChannel {
       }
     }
 
-    // 如果仍然超过容量，删除最旧的条目
     if (this.processedIds.size > MAX_PROCESSED_IDS) {
       const entries = Array.from(this.processedIds.entries());
-      const toDelete = entries
-        .sort((a, b) => a[1] - b[1])
-        .slice(0, this.processedIds.size - MAX_PROCESSED_IDS);
+      const toKeep = entries.sort((a, b) => b[1] - a[1]).slice(0, MAX_PROCESSED_IDS);
 
-      for (const [id] of toDelete) {
-        this.processedIds.delete(id);
-        cleaned++;
+      this.processedIds.clear();
+      for (const [id, timestamp] of toKeep) {
+        this.processedIds.set(id, timestamp);
       }
+      cleaned += entries.length - toKeep.length;
     }
 
     if (cleaned > 0) {

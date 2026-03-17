@@ -17,6 +17,16 @@ import { channelsLogger, createTimer, sanitize, logMethodCall, logMethodReturn, 
 const logger = channelsLogger();
 
 // ============================================================================
+// 常量定义
+// ============================================================================
+
+/** 已处理消息 ID 最大缓存数量 */
+const MAX_PROCESSED_IDS = 10000;
+
+/** 已处理消息 ID 过期时间（毫秒），默认 1 小时 */
+const PROCESSED_IDS_MAX_AGE = 60 * 60 * 1000;
+
+// ============================================================================
 // 类型定义
 // ============================================================================
 
@@ -130,6 +140,12 @@ export class FeishuChannel extends BaseChannel {
   /** WebSocket Client */
   private wsClient: FeishuWSClient | null = null;
 
+  /** 已处理消息 ID 集合（防重） */
+  private processedIds = new Map<string, number>();
+
+  /** 清理定时器 */
+  private cleanupTimer: Timer | null = null;
+
   constructor(config: FeishuBotConfig) {
     super(config);
     this.id = config.id;
@@ -205,6 +221,10 @@ export class FeishuChannel extends BaseChannel {
       });
 
       this.setConnected(true);
+      
+      // 启动消息 ID 定时清理
+      this.startCleanup();
+      
       logger.info("飞书 WebSocket 连接成功", { appId, appType: "SelfBuild", domain: "Feishu" });
       logger.info("飞书 Channel 启动成功", { appId });
       logMethodReturn(logger, { method: "start", module: FeishuChannel.CHANNEL_NAME, result: { success: true }, duration: timer() });
@@ -225,6 +245,9 @@ export class FeishuChannel extends BaseChannel {
 
     this.setConnected(false);
     
+    // 停止定时清理
+    this.stopCleanup();
+    
     if (this.wsClient) {
       try {
         this.wsClient?.stop?.();
@@ -234,6 +257,7 @@ export class FeishuChannel extends BaseChannel {
       this.wsClient = null;
     }
     this.client = null;
+    this.processedIds.clear();
     logger.info("飞书 Channel 已停止", { appId });
     logMethodReturn(logger, { method: "stop", module: FeishuChannel.CHANNEL_NAME, result: { success: true }, duration: timer() });
   }
@@ -412,6 +436,15 @@ export class FeishuChannel extends BaseChannel {
 
     try {
       const message = event.message;
+      const messageId = message.message_id;
+
+      // 消息去重检查
+      if (this.isProcessed(messageId)) {
+        logger.debug("跳过已处理的消息", { messageId });
+        logMethodReturn(logger, { method: "handleMessage", module: FeishuChannel.CHANNEL_NAME, result: { skipped: true, reason: "duplicate" }, duration: timer() });
+        return;
+      }
+
       const senderId = message.sender?.sender_id?.open_id || "unknown";
       const chatId = message.chat_id;
 
@@ -476,6 +509,78 @@ export class FeishuChannel extends BaseChannel {
       const err = error instanceof Error ? error : new Error(String(error));
       logMethodError(logger, { method: "handleMessage", module: FeishuChannel.CHANNEL_NAME, error: { name: err.name, message: err.message }, params: {}, duration: timer() });
     }
+  }
+
+  // ============================================================================
+  // 消息去重相关方法
+  // ============================================================================
+
+  /**
+   * 启动定时清理
+   */
+  private startCleanup(): void {
+    this.cleanupTimer = setInterval(() => this.cleanupProcessedIds(), 60 * 60 * 1000);
+    logger.info("消息 ID 清理定时器已启动");
+  }
+
+  /**
+   * 停止定时清理
+   */
+  private stopCleanup(): void {
+    if (this.cleanupTimer) {
+      clearInterval(this.cleanupTimer);
+      this.cleanupTimer = null;
+      logger.info("消息 ID 清理定时器已停止");
+    }
+  }
+
+  /**
+   * 检查消息是否已处理（防重）
+   */
+  private isProcessed(messageId: string): boolean {
+    if (this.processedIds.has(messageId)) return true;
+
+    this.processedIds.set(messageId, Date.now());
+
+    if (this.processedIds.size > MAX_PROCESSED_IDS) {
+      this.cleanupProcessedIds();
+    }
+
+    return false;
+  }
+
+  /**
+   * 清理过期的消息 ID
+   */
+  private cleanupProcessedIds(): void {
+    const timer = createTimer();
+    logMethodCall(logger, { method: "cleanupProcessedIds", module: FeishuChannel.CHANNEL_NAME, params: {} });
+
+    const now = Date.now();
+    let cleaned = 0;
+
+    for (const [id, timestamp] of this.processedIds) {
+      if (now - timestamp > PROCESSED_IDS_MAX_AGE) {
+        this.processedIds.delete(id);
+        cleaned++;
+      }
+    }
+
+    if (this.processedIds.size > MAX_PROCESSED_IDS) {
+      const entries = Array.from(this.processedIds.entries());
+      const toKeep = entries.sort((a, b) => b[1] - a[1]).slice(0, MAX_PROCESSED_IDS);
+
+      this.processedIds.clear();
+      for (const [id, timestamp] of toKeep) {
+        this.processedIds.set(id, timestamp);
+      }
+      cleaned += entries.length - toKeep.length;
+    }
+
+    if (cleaned > 0) {
+      logger.info("清理过期消息 ID", { cleaned, remaining: this.processedIds.size });
+    }
+    logMethodReturn(logger, { method: "cleanupProcessedIds", module: FeishuChannel.CHANNEL_NAME, result: { cleaned, remaining: this.processedIds.size }, duration: timer() });
   }
 }
 

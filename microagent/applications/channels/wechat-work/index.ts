@@ -17,6 +17,16 @@ import { channelsLogger, createTimer, sanitize, logMethodCall, logMethodReturn, 
 const logger = channelsLogger();
 
 // ============================================================================
+// 常量定义
+// ============================================================================
+
+/** 已处理消息 ID 最大缓存数量 */
+const MAX_PROCESSED_IDS = 10000;
+
+/** 已处理消息 ID 过期时间（毫秒），默认 1 小时 */
+const PROCESSED_IDS_MAX_AGE = 60 * 60 * 1000;
+
+// ============================================================================
 // 类型定义
 // ============================================================================
 
@@ -109,6 +119,12 @@ export class WechatWorkChannel extends BaseChannel {
   /** 运行标志 */
   private running = false;
 
+  /** 已处理消息 ID 集合（防重） */
+  private processedIds = new Map<string, number>();
+
+  /** 清理定时器 */
+  private cleanupTimer: Timer | null = null;
+
   constructor(config: WechatWorkBotConfig) {
     super(config);
     this.id = config.id;
@@ -195,6 +211,10 @@ export class WechatWorkChannel extends BaseChannel {
       // SDK API: wsClient.connect() 返回 this
       this.wsClient.connect();
       this.setConnected(true);
+      
+      // 启动消息 ID 定时清理
+      this.startCleanup();
+      
       logger.info("企业微信 WebSocket 连接成功", { botId });
       logger.info("企业微信智能机器人启动成功", { botId });
 
@@ -219,6 +239,9 @@ export class WechatWorkChannel extends BaseChannel {
     this.running = false;
     this.setConnected(false);
     
+    // 停止定时清理
+    this.stopCleanup();
+    
     if (this.wsClient) {
       try {
         this.wsClient?.disconnect?.();
@@ -227,6 +250,7 @@ export class WechatWorkChannel extends BaseChannel {
       }
       this.wsClient = null;
     }
+    this.processedIds.clear();
     logger.info("企业微信 Channel 已停止", { botId });
     logMethodReturn(logger, { method: "stop", module: WechatWorkChannel.CHANNEL_NAME, result: { success: true }, duration: timer() });
   }
@@ -488,6 +512,15 @@ export class WechatWorkChannel extends BaseChannel {
 
     try {
       const body = frame.body;
+      
+      // 消息去重检查
+      const messageId = body.msgid;
+      if (this.isProcessed(messageId)) {
+        logger.debug("跳过已处理的消息", { messageId });
+        logMethodReturn(logger, { method: "handleMessage", module: WechatWorkChannel.CHANNEL_NAME, result: { skipped: true, reason: "duplicate" }, duration: timer() });
+        return;
+      }
+
       let content = "";
 
       // 提取文本内容
@@ -539,6 +572,60 @@ export class WechatWorkChannel extends BaseChannel {
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
       logMethodError(logger, { method: "handleMessage", module: WechatWorkChannel.CHANNEL_NAME, error: { name: err.name, message: err.message }, params: {}, duration: timer() });
+    }
+  }
+
+  /**
+   * 启动消息 ID 定时清理
+   */
+  private startCleanup(): void {
+    this.cleanupTimer = setInterval(() => this.cleanupProcessedIds(), 60 * 60 * 1000);
+    logger.info("消息 ID 清理定时器已启动");
+  }
+
+  /**
+   * 停止消息 ID 定时清理
+   */
+  private stopCleanup(): void {
+    if (this.cleanupTimer) {
+      clearInterval(this.cleanupTimer);
+      this.cleanupTimer = null;
+      logger.info("消息 ID 清理定时器已停止");
+    }
+  }
+
+  /**
+   * 检查消息是否已处理
+   */
+  private isProcessed(messageId: string): boolean {
+    if (this.processedIds.has(messageId)) {
+      return true;
+    }
+    this.processedIds.set(messageId, Date.now());
+    // 超过最大数量时触发清理
+    if (this.processedIds.size > MAX_PROCESSED_IDS) {
+      this.cleanupProcessedIds();
+    }
+    return false;
+  }
+
+  /**
+   * 清理过期的消息 ID
+   */
+  private cleanupProcessedIds(): void {
+    const now = Date.now();
+    const expireTime = now - PROCESSED_IDS_MAX_AGE;
+    let cleaned = 0;
+    
+    for (const [id, timestamp] of this.processedIds) {
+      if (timestamp < expireTime) {
+        this.processedIds.delete(id);
+        cleaned++;
+      }
+    }
+    
+    if (cleaned > 0) {
+      logger.debug("清理过期消息 ID", { cleaned, remaining: this.processedIds.size });
     }
   }
 }
