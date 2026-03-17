@@ -161,6 +161,8 @@ export interface ToolPropertySchema {
   enum?: string[];
   /** 默认值 */
   default?: unknown;
+  /** 数组项类型（用于 type: "array"） */
+  items?: ToolPropertySchema;
 }
 
 // ============================================================================

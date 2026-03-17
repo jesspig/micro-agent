@@ -134,20 +134,24 @@ export class AgentLoop {
         // 2. 无工具调用 → 返回结果
         if (!response.hasToolCall || !response.toolCalls?.length) {
           this.setState("responding");
+
+          // 空响应兜底处理：当 LLM 返回空字符串时，返回默认消息
+          const finalContent = response.text?.trim() || "我已完成处理，但没有生成回复内容。";
+
           this.logger.info("Agent 运行完成，无工具调用", {
             iterations: i + 1,
             totalToolCalls: allToolCalls.length,
-            contentLength: response.text?.length ?? 0,
-            content: response.text ? truncateText(response.text) : undefined,
+            contentLength: finalContent.length,
+            content: truncateText(finalContent),
           });
           const result = {
-            content: response.text,
+            content: finalContent,
             messages,
           };
           logMethodReturn(this.logger, {
             method: "run",
             module: MODULE_NAME,
-            result: sanitize({ contentLength: response.text?.length, messageCount: messages.length }) as Record<string, unknown>,
+            result: sanitize({ contentLength: finalContent.length, messageCount: messages.length }) as Record<string, unknown>,
             duration: timer(),
           });
           return result;
@@ -250,20 +254,24 @@ export class AgentLoop {
         // 2. 无工具调用 → 返回结果
         if (!response.hasToolCall || !response.toolCalls?.length) {
           this.setState("responding");
+
+          // 空响应兜底处理：当 LLM 返回空字符串时，返回默认消息
+          const finalContent = response.text?.trim() || "我已完成处理，但没有生成回复内容。";
+
           this.logger.info("Agent 流式运行完成，无工具调用", {
             iterations: i + 1,
             totalToolCalls: allToolCalls.length,
-            contentLength: response.text?.length ?? 0,
-            content: response.text ? truncateText(response.text) : undefined,
+            contentLength: finalContent.length,
+            content: truncateText(finalContent),
           });
           const result = {
-            content: response.text,
+            content: finalContent,
             messages,
           };
           logMethodReturn(this.logger, {
             method: "runStreaming",
             module: MODULE_NAME,
-            result: sanitize({ contentLength: response.text?.length, messageCount: messages.length }) as Record<string, unknown>,
+            result: sanitize({ contentLength: finalContent.length, messageCount: messages.length }) as Record<string, unknown>,
             duration: timer(),
           });
           return result;
