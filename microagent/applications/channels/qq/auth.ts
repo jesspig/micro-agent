@@ -5,7 +5,7 @@
  */
 
 import type { QQBotConfig, AccessTokenResponse, GatewayResponse } from "./types.js";
-import { TOKEN_URL, SANDBOX_API_BASE } from "./types.js";
+import { TOKEN_URL, API_BASE, SANDBOX_API_BASE } from "./types.js";
 import { channelsLogger, createTimer, logMethodCall, logMethodReturn, logMethodError } from "../../shared/logger.js";
 
 const logger = channelsLogger();
@@ -27,10 +27,11 @@ export class QQAuth {
   }
 
   /**
-   * API 基础地址（强制沙箱环境）
+   * API 基础地址（根据配置切换沙箱/生产环境）
    */
   get apiBase(): string {
-    return SANDBOX_API_BASE;
+    // 默认使用沙箱环境，除非明确配置 sandbox: false
+    return this.config.sandbox === false ? API_BASE : SANDBOX_API_BASE;
   }
 
   /**

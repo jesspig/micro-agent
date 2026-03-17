@@ -240,6 +240,7 @@ channels:
     enabled: false
     appId: ""
     clientSecret: "" # 从 QQ 开放平台「开发设置」获取
+    sandbox: true
     allowChannels: [] # 允许的频道列表，["*"] 表示全部
     allowFrom: [] # 允许的用户列表，["*"] 表示全部
 

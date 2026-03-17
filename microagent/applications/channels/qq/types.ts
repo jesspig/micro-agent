@@ -61,6 +61,8 @@ export interface QQBotConfig extends ChannelConfig {
   appId: string;
   /** ClientSecret（机器人密钥） */
   clientSecret: string;
+  /** 是否使用沙箱环境（默认true） */
+  sandbox?: boolean;
   /** 允许发送消息的频道列表 */
   allowChannels?: string[] | undefined;
   /** 允许发送消息的用户列表 */

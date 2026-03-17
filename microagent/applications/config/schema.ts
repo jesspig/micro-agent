@@ -233,11 +233,12 @@ export const QQChannelConfigSchema = z.strictObject({
   clientSecret: z.string().default(""),
   /** @deprecated 已弃用，请使用 clientSecret */
   token: z.string().optional(),
+  /** 是否使用沙箱环境（默认 true） */
+  sandbox: z.boolean().default(true),
   /** 允许发送消息的频道列表（["*"] 表示全部允许） */
   allowChannels: z.array(z.string()).optional(),
   /** 允许发送消息的用户列表（["*"] 表示全部允许） */
   allowFrom: z.array(z.string()).optional(),
-  // 注意：个人助理场景强制使用沙箱环境，不暴露在公共域
 });
 
 /**

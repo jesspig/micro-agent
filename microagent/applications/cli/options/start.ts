@@ -336,12 +336,13 @@ function createChannels(settings: Settings): IChannelExtended[] {
           enabled: true,
           appId: qqConfig.appId,
           clientSecret: qqConfig.clientSecret,
+          sandbox: qqConfig.sandbox,
           allowFrom: qqConfig.allowFrom,
           allowChannels: qqConfig.allowChannels,
         };
         const channel = createQQChannel(config as Parameters<typeof createQQChannel>[0]);
         channels.push(channel);
-        logger.info("QQ Channel 创建成功");
+        logger.info("QQ Channel 创建成功", { sandbox: config.sandbox });
       } catch (err) {
         const error = err as Error;
         logger.error("QQ Channel 创建失败", { error: error.message });
@@ -466,6 +467,7 @@ async function createMessageHandler(
     readFileIfExists(MEMORY_FILE),
   ]);
 
+  // 构建系统提示词
   const systemPromptResult = buildSystemPrompt({
     agentsContent: agentsContent || "You are MicroAgent, a helpful AI assistant.",
     soulContent,
@@ -474,6 +476,7 @@ async function createMessageHandler(
     memoryContent,
     currentDate: getCurrentDateString(),
   });
+  logger.info("使用标准系统提示词");
 
   logger.info("系统提示词已构建", { length: systemPromptResult.length });
 

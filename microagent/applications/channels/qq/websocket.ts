@@ -178,12 +178,13 @@ export class QQWebSocket {
       // QQ 开放平台 intents 配置
       // 文档: https://bot.q.qq.com/wiki/develop/api-v2/dev-prepare/interface-framework/event-emit.html
       //
-      // 私域机器人 intents:
-      // - GUILD_MESSAGES (1 << 9): 频道全部消息（私域机器人专用）
-      // - GROUP_AND_C2C_EVENT (1 << 25): 群聊和单聊消息
-      const GUILD_MESSAGES = 1 << 9;
-      const GROUP_AND_C2C_EVENT = 1 << 25;
-      const intents = GUILD_MESSAGES | GROUP_AND_C2C_EVENT;
+      // QQ 群聊机器人必须使用 GROUP_AND_C2C_EVENT (1 << 25)
+      // 该权限包含：C2C_MESSAGE_CREATE (单聊) 和 GROUP_AT_MESSAGE_CREATE (群聊@)
+      // 1 << 25 = 33554432
+      const intents = 1 << 25;  // GROUP_AND_C2C_EVENT
+
+      // 调试日志：打印 intents 值
+      logger.info("准备发送 IDENTIFY", { intents, intentsHex: `0x${intents.toString(16)}`, intentsBin: intents.toString(2) });
 
       const identify = {
         op: OP.IDENTIFY,
