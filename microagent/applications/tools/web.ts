@@ -105,16 +105,15 @@ export class WebTool extends BaseTool<Record<string, unknown>> {
     logMethodCall(logger, { method: "execute", module: MODULE_NAME, params: sanitize(params) as Record<string, unknown> });
 
     try {
+      // 立即校验必需参数（失败快速原则）
       const action = this.readStringParam(params, "action", { required: true });
-      const query = this.readStringParam(params, "query", { required: true });
+      if (!action) {
+        throw new Error('缺少必需参数: action');
+      }
 
-      if (!action || !query) {
-        const result = {
-          content: "缺少必需参数: action 或 query",
-          isError: true,
-        };
-        logMethodReturn(logger, { method: "execute", module: MODULE_NAME, result: sanitize(result), duration: timer() });
-        return result;
+      const query = this.readStringParam(params, "query", { required: true });
+      if (!query) {
+        throw new Error('缺少必需参数: query');
       }
 
       logger.info("工具执行", { toolName: "web", action, query });

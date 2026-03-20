@@ -28,4 +28,4 @@ export {
 export { MCPToolWrapper } from "./wrapper.js";
 
 // 管理器
-export { MCPManager, mcpManager } from "./manager.js";
+export { MCPManager } from "./manager.js";

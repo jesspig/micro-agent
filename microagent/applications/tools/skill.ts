@@ -371,9 +371,10 @@ export class SkillSearchTool extends BaseTool<Record<string, unknown>> {
     logMethodCall(logger, { method: "execute", module: MODULE_NAME, params: { tool: "skill_search", query: params.query } });
 
     try {
+      // 立即校验必需参数（失败快速原则）
       const query = this.readStringParam(params, "query", { required: true });
       if (!query) {
-        return { content: "需要提供搜索关键词", isError: true };
+        throw new Error('缺少必需参数: query');
       }
 
       const skills = await scanAllSkills();
@@ -439,9 +440,10 @@ export class SkillReadTool extends BaseTool<Record<string, unknown>> {
     logMethodCall(logger, { method: "execute", module: MODULE_NAME, params: { tool: "skill_read", name: params.name } });
 
     try {
+      // 立即校验必需参数（失败快速原则）
       const name = this.readStringParam(params, "name", { required: true });
       if (!name) {
-        return { content: "需要提供技能名称", isError: true };
+        throw new Error('缺少必需参数: name');
       }
 
       const skill = await findSkillByName(name);
@@ -515,15 +517,19 @@ export class SkillExecuteTool extends BaseTool<Record<string, unknown>> {
     logMethodCall(logger, { method: "execute", module: MODULE_NAME, params: { tool: "skill_execute", name: params.name } });
 
     try {
+      // 立即校验必需参数（失败快速原则）
       const name = this.readStringParam(params, "name", { required: true });
-      const command = this.readStringParam(params, "command", { required: true });
+      if (!name) {
+        throw new Error('缺少必需参数: name');
+      }
 
-      if (!name || !command) {
-        return { content: "需要提供技能名称和命令", isError: true };
+      const command = this.readStringParam(params, "command", { required: true });
+      if (!command) {
+        throw new Error('缺少必需参数: command');
       }
 
       if (!isCommandSafe(command)) {
-        return { content: `命令被禁止执行: ${command}`, isError: true };
+        throw new Error(`命令被禁止执行: ${command}`);
       }
 
       const skill = await findSkillByName(name);
@@ -639,17 +645,18 @@ export class SkillCreateTool extends BaseTool<Record<string, unknown>> {
     logMethodCall(logger, { method: "execute", module: MODULE_NAME, params: sanitize(params) as Record<string, unknown> });
 
     try {
+      // 立即校验必需参数（失败快速原则）
       const name = this.readStringParam(params, "name", { required: true });
+      if (!name) {
+        throw new Error('缺少必需参数: name');
+      }
+
       const description = this.readStringParam(params, "description");
       const license = this.readStringParam(params, "license");
       const compatibility = this.readStringParam(params, "compatibility");
       const instructions = this.readStringParam(params, "instructions");
       const createDirs = this.readArrayParam<string>(params, "create_dirs");
       const customContent = this.readStringParam(params, "content");
-
-      if (!name) {
-        return { content: "需要提供技能名称", isError: true };
-      }
 
       const nameValidation = validateSkillName(name);
       if (!nameValidation.valid) {
@@ -772,9 +779,10 @@ export class SkillDeleteTool extends BaseTool<Record<string, unknown>> {
     logMethodCall(logger, { method: "execute", module: MODULE_NAME, params: { tool: "skill_delete", name: params.name } });
 
     try {
+      // 立即校验必需参数（失败快速原则）
       const name = this.readStringParam(params, "name", { required: true });
       if (!name) {
-        return { content: "需要提供技能名称", isError: true };
+        throw new Error('缺少必需参数: name');
       }
 
       const skill = await findSkillByName(name);
@@ -832,12 +840,13 @@ export class SkillAddTool extends BaseTool<Record<string, unknown>> {
     logMethodCall(logger, { method: "execute", module: MODULE_NAME, params: { tool: "skill_add", source_path: params.source_path } });
 
     try {
+      // 立即校验必需参数（失败快速原则）
       const sourcePath = this.readStringParam(params, "source_path", { required: true });
-      const name = this.readStringParam(params, "name");
-
       if (!sourcePath) {
-        return { content: "需要提供源路径", isError: true };
+        throw new Error('缺少必需参数: source_path');
       }
+
+      const name = this.readStringParam(params, "name");
 
       // 解析源路径
       let fullSourcePath: string;

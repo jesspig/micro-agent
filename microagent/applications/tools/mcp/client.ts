@@ -39,6 +39,57 @@ export interface MCPConnectionResult {
 }
 
 // ============================================================================
+// 辅助函数
+// ============================================================================
+
+/**
+ * 优雅终止 Unix 进程
+ * 先发送 SIGTERM，3秒后如果进程未退出则发送 SIGKILL
+ * @param pid - 进程 ID
+ */
+async function terminateUnixProcessGracefully(pid: number): Promise<void> {
+  return new Promise<void>((resolve) => {
+    // 检查进程是否已退出
+    const isProcessAlive = (): boolean => {
+      try {
+        process.kill(pid, 0);
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
+    // 如果进程已经退出，直接返回
+    if (!isProcessAlive()) {
+      resolve();
+      return;
+    }
+
+    // 发送 SIGTERM
+    process.kill(pid, "SIGTERM");
+
+    // 设置 3 秒后强制终止
+    const timeout = setTimeout(() => {
+      try {
+        process.kill(pid, "SIGKILL");
+      } catch {
+        // 进程可能已经退出
+      }
+      resolve();
+    }, 3000);
+
+    // 定期检查进程是否退出
+    const checkInterval = setInterval(() => {
+      if (!isProcessAlive()) {
+        clearTimeout(timeout);
+        clearInterval(checkInterval);
+        resolve();
+      }
+    }, 100);
+  });
+}
+
+// ============================================================================
 // MCP 客户端工厂
 // ============================================================================
 
@@ -119,31 +170,9 @@ export async function connectMCPServer(
               process.kill(pid, "SIGKILL");
             }
           } else {
-            // Unix 系统使用 SIGTERM 然后 SIGKILL
+            // Unix 系统使用优雅终止
             try {
-              process.kill(pid, "SIGTERM");
-              // 给进程 3 秒时间优雅退出
-              await new Promise<void>((resolve) => {
-                const timeout = setTimeout(() => {
-                  try {
-                    process.kill(pid, "SIGKILL");
-                  } catch {
-                    // 进程可能已经退出
-                  }
-                  resolve();
-                }, 3000);
-                // 检查进程是否退出
-                const checkInterval = setInterval(() => {
-                  try {
-                    process.kill(pid, 0); // 检查进程是否存在
-                  } catch {
-                    // 进程已退出
-                    clearTimeout(timeout);
-                    clearInterval(checkInterval);
-                    resolve();
-                  }
-                }, 100);
-              });
+              await terminateUnixProcessGracefully(pid);
             } catch {
               // 进程可能已经退出
             }

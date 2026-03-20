@@ -294,12 +294,15 @@ export class MCPManager {
     });
 
     const connectionCount = this.connections.size;
+    let errorCount = 0;
 
-    for (const [_name, connection] of this.connections) {
+    for (const [name, connection] of this.connections) {
       try {
         await connection.close();
-      } catch {
-        // 忽略关闭错误
+      } catch (err) {
+        const error = err instanceof Error ? err : new Error(String(err));
+        logger.warn("MCP连接关闭失败", { serverName: name, error: error.message });
+        errorCount++;
       }
     }
 
@@ -307,12 +310,12 @@ export class MCPManager {
     this.tools.clear();
     this.serverInfo.clear();
 
-    logger.info("所有MCP连接已关闭", { closedCount: connectionCount });
+    logger.info("所有MCP连接已关闭", { closedCount: connectionCount, errorCount });
 
     logMethodReturn(logger, {
       method: "closeAll",
       module: MODULE_NAME,
-      result: sanitize({ closedCount: connectionCount }),
+      result: sanitize({ closedCount: connectionCount, errorCount }),
       duration: timer(),
     });
   }
@@ -370,9 +373,3 @@ export class MCPManager {
   }
 }
 
-// ============================================================================
-// 单例导出
-// ============================================================================
-
-/** 全局 MCP 管理器实例 */
-export const mcpManager = new MCPManager();

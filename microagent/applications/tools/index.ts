@@ -35,7 +35,6 @@ export {
 
 export {
   MCPManager,
-  mcpManager,
   MCPToolWrapper,
   type MCPConfig,
   type MCPServerConfig,

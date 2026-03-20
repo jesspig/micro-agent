@@ -157,16 +157,15 @@ export class FilesystemTool extends BaseTool<Record<string, unknown>> {
     logMethodCall(logger, { method: "execute", module: MODULE_NAME, params: sanitize(params) as Record<string, unknown> });
 
     try {
+      // 立即校验必需参数（失败快速原则）
       const action = this.readStringParam(params, "action", { required: true });
-      const path = this.readStringParam(params, "path", { required: true });
+      if (!action) {
+        throw new Error('缺少必需参数: action');
+      }
 
-      if (!action || !path) {
-        const result = {
-          content: "缺少必需参数: action 或 path",
-          isError: true,
-        };
-        logMethodReturn(logger, { method: "execute", module: MODULE_NAME, result: sanitize(result), duration: timer() });
-        return result;
+      const path = this.readStringParam(params, "path", { required: true });
+      if (!path) {
+        throw new Error('缺少必需参数: path');
       }
 
       logger.info("工具执行", { toolName: "filesystem", action, path });

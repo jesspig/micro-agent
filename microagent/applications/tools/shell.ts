@@ -189,26 +189,15 @@ export class ShellTool extends BaseTool<Record<string, unknown>> {
     logMethodCall(logger, { method: "execute", module: MODULE_NAME, params: sanitize(params) as Record<string, unknown> });
 
     try {
+      // 立即校验必需参数（失败快速原则）
       const command = this.readStringParam(params, "command", { required: true });
-
       if (!command) {
-        const result = {
-          content: "缺少必需参数: command",
-          isError: true,
-        };
-        logMethodReturn(logger, { method: "execute", module: MODULE_NAME, result: sanitize(result), duration: timer() });
-        return result;
+        throw new Error('缺少必需参数: command');
       }
 
       // 安全检查
       if (!isCommandSafe(command)) {
-        logger.warn("命令被禁止执行", { command });
-        const result = {
-          content: `命令被禁止执行（安全限制）: ${command}`,
-          isError: true,
-        };
-        logMethodReturn(logger, { method: "execute", module: MODULE_NAME, result: sanitize(result), duration: timer() });
-        return result;
+        throw new Error(`命令被禁止执行（安全限制）: ${command}`);
       }
 
       // 解析命令
@@ -219,12 +208,7 @@ export class ShellTool extends BaseTool<Record<string, unknown>> {
 
       // 验证命令
       if (!cmd) {
-        const result = {
-          content: "无效的命令",
-          isError: true,
-        };
-        logMethodReturn(logger, { method: "execute", module: MODULE_NAME, result: sanitize(result), duration: timer() });
-        return result;
+        throw new Error('无效的命令');
       }
 
       // 设置工作目录
