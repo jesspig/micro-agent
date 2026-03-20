@@ -176,21 +176,10 @@ export class ContextBuilder {
 
       // 5. 如果有运行时上下文，注入到最后一条用户消息前
       if (options.runtimeContext && recentHistory.length > 0) {
-        // 找到最后一条用户消息
-        const lastUserIndex = recentHistory.findLastIndex((m) => m.role === "user");
-        if (lastUserIndex !== -1) {
-          // 在用户消息前注入运行时上下文
-          const lastUserMsg = recentHistory[lastUserIndex];
-          if (lastUserMsg && typeof lastUserMsg.content === "string") {
-            recentHistory[lastUserIndex] = {
-              ...lastUserMsg,
-              content: `${options.runtimeContext}\n\n${lastUserMsg.content}`,
-            };
-            logger.info("运行时上下文已注入用户消息", {
-              messageIndex: lastUserIndex,
-              runtimeContextLength: options.runtimeContext.length,
-            });
-          }
+        const lastUserMsg = recentHistory.findLast((m) => m.role === "user");
+        if (lastUserMsg && typeof lastUserMsg.content === "string") {
+          lastUserMsg.content = `${options.runtimeContext}\n\n${lastUserMsg.content}`;
+          logger.info("运行时上下文已注入用户消息", { runtimeContextLength: options.runtimeContext.length });
         }
       }
 

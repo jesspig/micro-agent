@@ -33,7 +33,7 @@ import {
   createOpenAIProvider,
   createAnthropicProvider,
 } from "../../providers/index.js";
-import { getAllTools, mcpManager } from "../../tools/index.js";
+import { getAllTools, MCPManager } from "../../tools/index.js";
 import { FilesystemSkillLoader } from "../../skills/index.js";
 import { ToolRegistry } from "../../../runtime/tool/registry.js";
 import { AgentLoop } from "../../../runtime/kernel/agent-loop.js";
@@ -66,6 +66,9 @@ import {
 import { readFile } from "node:fs/promises";
 
 const logger = cliLogger();
+
+// 创建 MCP 管理器实例（不使用全局单例，显式依赖注入）
+const mcpManager = new MCPManager();
 
 // ============================================================================
 // 类型定义
@@ -712,7 +715,6 @@ async function runAgentService(
       logger.info("Agent 服务正在关闭...");
       // 关闭 MCP 连接
       try {
-        const { mcpManager } = await import("../../tools/mcp/index.js");
         await mcpManager.closeAll();
         logger.debug("MCP 连接已关闭");
       } catch (err) {

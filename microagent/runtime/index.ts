@@ -21,6 +21,9 @@ export type {
 // ===== 接口契约 =====
 export type {
   IProvider,
+  IChatProvider,
+  IStreamProvider,
+  IMonitorableProvider,
   ITool,
   ISkill,
   ISkillLoader,

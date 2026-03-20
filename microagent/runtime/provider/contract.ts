@@ -1,12 +1,25 @@
-import type { IProvider } from "../contracts.js";
+/**
+ * Provider 契约接口
+ *
+ * 定义 LLM 提供者的接口，遵循接口隔离原则
+ */
+
+import type { IChatProvider, IStreamProvider, IMonitorableProvider, IProviderExtended } from "../contracts.js";
 import type { ProviderCapabilities, ProviderConfig, ProviderStatus } from "./types.js";
 import type { ChatRequest, ChatResponse, StreamCallback } from "../types.js";
 
+// 导出拆分后的接口
+export type { IChatProvider, IStreamProvider, IMonitorableProvider } from "../contracts.js";
+
 /**
  * IProvider 扩展接口
- * 在基础 IProvider 接口上增加配置、能力和状态管理
+ *
+ * 组合多个小接口，形成完整的 Provider 契约
+ *
+ * @deprecated 建议直接使用 IChatProvider、IStreamProvider、IMonitorableProvider
+ *            根据需要组合使用
  */
-export interface IProviderExtended extends IProvider {
+export interface IProviderExtended extends IStreamProvider, IMonitorableProvider {
   /** Provider 配置信息 */
   readonly config: ProviderConfig;
 

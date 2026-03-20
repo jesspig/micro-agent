@@ -28,8 +28,14 @@ export const OP = {
 /** 默认心跳间隔 */
 export const DEFAULT_HEARTBEAT_INTERVAL = 41250;
 
-/** 最大重连次数 */
-export const MAX_RECONNECT_COUNT = 5;
+/** 最大重连次数（沙箱环境配额有限，降低此值） */
+export const MAX_RECONNECT_COUNT = 2;
+
+/** 重连基础延迟（毫秒） */
+export const RECONNECT_BASE_DELAY = 10000;
+
+/** 重连最大延迟（毫秒） */
+export const RECONNECT_MAX_DELAY = 60000;
 
 /** processedIds 最大容量 */
 export const MAX_PROCESSED_IDS = 1000;

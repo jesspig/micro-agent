@@ -70,6 +70,26 @@ export type AgentDefaultsConfig = z.infer<typeof AgentDefaultsConfigSchema>;
 export const ProviderTypeSchema = z.enum(["openai", "openai-response", "anthropic", "ollama"]);
 
 /**
+ * 验证启用的 Provider 配置
+ */
+function validateEnabledProvider(data: { baseUrl?: string; models?: string[] }, ctx: z.RefinementCtx): void {
+  if (!data.baseUrl) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "baseUrl 是必填项", path: ["baseUrl"] });
+    return;
+  }
+
+  try {
+    new URL(data.baseUrl);
+  } catch {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "baseUrl 必须是有效的 URL", path: ["baseUrl"] });
+  }
+
+  if (!data.models || data.models.length === 0) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "models 不能为空", path: ["models"] });
+  }
+}
+
+/**
  * 单个 Provider 配置 Schema
  *
  * 定义单个 LLM Provider 的配置参数
@@ -94,33 +114,8 @@ export const SingleProviderConfigSchema = z.object({
   /** 支持的模型列表 */
   models: z.array(z.string()).optional(),
 }).superRefine((data, ctx) => {
-  // 只对 enabled: true 的 provider 进行必填校验
   if (data.enabled) {
-    if (!data.baseUrl) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "baseUrl 是必填项",
-        path: ["baseUrl"],
-      });
-    } else {
-      // 验证 baseUrl 格式
-      try {
-        new URL(data.baseUrl);
-      } catch {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "baseUrl 必须是有效的 URL",
-          path: ["baseUrl"],
-        });
-      }
-    }
-    if (!data.models || data.models.length === 0) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "models 不能为空",
-        path: ["models"],
-      });
-    }
+    validateEnabledProvider(data, ctx);
   }
 });
 
@@ -436,10 +431,10 @@ export const LogGranularitySchema = z.string()
   .transform((val) => {
     const match = val.match(/^(\d+)([DHM])$/);
     if (!match) return val;
-    
+
     const num = parseInt(match[1]!, 10);
     const unit = match[2] as "D" | "H" | "M";
-    
+
     // 转换为分钟
     let minutes: number;
     switch (unit) {
@@ -455,12 +450,12 @@ export const LogGranularitySchema = z.string()
       default:
         minutes = 60;
     }
-    
+
     // 范围校验并 clamp：最小 30 分钟，最大 7 天
     const MIN_MINUTES = 30;
     const MAX_MINUTES = 7 * 24 * 60;
     const clampedMinutes = Math.max(MIN_MINUTES, Math.min(MAX_MINUTES, minutes));
-    
+
     // 保持原单位返回 clamped 值
     switch (unit) {
       case "D":
@@ -548,20 +543,20 @@ export type Settings = z.infer<typeof SettingsSchema>;
 export function validateAgentsConfig(data: unknown): AgentsConfig {
   const timer = createTimer();
   const logger = configLogger();
-  
+
   logMethodCall(logger, { method: "validateAgentsConfig", module: MODULE_NAME, params: {} });
-  
+
   try {
     const result = AgentsConfigSchema.parse(data);
     logMethodReturn(logger, { method: "validateAgentsConfig", module: MODULE_NAME, result: sanitize(result), duration: timer() });
     return result;
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
-    logMethodError(logger, { 
-      method: "validateAgentsConfig", 
-      module: MODULE_NAME, 
+    logMethodError(logger, {
+      method: "validateAgentsConfig",
+      module: MODULE_NAME,
       error: { name: err.name, message: err.message, ...(err.stack ? { stack: err.stack } : {}) },
-      duration: timer() 
+      duration: timer()
     });
     throw error;
   }
@@ -576,20 +571,20 @@ export function validateAgentsConfig(data: unknown): AgentsConfig {
 export function validateProvidersConfig(data: unknown): ProvidersConfig {
   const timer = createTimer();
   const logger = configLogger();
-  
+
   logMethodCall(logger, { method: "validateProvidersConfig", module: MODULE_NAME, params: {} });
-  
+
   try {
     const result = ProvidersConfigSchema.parse(data);
     logMethodReturn(logger, { method: "validateProvidersConfig", module: MODULE_NAME, result: sanitize(result), duration: timer() });
     return result;
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
-    logMethodError(logger, { 
-      method: "validateProvidersConfig", 
-      module: MODULE_NAME, 
+    logMethodError(logger, {
+      method: "validateProvidersConfig",
+      module: MODULE_NAME,
       error: { name: err.name, message: err.message, ...(err.stack ? { stack: err.stack } : {}) },
-      duration: timer() 
+      duration: timer()
     });
     throw error;
   }
@@ -604,20 +599,20 @@ export function validateProvidersConfig(data: unknown): ProvidersConfig {
 export function validateToolsConfig(data: unknown): ToolsConfig {
   const timer = createTimer();
   const logger = configLogger();
-  
+
   logMethodCall(logger, { method: "validateToolsConfig", module: MODULE_NAME, params: {} });
-  
+
   try {
     const result = ToolsConfigSchema.parse(data);
     logMethodReturn(logger, { method: "validateToolsConfig", module: MODULE_NAME, result: sanitize(result), duration: timer() });
     return result;
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
-    logMethodError(logger, { 
-      method: "validateToolsConfig", 
-      module: MODULE_NAME, 
+    logMethodError(logger, {
+      method: "validateToolsConfig",
+      module: MODULE_NAME,
       error: { name: err.name, message: err.message, ...(err.stack ? { stack: err.stack } : {}) },
-      duration: timer() 
+      duration: timer()
     });
     throw error;
   }
@@ -632,20 +627,20 @@ export function validateToolsConfig(data: unknown): ToolsConfig {
 export function validateChannelsConfig(data: unknown): ChannelsConfig {
   const timer = createTimer();
   const logger = configLogger();
-  
+
   logMethodCall(logger, { method: "validateChannelsConfig", module: MODULE_NAME, params: {} });
-  
+
   try {
     const result = ChannelsConfigSchema.parse(data);
     logMethodReturn(logger, { method: "validateChannelsConfig", module: MODULE_NAME, result: sanitize(result), duration: timer() });
     return result;
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
-    logMethodError(logger, { 
-      method: "validateChannelsConfig", 
-      module: MODULE_NAME, 
+    logMethodError(logger, {
+      method: "validateChannelsConfig",
+      module: MODULE_NAME,
       error: { name: err.name, message: err.message, ...(err.stack ? { stack: err.stack } : {}) },
-      duration: timer() 
+      duration: timer()
     });
     throw error;
   }
@@ -660,20 +655,20 @@ export function validateChannelsConfig(data: unknown): ChannelsConfig {
 export function validateSettings(data: unknown): Settings {
   const timer = createTimer();
   const logger = configLogger();
-  
+
   logMethodCall(logger, { method: "validateSettings", module: MODULE_NAME, params: {} });
-  
+
   try {
     const result = SettingsSchema.parse(data);
     logMethodReturn(logger, { method: "validateSettings", module: MODULE_NAME, result: sanitize(result), duration: timer() });
     return result;
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
-    logMethodError(logger, { 
-      method: "validateSettings", 
-      module: MODULE_NAME, 
+    logMethodError(logger, {
+      method: "validateSettings",
+      module: MODULE_NAME,
       error: { name: err.name, message: err.message, ...(err.stack ? { stack: err.stack } : {}) },
-      duration: timer() 
+      duration: timer()
     });
     throw error;
   }
@@ -690,11 +685,11 @@ export function safeValidateSettings(
 ): z.SafeParseReturnType<unknown, Settings> {
   const timer = createTimer();
   const logger = configLogger();
-  
+
   logMethodCall(logger, { method: "safeValidateSettings", module: MODULE_NAME, params: {} });
-  
+
   const result = SettingsSchema.safeParse(data);
-  
+
   if (result.success) {
     logger.debug("配置验证成功", { duration: timer() });
     logMethodReturn(logger, { method: "safeValidateSettings", module: MODULE_NAME, result: sanitize(result.data), duration: timer() });
@@ -703,6 +698,6 @@ export function safeValidateSettings(
     logger.warn("配置验证失败", { issues, duration: timer() });
     logMethodReturn(logger, { method: "safeValidateSettings", module: MODULE_NAME, result: { success: false, issueCount: result.error.issues.length }, duration: timer() });
   }
-  
+
   return result;
 }

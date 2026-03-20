@@ -5,7 +5,7 @@
  */
 
 import type { QQBotConfig, WSMessage, HelloData } from "./types.js";
-import { OP, DEFAULT_HEARTBEAT_INTERVAL, MAX_RECONNECT_COUNT } from "./types.js";
+import { OP, DEFAULT_HEARTBEAT_INTERVAL, MAX_RECONNECT_COUNT, RECONNECT_BASE_DELAY, RECONNECT_MAX_DELAY } from "./types.js";
 import { QQAuth } from "./auth.js";
 import { channelsLogger, createTimer, logMethodCall, logMethodReturn, logMethodError } from "../../shared/logger.js";
 
@@ -79,11 +79,20 @@ export class QQWebSocket {
         this.onConnectionChange?.(false);
         this.stopHeartbeat();
 
-        // 自动重连
+        // 自动重连（使用指数退避策略）
         if (this.running && this.reconnectCount < MAX_RECONNECT_COUNT) {
           this.reconnectCount++;
-          logger.info("WebSocket 连接断开，准备重连", { reconnectCount: this.reconnectCount, maxReconnect: MAX_RECONNECT_COUNT });
-          this.reconnectTimer = setTimeout(() => this.reconnect(), 5000);
+          // 指数退避：base_delay * (2 ^ (reconnectCount - 1))
+          const delay = Math.min(
+            RECONNECT_BASE_DELAY * Math.pow(2, this.reconnectCount - 1),
+            RECONNECT_MAX_DELAY
+          );
+          logger.info("WebSocket 连接断开，准备重连", {
+            reconnectCount: this.reconnectCount,
+            maxReconnect: MAX_RECONNECT_COUNT,
+            delay: `${delay / 1000}s`
+          });
+          this.reconnectTimer = setTimeout(() => this.reconnect(), delay);
         } else if (this.reconnectCount >= MAX_RECONNECT_COUNT) {
           logger.error("WebSocket 重连次数已达上限", { maxReconnect: MAX_RECONNECT_COUNT });
           this.onConnectionChange?.(false, "重连次数已达上限");
@@ -114,13 +123,13 @@ export class QQWebSocket {
         break;
 
       case OP.INVALID_SESSION:
-        // OP 9 表示会话无效，需要重新 IDENTIFY
+        // OP 9 表示会话无效，可能是配额用尽或权限问题
         // 清除 token 缓存，下次重新获取
         this.auth.clear();
-        // 不重连，等待人工检查配置
+        // 不重连，避免消耗更多配额
         this.running = false;
-        logger.error("会话无效", { reason: "INVALID_SESSION" });
-        this.onConnectionChange?.(false, "INVALID_SESSION: 请检查 QQ 开放平台的 Intents 权限配置");
+        logger.error("会话无效", { reason: "INVALID_SESSION", hint: "请检查 session_start_limit.remaining 或 Intents 权限配置" });
+        this.onConnectionChange?.(false, "INVALID_SESSION: 请检查 session_start_limit.remaining 或 Intents 权限配置");
         break;
 
       case OP.HEARTBEAT_ACK:
