@@ -902,3 +902,9 @@ export const getLoggerConfig = () => ({
   maxFileSizeMB: maxFileSizeBytes / (1024 * 1024),
   granularity: granularity.raw,
 });
+
+// ============================================================================
+// 导出日志装饰器和工具函数（用于简化方法日志记录）
+// ============================================================================
+
+export * from "./log-decorator.js";
