@@ -6,13 +6,13 @@
 
 import type { IMemoryExtended } from "./contract.js";
 import {
-  memoryLogger,
   createTimer,
   logMethodCall,
   logMethodReturn,
-} from "../../applications/shared/logger.js";
+  createDefaultLogger,
+} from "../logger/index.js";
 
-const logger = memoryLogger();
+const logger = createDefaultLogger("debug", ["runtime", "memory", "registry"]);
 
 // ============================================================================
 // 常量定义

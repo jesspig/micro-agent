@@ -8,7 +8,7 @@ import type { Message, ChatRequest, ToolCall, StreamChunk, ChatResponse } from "
 import type { IProviderExtended } from "../provider/contract.js";
 import type { ToolRegistry } from "../tool/registry.js";
 import type { AgentConfig, AgentState, AgentEvent, AgentResult, ToolCallRecord } from "./types.js";
-import { kernelLogger, createTimer, sanitize, logMethodCall, logMethodReturn, logMethodError, truncateText } from "../../applications/shared/logger.js";
+import { createTimer, sanitize, logMethodCall, logMethodReturn, logMethodError, truncateText, createDefaultLogger } from "../logger/index.js";
 import { ToolExecutionError } from "../errors.js";
 
 // ============================================================================
@@ -67,7 +67,7 @@ function buildFinalContent(text: string | undefined): string {
 export class AgentLoop {
   private state: AgentState = "idle";
   private handlers = new Set<AgentEventHandler>();
-  private logger = kernelLogger();
+  private logger = createDefaultLogger("debug", ["runtime", "kernel", "agent-loop"]);
 
   constructor(
     private provider: IProviderExtended,

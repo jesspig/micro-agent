@@ -1,3 +1,22 @@
+// ===== Logger 模块 =====
+export type { ILogger, ILoggerFactory, ILogHelper, ISanitize, ITruncateText } from "./logger/contracts.js";
+export type { LogLevel, MethodCallLogData, MethodReturnLogData, MethodErrorLogData } from "./logger/types.js";
+export { createTimer, logMethodCall, logMethodReturn, logMethodError } from "./logger/index.js";
+export { sanitize, sanitizeObject, sanitizeString, maskToken, truncateText } from "./logger/sanitizer.js";
+export { createDefaultLogger, setRuntimeLogSink, getRuntimeLogSink } from "./logger/index.js";
+export type { Logger, LogSink } from "./logger/index.js";
+export {
+  MICRO_AGENT_DIR,
+  LOGS_DIR,
+  DEFAULT_LOG_LEVEL,
+  DEFAULT_LOG_MAX_FILE_SIZE_MB,
+  MIN_LOG_FILE_SIZE_MB,
+  MAX_LOG_FILE_SIZE_MB,
+  DEFAULT_LOG_GRANULARITY,
+  LOG_RETENTION_DAYS,
+  DEFAULT_LOG_SANITIZE,
+} from "./logger/constants.js";
+
 // ===== 核心类型 =====
 export type {
   Message,

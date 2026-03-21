@@ -1,9 +1,9 @@
 import type { SkillMeta } from "../types.js";
 import type { ISkillExtended, ISkillLoaderExtended } from "./contract.js";
 import type { SkillConfig, SkillContent, SkillSummary } from "./types.js";
-import { skillLogger, createTimer, sanitize, logMethodCall, logMethodReturn, logMethodError } from "../../applications/shared/logger.js";
+import { createTimer, sanitize, logMethodCall, logMethodReturn, logMethodError, createDefaultLogger } from "../logger/index.js";
 
-const logger = skillLogger();
+const logger = createDefaultLogger("debug", ["runtime", "skill", "loader"]);
 
 /**
  * Skill 实现类

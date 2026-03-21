@@ -3,15 +3,15 @@
  */
 
 import { 
-  busLogger, 
   createTimer, 
   sanitize, 
   logMethodCall, 
   logMethodReturn, 
-  logMethodError 
-} from "../../applications/shared/logger.js";
+  logMethodError,
+  createDefaultLogger
+} from "../logger/index.js";
 
-const logger = busLogger();
+const logger = createDefaultLogger("debug", ["runtime", "bus", "queue"]);
 
 interface QueueItem<T> {
   data: T;

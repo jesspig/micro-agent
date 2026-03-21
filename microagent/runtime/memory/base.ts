@@ -8,14 +8,14 @@ import type { Message } from "../types.js";
 import type { IMemoryExtended } from "./contract.js";
 import type { MemoryConfig, MemoryEntry, MemorySearchResult } from "./types.js";
 import {
-  memoryLogger,
   createTimer,
   logMethodCall,
   logMethodReturn,
   logMethodError,
-} from "../../applications/shared/logger.js";
+  createDefaultLogger,
+} from "../logger/index.js";
 
-const logger = memoryLogger();
+const logger = createDefaultLogger("debug", ["runtime", "memory"]);
 
 // ============================================================================
 // BaseMemory 抽象类

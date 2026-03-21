@@ -8,6 +8,8 @@
 import {
   AgentLoop,
   SessionManager,
+  setRuntimeLogSink,
+  type LogSink,
   type IProviderExtended,
   type AgentConfig,
   type AgentEventHandler,
@@ -183,6 +185,25 @@ export class AgentBuilder {
     logMethodCall(logger, { method: "build", module: MODULE_NAME });
 
     try {
+      // 设置 Runtime 日志 Sink，统一通过 LogTape 输出
+      const runtimeSink: LogSink = (level, message, context) => {
+        const log = logger as any;
+        const levelMap: Record<string, "debug" | "info" | "warn" | "error"> = {
+          debug: "debug",
+          info: "info",
+          warning: "warn",
+          error: "error",
+        };
+        const mappedLevel = levelMap[level] ?? "info";
+        if (context) {
+          log[mappedLevel]?.(`[runtime] ${message}`, context);
+        } else {
+          log[mappedLevel]?.(`[runtime] ${message}`);
+        }
+      };
+      setRuntimeLogSink(runtimeSink);
+
+      // 1. 初始化运行时目录
       // 1. 初始化运行时目录
       logger.info("Agent构建", { step: "ensureDirectories" });
       await this.runtimeInitializer.ensureDirectories();

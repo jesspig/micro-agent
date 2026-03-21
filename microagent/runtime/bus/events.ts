@@ -5,15 +5,15 @@
 import type { EventHandler, IEventEmitter } from "../contracts.js";
 import type { Message } from "../types.js";
 import { 
-  busLogger, 
   createTimer, 
   sanitize, 
   logMethodCall, 
   logMethodReturn, 
-  logMethodError 
-} from "../../applications/shared/logger.js";
+  logMethodError,
+  createDefaultLogger
+} from "../logger/index.js";
 
-const logger = busLogger();
+const logger = createDefaultLogger("debug", ["runtime", "bus", "events"]);
 
 /**
  * 事件映射类型

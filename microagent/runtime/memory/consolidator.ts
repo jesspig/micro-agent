@@ -16,16 +16,16 @@ import { join } from "node:path";
 import type { Message } from "../types.js";
 import { estimateMessagesTokens } from "../../applications/shared/token-estimator.js";
 import {
-  memoryLogger,
   createTimer,
   logMethodCall,
   logMethodReturn,
   logMethodError,
   sanitize,
-} from "../../applications/shared/logger.js";
+  createDefaultLogger,
+} from "../logger/index.js";
 import { HISTORY_DIR } from "../../applications/shared/constants.js";
 
-const logger = memoryLogger();
+const logger = createDefaultLogger("debug", ["runtime", "memory", "consolidator"]);
 const MODULE_NAME = "HistoryConsolidator";
 
 // ============================================================================

@@ -9,9 +9,9 @@ import type { ISession } from "../contracts.js";
 import type { SessionConfig, SessionState, SessionSnapshot } from "./types.js";
 import { SessionError } from "../errors.js";
 import { appendSessionEntry, loadRecentSessions, messageToEntry, entryToMessage } from "./persistence.js";
-import { sessionLogger, createTimer, sanitize, logMethodCall, logMethodReturn, logMethodError } from "../../applications/shared/logger.js";
+import { createTimer, sanitize, logMethodCall, logMethodReturn, logMethodError, createDefaultLogger } from "../logger/index.js";
 
-const logger = sessionLogger();
+const logger = createDefaultLogger("debug", ["runtime", "session"]);
 const MODULE_NAME = "SessionManager";
 
 // ============================================================================

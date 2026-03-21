@@ -1,9 +1,9 @@
 import type { ChatRequest, ChatResponse, StreamCallback, StreamChunk } from "../types.js";
 import type { IProviderExtended } from "./contract.js";
 import type { ProviderCapabilities, ProviderConfig, ProviderStatus } from "./types.js";
-import { providerLogger, createTimer, logMethodCall, logMethodReturn, logMethodError } from "../../applications/shared/logger.js";
+import { createTimer, logMethodCall, logMethodReturn, logMethodError, createDefaultLogger } from "../logger/index.js";
 
-const logger = providerLogger();
+const logger = createDefaultLogger("debug", ["runtime", "provider"]);
 
 /**
  * Provider 抽象基类

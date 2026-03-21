@@ -12,15 +12,15 @@ import { appendFile, readFile, writeFile } from "node:fs/promises";
 import { existsSync, mkdirSync } from "node:fs";
 import type { Message, MessageRole, ToolCall } from "../types.js";
 import {
-  sessionLogger,
   createTimer,
   sanitize,
   logMethodCall,
   logMethodReturn,
   logMethodError,
-} from "../../applications/shared/logger.js";
+  createDefaultLogger,
+} from "../logger/index.js";
 
-const logger = sessionLogger();
+const logger = createDefaultLogger("debug", ["runtime", "session", "persistence"]);
 
 // ============================================================================
 // 常量定义

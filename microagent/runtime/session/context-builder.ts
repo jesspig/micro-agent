@@ -16,15 +16,15 @@ import type { Session } from "./manager.js";
 import type { IMemoryExtended } from "../memory/contract.js";
 import type { ISkillExtended } from "../skill/contract.js";
 import {
-  sessionLogger,
   createTimer,
   sanitize,
   logMethodCall,
   logMethodReturn,
   logMethodError,
-} from "../../applications/shared/logger.js";
+  createDefaultLogger,
+} from "../logger/index.js";
 
-const logger = sessionLogger();
+const logger = createDefaultLogger("debug", ["runtime", "session", "context-builder"]);
 
 // ============================================================================
 // 类型定义

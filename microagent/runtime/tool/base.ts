@@ -7,7 +7,7 @@
 import type { ToolDefinition } from "../types.js";
 import type { ToolParameterSchema, ToolResult } from "./types.js";
 import type { IToolExtended } from "./contract.js";
-import { toolLogger, createTimer, sanitize, logMethodCall, logMethodReturn } from "../../applications/shared/logger.js";
+import { createTimer, sanitize, logMethodCall, logMethodReturn, createDefaultLogger } from "../logger/index.js";
 
 // ============================================================================
 // 抽象基类
@@ -25,7 +25,7 @@ export abstract class BaseTool<TParams extends Record<string, unknown> = Record<
   implements IToolExtended
 {
   /** 日志器 */
-  protected logger = toolLogger();
+  protected logger = createDefaultLogger("debug", ["runtime", "tool"]);
 
   /** 工具名称 */
   abstract readonly name: string;

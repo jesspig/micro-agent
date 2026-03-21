@@ -18,14 +18,14 @@ import type {
   SendResult 
 } from "./types.js";
 import { 
-  channelLogger, 
   createTimer, 
   logMethodCall, 
   logMethodReturn, 
-  logMethodError 
-} from "../../applications/shared/logger.js";
+  logMethodError,
+  createDefaultLogger 
+} from "../logger/index.js";
 
-const logger = channelLogger();
+const logger = createDefaultLogger("debug", ["runtime", "channel"]);
 
 // ============================================================================
 // Channel 抽象基类

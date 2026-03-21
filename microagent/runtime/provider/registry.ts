@@ -1,9 +1,9 @@
 import type { IProvider } from "../contracts.js";
 import type { ProviderSpec } from "../types.js";
 import { RegistryError } from "../errors.js";
-import { providerLogger, createTimer, logMethodCall, logMethodReturn, logMethodError } from "../../applications/shared/logger.js";
+import { createTimer, logMethodCall, logMethodReturn, logMethodError, createDefaultLogger } from "../logger/index.js";
 
-const logger = providerLogger();
+const logger = createDefaultLogger("debug", ["runtime", "provider", "registry"]);
 
 /**
  * 内置 Provider 规格

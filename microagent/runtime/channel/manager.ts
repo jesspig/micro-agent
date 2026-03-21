@@ -7,17 +7,17 @@
 import type { IChannelExtended, MessageHandler } from "./contract.js";
 import { RegistryError } from "../errors.js";
 import {
-  channelLogger,
   createTimer,
   logMethodCall,
   logMethodReturn,
-  logMethodError
-} from "../../applications/shared/logger.js";
+  logMethodError,
+  createDefaultLogger
+} from "../logger/index.js";
 
 /** 停止操作的默认超时时间（毫秒） */
 const DEFAULT_STOP_TIMEOUT = 5000;
 
-const logger = channelLogger();
+const logger = createDefaultLogger("debug", ["runtime", "channel", "manager"]);
 
 // ============================================================================
 // Channel 管理器

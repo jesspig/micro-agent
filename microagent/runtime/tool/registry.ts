@@ -9,7 +9,7 @@ import type { ITool } from "../contracts.js";
 import type { ToolPolicy } from "./types.js";
 import type { ToolFactory } from "./contract.js";
 import { RegistryError, ToolExecutionError } from "../errors.js";
-import { toolLogger, createTimer, sanitize, logMethodCall, logMethodReturn, logMethodError } from "../../applications/shared/logger.js";
+import { createTimer, sanitize, logMethodCall, logMethodReturn, logMethodError, createDefaultLogger } from "../logger/index.js";
 
 // ============================================================================
 // 辅助函数
@@ -52,7 +52,7 @@ export const TOOL_GROUPS: Record<string, string[]> = {
 export class ToolRegistry {
   private tools = new Map<string, ITool>();
   private factories = new Map<string, ToolFactory>();
-  private logger = toolLogger();
+  private logger = createDefaultLogger("debug", ["runtime", "tool", "registry"]);
 
   /**
    * 注册工具

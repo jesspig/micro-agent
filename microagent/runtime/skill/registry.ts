@@ -1,8 +1,8 @@
 import type { ISkillExtended } from "./contract.js";
 import { RegistryError } from "../errors.js";
-import { skillLogger, createTimer, logMethodCall, logMethodReturn, logMethodError } from "../../applications/shared/logger.js";
+import { createTimer, logMethodCall, logMethodReturn, logMethodError, createDefaultLogger } from "../logger/index.js";
 
-const logger = skillLogger();
+const logger = createDefaultLogger("debug", ["runtime", "skill", "registry"]);
 
 /**
  * Skill 注册表
