@@ -14,6 +14,7 @@ import { BaseTool } from "../../runtime/tool/base.js";
 import type { ToolParameterSchema, ToolResult } from "../../runtime/tool/types.js";
 import { SKILLS_DIR, SKILLS_DIRS, TOOL_EXECUTION_TIMEOUT, WORKSPACE_DIR } from "../shared/constants.js";
 import { toolsLogger, createTimer, logMethodCall, logMethodReturn, logMethodError, sanitize } from "../shared/logger.js";
+import { validateCommand, isCommandAllowed } from "./skill-security.js";
 
 const MODULE_NAME = "skill";
 const logger = toolsLogger();
@@ -47,39 +48,8 @@ interface ExecutionResult {
 }
 
 // ============================================================================
-// 常量
-// ============================================================================
-
-/** 危险命令黑名单 */
-const DANGEROUS_COMMANDS = [
-  "rm -rf",
-  "sudo",
-  "su",
-  "chmod 777",
-  "chown",
-  "mkfs",
-  "dd if=",
-  ":(){:|:&};:",
-  "curl | bash",
-  "wget | bash",
-];
-
-// ============================================================================
 // 辅助函数
 // ============================================================================
-
-/**
- * 检查命令是否安全
- */
-function isCommandSafe(command: string): boolean {
-  const normalizedCommand = command.toLowerCase().trim();
-  for (const dangerous of DANGEROUS_COMMANDS) {
-    if (normalizedCommand.includes(dangerous.toLowerCase())) {
-      return false;
-    }
-  }
-  return true;
-}
 
 /**
  * 获取有效的技能目录列表
@@ -528,8 +498,10 @@ export class SkillExecuteTool extends BaseTool<Record<string, unknown>> {
         throw new Error('缺少必需参数: command');
       }
 
-      if (!isCommandSafe(command)) {
-        throw new Error(`命令被禁止执行: ${command}`);
+      // 使用严格的安全验证
+      const validation = validateCommand(command);
+      if (!validation.allowed) {
+        throw new Error(`命令被禁止执行: ${command}\n原因: ${validation.reason}`);
       }
 
       const skill = await findSkillByName(name);

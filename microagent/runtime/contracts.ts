@@ -356,3 +356,10 @@ export interface IEventEmitter<EventMap extends Record<string, unknown>> {
    */
   emit<K extends keyof EventMap>(event: K, payload: EventMap[K]): void;
 }
+
+// ============================================================================
+// 错误类型导出
+// ============================================================================
+
+// 导出统一的错误类型系统（从 errors.ts）
+export * from "./errors.js";
